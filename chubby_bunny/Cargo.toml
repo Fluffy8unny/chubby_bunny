@@ -1,0 +1,8 @@
+[package]
+name = "chubby_bunny"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+nalgebra = "0.35"
+serde = { version = "1", features = ["derive"] }

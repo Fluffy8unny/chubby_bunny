@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "chubby_bunny",
+    "chubby_bunny_playground",
+]
+
+resolver = "2"
