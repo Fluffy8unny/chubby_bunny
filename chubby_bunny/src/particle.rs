@@ -13,7 +13,7 @@ impl<T> Particle<T>
 where
     T: nalgebra::RealField + Copy,
 {
-   pub fn update(&mut self, force: &Vector2<T>, dt: &T) {
+    pub fn update(&mut self, force: &Vector2<T>, dt: &T) {
         if self.pinned {
             return;
         }
@@ -21,5 +21,12 @@ where
         self.velocity += acceleration * *dt;
         self.position += self.velocity * *dt;
         self.velocity *= T::one() - self.friction;
-    } 
+    }
+
+    pub fn apply_position_correction(&mut self, position_correction: &Vector2<T>) {
+        if self.pinned {
+            return;
+        }
+        self.position += *position_correction;
+    }
 }

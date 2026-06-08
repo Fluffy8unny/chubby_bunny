@@ -30,3 +30,40 @@ where
 {
     constant_force(Vector2::zeros())
 }
+
+pub enum ForceDecayType {
+    Constant,
+    Linear,
+    Quadratic,
+}
+
+pub fn point_based_force<T>(target: Vector2<T>, strength: T, decay: ForceDecayType) -> impl Force<T>
+where
+    T: nalgebra::RealField + Copy,
+{
+    struct DistanceBasedForce<T> {
+        target: Vector2<T>,
+        strength: T,
+        decay: ForceDecayType,
+    }
+
+    impl<T> Force<T> for DistanceBasedForce<T>
+    where
+        T: nalgebra::RealField + Copy,
+    {
+        fn apply(&self, particle: &Particle<T>) -> Vector2<T> {
+            let direction = self.target - particle.position;
+            let decayed_strength = match self.decay {
+                ForceDecayType::Constant => self.strength,
+                ForceDecayType::Linear => self.strength / direction.norm(),
+                ForceDecayType::Quadratic => self.strength / direction.norm_squared(),
+            };
+            direction.normalize() * decayed_strength
+        }
+    }
+    DistanceBasedForce {
+        target,
+        strength,
+        decay,
+    }
+}
