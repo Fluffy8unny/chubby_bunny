@@ -2,8 +2,16 @@ use crate::ExtrinsicConstraint;
 use crate::Force;
 use crate::IntrinsicContraint;
 use crate::Particle;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static NEXT_ID: AtomicU64 = AtomicU64::new(0);
+pub type BodyId = u64;
+pub fn next_id() -> BodyId {
+    NEXT_ID.fetch_add(1, Ordering::Relaxed)
+}
 
 pub struct Body<T = f32> {
+    pub id: BodyId,
     pub particles: Vec<Particle<T>>,
     pub constraints: Vec<Box<dyn IntrinsicContraint<T>>>,
     pub children: Vec<Body<T>>,
@@ -12,7 +20,9 @@ pub struct Body<T = f32> {
 
 impl<T> Body<T> {
     pub fn empty() -> Self {
+        let id = next_id();
         Self {
+            id,
             particles: Vec::new(),
             constraints: Vec::new(),
             children: Vec::new(),

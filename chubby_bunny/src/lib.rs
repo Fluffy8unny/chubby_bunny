@@ -2,7 +2,7 @@ pub mod intrinsic_contraint;
 pub use intrinsic_contraint::{DistanceConstraint, IntrinsicContraint};
 
 pub mod body;
-pub use body::Body;
+pub use body::{Body, BodyId};
 
 pub mod particle;
 pub use particle::Particle;
