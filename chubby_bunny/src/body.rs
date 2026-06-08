@@ -35,6 +35,8 @@ impl<T> Body<T> {
         F: Force<T>,
         T: nalgebra::RealField + Copy,
     {
+        let initial_positions: Vec<_> = self.particles.iter().map(|p| p.position).collect();
+
         // Update particle positions based on their velocities and apply external forces
         for particle in self.particles.iter_mut().filter(|p| !p.pinned) {
             let f = forces
@@ -42,7 +44,7 @@ impl<T> Body<T> {
                 .fold(nalgebra::Vector2::zeros(), |acc, force| {
                     acc + force.apply(particle)
                 });
-            particle.update(&f, &dt);
+            particle.physics_update(&f, &dt);
         }
 
         // Solve constraints to maintain the structure of the body
@@ -50,7 +52,7 @@ impl<T> Body<T> {
             constraint.solve(&mut self.particles, &dt);
         }
 
-        // Recursively perform steps for child bodies
+        // Integrate child bodies once per frame. The iterative loop below is for projection only.
         for child in &mut self.children {
             child.perform_step(forces, dt);
         }
@@ -58,6 +60,16 @@ impl<T> Body<T> {
         // Solve extrinsic constraints between this body and its children
         for constraint in &self.children_constraints {
             constraint.solve(&mut self.children, &self.particles, &dt);
+        }
+
+        // We fucked with physics before, we need to update the velocities based on the position changes after constraint projection
+        //like all great physists say: when stuff doesn't work out just add a correction term
+        if dt > T::zero() {
+            for (particle, pre_pos) in self.particles.iter_mut().zip(initial_positions.iter()) {
+                if !particle.pinned {
+                    particle.velocity = (particle.position - *pre_pos) / dt;
+                }
+            }
         }
     }
 }

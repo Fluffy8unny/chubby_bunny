@@ -115,32 +115,32 @@ impl Playground {
             position: nalgebra::Vector2::new(0.0, 0.0),
             velocity: nalgebra::Vector2::new(0.0, 0.0),
             mass: 1.0,
-            friction: 0.01,
+            friction: 0.001,
             pinned: false,
         });
         simple_quad.particles.push(Particle {
             position: nalgebra::Vector2::new(100.0, 0.0),
             velocity: nalgebra::Vector2::new(0.0, 0.0),
             mass: 1.0,
-            friction: 0.01,
+            friction: 0.001,
             pinned: false,
         });
         simple_quad.particles.push(Particle {
             position: nalgebra::Vector2::new(100.0, 100.0),
             velocity: nalgebra::Vector2::new(0.0, 0.0),
             mass: 1.0,
-            friction: 0.01,
+            friction: 0.001,
             pinned: false,
         });
         simple_quad.particles.push(Particle {
             position: nalgebra::Vector2::new(0.0, 100.0),
             velocity: nalgebra::Vector2::new(0.0, 0.0),
             mass: 1.0,
-            friction: 0.01,
+            friction: 0.001,
             pinned: false,
         });
 
-        let stiffness = 0.1;
+        let stiffness = 0.5;
         simple_quad
             .constraints
             .push(Box::new(DistanceConstraint::new(
@@ -180,7 +180,7 @@ impl Playground {
         simple_quad.constraints.push(Box::new(AreaConstraint::new(
             vec![0, 1, 2, 3],
             &simple_quad.particles,
-            1.0,
+            0.5,
             self.target_fps,
         )));
 

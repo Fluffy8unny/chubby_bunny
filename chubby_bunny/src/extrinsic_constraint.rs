@@ -22,23 +22,30 @@ where
     fn solve(&self, bodies: &mut Vec<Body<T>>, parent_particles: &[Particle<T>], dt: &T) {
         let alpha = constraint_alpha_with_reference_dt(self.stiffness, *dt, self.fps);
         let body = &mut bodies[self.idx_body];
-        for particle in body.particles.iter_mut().filter(|p| !p.pinned) {
-            //calculate line based on parent points
-            let line_origin = parent_particles[self.parent_point_idx_origin].position;
-            let line_end = parent_particles[self.parent_point_idx_end].position;
-            let line_direction = line_end - line_origin;
-            let line_normal = Vector2::new(-line_direction.y, line_direction.x).normalize();
 
+        //calculate line based on parent points
+        let line_origin = parent_particles[self.parent_point_idx_origin].position;
+        let line_end = parent_particles[self.parent_point_idx_end].position;
+        let line_direction = line_end - line_origin;
+        if line_direction.norm_squared() <= T::zero() {
+            return;
+        }
+
+        let line_normal = Vector2::new(-line_direction.y, line_direction.x).normalize();
+        let eps = T::from(1.0e-4_f32);
+        for particle in body.particles.iter_mut().filter(|p| !p.pinned) {
             let to_particle = particle.position - line_origin;
             let distance = to_particle.dot(&line_normal);
             if distance < T::zero() {
-                let correction_vector = line_normal * (-distance * alpha);
+                let correction_vector = line_normal * (-distance + eps);
                 particle.apply_position_correction(&correction_vector);
 
-                let reflection_correction_term = line_normal * particle.velocity.dot(&line_normal);
-                let reflected_velocity: Vector2<T> =
-                    particle.velocity - reflection_correction_term * alpha / T::from(2.0);
-                particle.velocity = reflected_velocity * alpha;
+                let normal_velocity = particle.velocity.dot(&line_normal);
+                if normal_velocity < T::zero() {
+                    let reflected_velocity =
+                        particle.velocity - line_normal * normal_velocity * (T::one() + alpha);
+                    particle.velocity = reflected_velocity;
+                }
             }
         }
     }

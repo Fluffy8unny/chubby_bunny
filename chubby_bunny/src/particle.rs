@@ -13,7 +13,7 @@ impl<T> Particle<T>
 where
     T: nalgebra::RealField + Copy,
 {
-    pub fn update(&mut self, force: &Vector2<T>, dt: &T) {
+    pub fn physics_update(&mut self, force: &Vector2<T>, dt: &T) {
         if self.pinned {
             return;
         }
