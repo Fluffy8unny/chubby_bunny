@@ -5,9 +5,9 @@ use crate::Particle;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(0);
-pub type BodyId = u64;
+pub type BodyId = usize;
 pub fn next_id() -> BodyId {
-    NEXT_ID.fetch_add(1, Ordering::Relaxed)
+    NEXT_ID.fetch_add(1, Ordering::Relaxed) as BodyId
 }
 
 pub struct Body<T = f32> {
