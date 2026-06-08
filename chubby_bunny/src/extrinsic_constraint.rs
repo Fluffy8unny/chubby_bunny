@@ -1,10 +1,9 @@
-use crate::constraint_utils::constraint_alpha_with_reference_dt;
 use crate::Body;
 use crate::Particle;
 use nalgebra::Vector2;
 
 pub trait ExtrinsicConstraint<T = f32> {
-    fn solve(&self, bodies: &mut Vec<Body<T>>, parent_particles: &[Particle<T>], dt: &T);
+    fn solve(&self, bodies: &mut Vec<Body<T>>, parent_particles: &[Particle<T>]);
 }
 
 pub struct WallConstraint<T> {
@@ -12,15 +11,13 @@ pub struct WallConstraint<T> {
     pub parent_point_idx_origin: usize,
     pub parent_point_idx_end: usize,
     pub stiffness: T,
-    pub fps: T,
 }
 
 impl<T> ExtrinsicConstraint<T> for WallConstraint<T>
 where
     T: nalgebra::RealField + Copy + From<f32>,
 {
-    fn solve(&self, bodies: &mut Vec<Body<T>>, parent_particles: &[Particle<T>], dt: &T) {
-        let alpha = constraint_alpha_with_reference_dt(self.stiffness, *dt, self.fps);
+    fn solve(&self, bodies: &mut Vec<Body<T>>, parent_particles: &[Particle<T>]) {
         let body = &mut bodies[self.idx_body];
 
         //calculate line based on parent points
@@ -42,8 +39,8 @@ where
 
                 let normal_velocity = particle.velocity.dot(&line_normal);
                 if normal_velocity < T::zero() {
-                    let reflected_velocity =
-                        particle.velocity - line_normal * normal_velocity * (T::one() + alpha);
+                    let reflected_velocity = particle.velocity
+                        - line_normal * normal_velocity * (T::one() + self.stiffness);
                     particle.velocity = reflected_velocity;
                 }
             }
@@ -56,7 +53,6 @@ pub struct AttachmentConstraint<T> {
     pub point_idxs_parent: Vec<usize>,
     pub point_idxs_child: Vec<usize>,
     pub stiffness: T,
-    pub fps: T,
 }
 impl<T> AttachmentConstraint<T> {
     pub fn new(
@@ -64,7 +60,6 @@ impl<T> AttachmentConstraint<T> {
         point_idxs_parent: Vec<usize>,
         point_idxs_child: Vec<usize>,
         stiffness: T,
-        fps: T,
     ) -> Self {
         assert_eq!(
             point_idxs_parent.len(),
@@ -76,7 +71,6 @@ impl<T> AttachmentConstraint<T> {
             point_idxs_parent,
             point_idxs_child,
             stiffness,
-            fps,
         }
     }
 }
@@ -84,8 +78,7 @@ impl<T> ExtrinsicConstraint<T> for AttachmentConstraint<T>
 where
     T: nalgebra::RealField + Copy + From<f32>,
 {
-    fn solve(&self, bodies: &mut Vec<Body<T>>, parent_particles: &[Particle<T>], dt: &T) {
-        let alpha = constraint_alpha_with_reference_dt(self.stiffness, *dt, self.fps);
+    fn solve(&self, bodies: &mut Vec<Body<T>>, parent_particles: &[Particle<T>]) {
         let body = &mut bodies[self.idx_body];
         for (parent_idx, child_idx) in self
             .point_idxs_parent
@@ -95,7 +88,8 @@ where
             let parent_particle = &parent_particles[*parent_idx];
             let child_particle = &body.particles[*child_idx];
 
-            let correction_vector = (parent_particle.position - child_particle.position) * alpha;
+            let correction_vector =
+                (parent_particle.position - child_particle.position) * self.stiffness;
             body.particles[*child_idx].apply_position_correction(&correction_vector);
         }
     }

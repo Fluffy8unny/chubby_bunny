@@ -11,6 +11,4 @@ pub mod force;
 pub use force::{constant_force, Force};
 
 pub mod extrinsic_constraint;
-pub use extrinsic_constraint::{ExtrinsicConstraint, WallConstraint};
-
-pub mod constraint_utils;
+pub use extrinsic_constraint::{AttachmentConstraint, ExtrinsicConstraint, WallConstraint};

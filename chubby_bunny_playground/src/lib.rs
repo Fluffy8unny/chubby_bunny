@@ -1,4 +1,7 @@
-use chubby_bunny::{AreaConstraint, Body, BodyId, DistanceConstraint, Particle, WallConstraint};
+use chubby_bunny::{
+    AreaConstraint, AttachmentConstraint, Body, BodyId, DistanceConstraint, Particle,
+    WallConstraint,
+};
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 #[wasm_bindgen]
@@ -32,7 +35,6 @@ pub struct Playground {
     bodies: HashMap<BodyId, Body>,
     polygon_arrays: Vec<PolygonArray>,
     meta_data: HashMap<BodyId, BodyMeta>,
-    target_fps: f32,
 }
 
 fn default_meta(id: BodyId, z_index: i32) -> BodyMeta {
@@ -104,43 +106,71 @@ impl Playground {
             bodies: HashMap::new(),
             polygon_arrays: Vec::new(),
             meta_data: HashMap::new(),
-            target_fps: 60.0,
         }
     }
 
     pub fn init(&mut self) {
         let mut simple_quad = Body::empty();
-
         simple_quad.particles.push(Particle {
             position: nalgebra::Vector2::new(0.0, 0.0),
             velocity: nalgebra::Vector2::new(0.0, 0.0),
-            mass: 1.0,
-            friction: 0.001,
+            mass: 4.0,
+            friction: 0.01,
             pinned: false,
         });
         simple_quad.particles.push(Particle {
             position: nalgebra::Vector2::new(100.0, 0.0),
             velocity: nalgebra::Vector2::new(0.0, 0.0),
             mass: 1.0,
-            friction: 0.001,
+            friction: 0.01,
             pinned: false,
         });
         simple_quad.particles.push(Particle {
             position: nalgebra::Vector2::new(100.0, 100.0),
             velocity: nalgebra::Vector2::new(0.0, 0.0),
             mass: 1.0,
-            friction: 0.001,
+            friction: 0.01,
             pinned: false,
         });
         simple_quad.particles.push(Particle {
             position: nalgebra::Vector2::new(0.0, 100.0),
             velocity: nalgebra::Vector2::new(0.0, 0.0),
             mass: 1.0,
+            friction: 0.01,
+            pinned: false,
+        });
+
+        let mut small_quad = Body::empty();
+        small_quad.particles.push(Particle {
+            position: nalgebra::Vector2::new(25.0, 25.0),
+            velocity: nalgebra::Vector2::new(0.0, 0.0),
+            mass: 1.0,
+            friction: 0.001,
+            pinned: false,
+        });
+        small_quad.particles.push(Particle {
+            position: nalgebra::Vector2::new(75.0, 25.0),
+            velocity: nalgebra::Vector2::new(0.0, 0.0),
+            mass: 1.0,
+            friction: 0.001,
+            pinned: false,
+        });
+        small_quad.particles.push(Particle {
+            position: nalgebra::Vector2::new(75.0, 75.0),
+            velocity: nalgebra::Vector2::new(0.0, 0.0),
+            mass: 1.0,
+            friction: 0.001,
+            pinned: false,
+        });
+        small_quad.particles.push(Particle {
+            position: nalgebra::Vector2::new(25.0, 75.0),
+            velocity: nalgebra::Vector2::new(0.0, 0.0),
+            mass: 1.0,
             friction: 0.001,
             pinned: false,
         });
 
-        let stiffness = 0.5;
+        let stiffness = 0.9;
         simple_quad
             .constraints
             .push(Box::new(DistanceConstraint::new(
@@ -148,7 +178,6 @@ impl Playground {
                 1,
                 &simple_quad.particles,
                 stiffness,
-                self.target_fps,
             )));
         simple_quad
             .constraints
@@ -157,7 +186,6 @@ impl Playground {
                 2,
                 &simple_quad.particles,
                 stiffness,
-                self.target_fps,
             )));
         simple_quad
             .constraints
@@ -166,7 +194,6 @@ impl Playground {
                 3,
                 &simple_quad.particles,
                 stiffness,
-                self.target_fps,
             )));
         simple_quad
             .constraints
@@ -175,15 +202,64 @@ impl Playground {
                 0,
                 &simple_quad.particles,
                 stiffness,
-                self.target_fps,
+            )));
+
+        small_quad
+            .constraints
+            .push(Box::new(DistanceConstraint::new(
+                0,
+                1,
+                &small_quad.particles,
+                stiffness,
+            )));
+        small_quad
+            .constraints
+            .push(Box::new(DistanceConstraint::new(
+                1,
+                2,
+                &small_quad.particles,
+                stiffness,
+            )));
+        small_quad
+            .constraints
+            .push(Box::new(DistanceConstraint::new(
+                2,
+                3,
+                &small_quad.particles,
+                stiffness,
+            )));
+        small_quad
+            .constraints
+            .push(Box::new(DistanceConstraint::new(
+                3,
+                0,
+                &small_quad.particles,
+                stiffness,
             )));
         simple_quad.constraints.push(Box::new(AreaConstraint::new(
             vec![0, 1, 2, 3],
             &simple_quad.particles,
-            0.5,
-            self.target_fps,
+            0.2,
         )));
 
+        small_quad.constraints.push(Box::new(AreaConstraint::new(
+            vec![0, 1, 2, 3],
+            &small_quad.particles,
+            0.2,
+        )));
+
+        simple_quad.children.push(small_quad);
+        /*
+        simple_quad
+            .children_constraints
+            .push(Box::new(AttachmentConstraint::new(
+                0,
+                vec![0, 1],
+                vec![0, 1],
+                1.0,
+                self.target_fps,
+            )));
+        */
         let mut container_body = Body::empty();
         container_body.particles.push(Particle {
             position: nalgebra::Vector2::new(0.0, 500.0),
@@ -221,8 +297,7 @@ impl Playground {
                 idx_body: quad_id,
                 parent_point_idx_origin: 1,
                 parent_point_idx_end: 0,
-                stiffness: 1.0,
-                fps: self.target_fps,
+                stiffness: 0.95,
             }));
         container_body
             .children_constraints
@@ -230,8 +305,7 @@ impl Playground {
                 idx_body: quad_id,
                 parent_point_idx_origin: 2,
                 parent_point_idx_end: 1,
-                stiffness: 1.0,
-                fps: self.target_fps,
+                stiffness: 0.95,
             }));
         self.bodies.insert(container_body.id, container_body);
     }
@@ -240,7 +314,7 @@ impl Playground {
         let dt = dt_ms / 1000.0;
         for body in self.bodies.values_mut() {
             let constant_force =
-                chubby_bunny::force::constant_force(nalgebra::Vector2::new(0.0, 20.0));
+                chubby_bunny::force::constant_force(nalgebra::Vector2::new(0.0, 50.0));
             let constant_force2 =
                 chubby_bunny::force::constant_force(nalgebra::Vector2::new(10.0, 0.0));
             body.perform_step(&vec![constant_force, constant_force2], dt);

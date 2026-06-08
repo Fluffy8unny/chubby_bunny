@@ -39,37 +39,37 @@ impl<T> Body<T> {
 
         // Update particle positions based on their velocities and apply external forces
         for particle in self.particles.iter_mut().filter(|p| !p.pinned) {
-            let f = forces
+            let force = forces
                 .iter()
                 .fold(nalgebra::Vector2::zeros(), |acc, force| {
                     acc + force.apply(particle)
                 });
-            particle.physics_update(&f, &dt);
+            let acceleration = force / particle.mass;
+            let velocity = particle.velocity + acceleration * dt;
+            particle.apply_position_correction(&(velocity * dt));
         }
-
-        // Solve constraints to maintain the structure of the body
-        for constraint in &self.constraints {
-            constraint.solve(&mut self.particles, &dt);
+        for i in 0..10 {
+            // Solve extrinsic constraints between this body and its children
+            for constraint in &self.children_constraints {
+                constraint.solve(&mut self.children, &self.particles);
+            }
+            // Solve constraints to maintain the structure of the body
+            for constraint in &self.constraints {
+                constraint.solve(&mut self.particles);
+            }
         }
-
-        // Integrate child bodies once per frame. The iterative loop below is for projection only.
-        for child in &mut self.children {
-            child.perform_step(forces, dt);
-        }
-
-        // Solve extrinsic constraints between this body and its children
-        for constraint in &self.children_constraints {
-            constraint.solve(&mut self.children, &self.particles, &dt);
-        }
-
-        // We fucked with physics before, we need to update the velocities based on the position changes after constraint projection
-        //like all great physists say: when stuff doesn't work out just add a correction term
+        //update velocities after all forces and constraints are processed
         if dt > T::zero() {
             for (particle, pre_pos) in self.particles.iter_mut().zip(initial_positions.iter()) {
                 if !particle.pinned {
-                    particle.velocity = (particle.position - *pre_pos) / dt;
+                    particle.velocity =
+                        (particle.position - *pre_pos) * ((T::one() - particle.friction) / dt);
                 }
             }
+        }
+
+        for child in &mut self.children {
+            child.perform_step(forces, dt);
         }
     }
 }
