@@ -14,3 +14,4 @@ pub mod extrinsic_constraint;
 pub use extrinsic_constraint::{AttachmentConstraint, ExtrinsicConstraint, WallConstraint};
 
 mod constraint_common;
+pub use constraint_common::SolverSettings;

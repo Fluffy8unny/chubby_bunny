@@ -2,6 +2,7 @@ use crate::ExtrinsicConstraint;
 use crate::Force;
 use crate::IntrinsicContraint;
 use crate::Particle;
+use crate::SolverSettings;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(0);
@@ -37,6 +38,7 @@ impl<T> Body<T> {
         for particle in self.particles.iter_mut() {
             particle.post_integration_update(dt);
         }
+
         for child in &mut self.children {
             child.update_positions_recursively(dt);
         }
@@ -60,33 +62,30 @@ impl<T> Body<T> {
         }
     }
 
-    fn solve_constraints_recursivly(&mut self, dt: T, num_iterations: usize)
+    fn solve_constraints_recursivly(&mut self, dt: T, solver_settings: &SolverSettings)
     where
         T: nalgebra::RealField + Copy + From<f32>,
     {
-        for _ in 0..num_iterations {
-            let t_per_itt = dt / T::from(num_iterations as f32);
+        for _ in 0..solver_settings.constraint_iterations {
+            // Solve constraints between this body and its direct children.
+            for constraint in &self.children_constraints {
+                constraint.solve(&mut self.children, &self.particles, dt, solver_settings);
+            }
 
-        // Solve constraints between this body and its direct children.
-        for constraint in &self.children_constraints {
-            constraint.solve(&mut self.children, &self.particles, &t_per_itt);
-        }
-        
-        // Solve constraints to maintain this body's internal structure.
-        for constraint in &self.constraints {
-            constraint.solve(&mut self.particles, &t_per_itt);
-        }
+            // Solve constraints to maintain this body's internal structure.
+            for constraint in &self.constraints {
+                constraint.solve(&mut self.particles, dt, solver_settings);
+            }
 
-        for child in &mut self.children {
-            child.solve_constraints_recursivly(t_per_itt, num_iterations);
+            for child in &mut self.children {
+                child.solve_constraints_recursivly(dt, solver_settings);
+            }
         }
-
-    }
         //todo: not implemented yet
         //self.solve_children_collisions(dt);
     }
 
-    pub fn perform_step<F>(&mut self, forces: &Vec<F>, dt: T)
+    pub fn perform_step<F>(&mut self, forces: &Vec<F>, dt: T, solver_settings: &SolverSettings)
     where
         F: Force<T>,
         T: nalgebra::RealField + Copy + From<f32>,
@@ -95,10 +94,9 @@ impl<T> Body<T> {
         self.apply_forces_recursively(forces, dt);
 
         //solve constraints of the body and between it and its chidlren
-        self.solve_constraints_recursivly(dt, 10_usize);
-        
+        self.solve_constraints_recursivly(dt, solver_settings);
+
         //update velocities after all forces and constraints are processed
         self.update_positions_recursively(dt);
-
     }
 }

@@ -1,6 +1,5 @@
 use chubby_bunny::{
-    AreaConstraint, AttachmentConstraint, Body, BodyId, DistanceConstraint, Particle,
-    WallConstraint,
+    AreaConstraint, Body, BodyId, DistanceConstraint, Particle, SolverSettings, WallConstraint,
 };
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
@@ -170,7 +169,7 @@ impl Playground {
             false,
         ));
 
-        let stiffness = 0.25;
+        let stiffness = 0.015;
         simple_quad
             .constraints
             .push(Box::new(DistanceConstraint::new(
@@ -239,7 +238,7 @@ impl Playground {
         simple_quad.constraints.push(Box::new(AreaConstraint::new(
             vec![0, 1, 2, 3],
             &simple_quad.particles,
-            0.1,
+            0.01,
         )));
 
         small_quad.constraints.push(Box::new(AreaConstraint::new(
@@ -317,7 +316,11 @@ impl Playground {
                 chubby_bunny::force::constant_force(nalgebra::Vector2::new(0.0, 450.0));
             let constant_force2 =
                 chubby_bunny::force::constant_force(nalgebra::Vector2::new(30.0, 0.0));
-            body.perform_step(&vec![constant_force, constant_force2], dt);
+            let settings = SolverSettings {
+                reference_dt: 1.0 / 60.0,
+                constraint_iterations: 10,
+            };
+            body.perform_step(&vec![constant_force, constant_force2], dt, &settings);
         }
         self.polygon_arrays = bodies_to_polygon_arrays(self.bodies.values(), &self.meta_data);
     }

@@ -1,9 +1,10 @@
 use crate::constraint_common::constraint_alpha_with_reference_dt;
 use crate::Particle;
+use crate::SolverSettings;
 use nalgebra::Vector2;
 
 pub trait IntrinsicContraint<T = f32> {
-    fn solve(&self, particles: &mut Vec<Particle<T>>, dt: &T);
+    fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings);
 }
 
 pub struct DistanceConstraint<T> {
@@ -37,14 +38,14 @@ impl<T> IntrinsicContraint<T> for DistanceConstraint<T>
 where
     T: nalgebra::RealField + Copy + From<f32>,
 {
-    fn solve(&self, particles: &mut Vec<Particle<T>>, dt: &T) {
+    fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings) {
         let line_between = particles[self.idx_right].position - particles[self.idx_left].position;
         let point_distance = line_between.norm();
         if point_distance <= T::zero() {
             return;
         }
         let move_direction = line_between / point_distance;
-        let alpha = constraint_alpha_with_reference_dt(self.stiffness, *dt, T::from(1.0/60.0));
+        let alpha = constraint_alpha_with_reference_dt(self.stiffness, dt, solver_settings);
 
         let correction_magnitude = alpha * (self.target_distance - point_distance) / T::from(2.0);
         let correction_vector = move_direction * correction_magnitude;
@@ -89,7 +90,7 @@ impl<T> IntrinsicContraint<T> for AreaConstraint<T>
 where
     T: nalgebra::RealField + Copy + From<f32>,
 {
-    fn solve(&self, particles: &mut Vec<Particle<T>>, dt: &T) {
+    fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings) {
         let current_area = Self::calculate_area(&self.idxs, particles);
         if current_area <= T::zero() {
             return;
@@ -103,7 +104,7 @@ where
             / n;
 
         let scale_correction = (self.rest_area / current_area).sqrt() - T::one();
-        let alpha = constraint_alpha_with_reference_dt(self.stiffness, *dt, T::from(1.0/60.0));
+        let alpha = constraint_alpha_with_reference_dt(self.stiffness, dt, solver_settings);
 
         for idx in &self.idxs {
             let offset = particles[*idx].position - centroid;
