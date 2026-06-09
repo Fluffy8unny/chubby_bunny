@@ -170,6 +170,7 @@ impl Playground {
         ));
 
         let stiffness = 0.5;
+        let shear_stiffness = 0.2;
         simple_quad
             .constraints
             .push(Box::new(DistanceConstraint::new(
@@ -201,6 +202,24 @@ impl Playground {
                 0,
                 &simple_quad.particles,
                 stiffness,
+            )));
+        // Diagonals add shear resistance; edge lengths + area alone still allow
+        // a soft quadrilateral to skew under load.
+        simple_quad
+            .constraints
+            .push(Box::new(DistanceConstraint::new(
+                0,
+                2,
+                &simple_quad.particles,
+                shear_stiffness,
+            )));
+        simple_quad
+            .constraints
+            .push(Box::new(DistanceConstraint::new(
+                1,
+                3,
+                &simple_quad.particles,
+                shear_stiffness,
             )));
 
         small_quad
@@ -235,10 +254,26 @@ impl Playground {
                 &small_quad.particles,
                 stiffness,
             )));
+        small_quad
+            .constraints
+            .push(Box::new(DistanceConstraint::new(
+                0,
+                2,
+                &small_quad.particles,
+                shear_stiffness,
+            )));
+        small_quad
+            .constraints
+            .push(Box::new(DistanceConstraint::new(
+                1,
+                3,
+                &small_quad.particles,
+                shear_stiffness,
+            )));
         simple_quad.constraints.push(Box::new(AreaConstraint::new(
             vec![0, 1, 2, 3],
             &simple_quad.particles,
-            0.9,
+            0.5,
         )));
 
         small_quad.constraints.push(Box::new(AreaConstraint::new(
@@ -329,7 +364,7 @@ impl Playground {
                 idx_body: quad_id,
                 parent_point_idx_origin: 1,
                 parent_point_idx_end: 0,
-                stiffness: 0.95,
+                stiffness: 1.0,
             }));
         container_body
             .children_constraints
@@ -337,7 +372,7 @@ impl Playground {
                 idx_body: quad_id,
                 parent_point_idx_origin: 2,
                 parent_point_idx_end: 1,
-                stiffness: 0.95,
+                stiffness: 1.0,
             }));
         self.bodies.insert(container_body.id, container_body);
     }
@@ -347,11 +382,11 @@ impl Playground {
         for body in self.bodies.values_mut() {
             let constant_force =
                 chubby_bunny::force::constant_force(nalgebra::Vector2::new(0.0, 450.0));
-            let constant_force2 =
+            let _constant_force2 =
                 chubby_bunny::force::constant_force(nalgebra::Vector2::new(30.0, 0.0));
             let settings = SolverSettings {
                 reference_dt: 1.0 / 60.0,
-                constraint_iterations: 10,
+                constraint_iterations: 5,
             };
             body.perform_step(&vec![constant_force], dt, &settings);
         }

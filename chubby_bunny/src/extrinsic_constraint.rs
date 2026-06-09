@@ -28,8 +28,8 @@ where
         &self,
         bodies: &mut Vec<Body<T>>,
         parent_particles: &[Particle<T>],
-        _dt: T,
-        _solver_settings: &SolverSettings,
+        dt: T,
+        solver_settings: &SolverSettings,
     ) {
         for body in bodies.iter_mut() {
             //calculate line based on parent points
@@ -49,11 +49,12 @@ where
                     let correction_vector = line_normal * (-distance + eps);
                     particle.apply_position_correction(&correction_vector);
 
+                    //we're cheating a bit here, but it's fine for velet integration.
                     let normal_velocity = particle.velocity.dot(&line_normal);
-                    let reflected_velocity = particle.velocity
-                        - line_normal * normal_velocity * (T::one() + self.stiffness);
+                    let reflected_velocity =
+                        particle.velocity - line_normal * normal_velocity * (T::from(2.0_f32));
                     particle.pre_integration_position =
-                        particle.position - reflected_velocity * _dt;
+                        particle.position - reflected_velocity * dt * self.stiffness;
                 }
             }
         }
@@ -61,25 +62,18 @@ where
 }
 
 pub struct AttachmentConstraint<T> {
-    pub idx_body: usize,
     pub point_idxs_parent: Vec<usize>,
     pub point_idxs_child: Vec<usize>,
     pub stiffness: T,
 }
 impl<T> AttachmentConstraint<T> {
-    pub fn new(
-        idx_body: usize,
-        point_idxs_parent: Vec<usize>,
-        point_idxs_child: Vec<usize>,
-        stiffness: T,
-    ) -> Self {
+    pub fn new(point_idxs_parent: Vec<usize>, point_idxs_child: Vec<usize>, stiffness: T) -> Self {
         assert_eq!(
             point_idxs_parent.len(),
             point_idxs_child.len(),
             "Parent and child point index lists must be of the same length"
         );
         Self {
-            idx_body,
             point_idxs_parent,
             point_idxs_child,
             stiffness,
@@ -97,18 +91,19 @@ where
         _dt: T,
         _solver_settings: &SolverSettings,
     ) {
-        let body = &mut bodies[self.idx_body];
-        for (parent_idx, child_idx) in self
-            .point_idxs_parent
-            .iter()
-            .zip(self.point_idxs_child.iter())
-        {
-            let parent_particle = &parent_particles[*parent_idx];
-            let child_particle = &body.particles[*child_idx];
+        for body in bodies.iter_mut() {
+            for (parent_idx, child_idx) in self
+                .point_idxs_parent
+                .iter()
+                .zip(self.point_idxs_child.iter())
+            {
+                let parent_particle = &parent_particles[*parent_idx];
+                let child_particle = &body.particles[*child_idx];
 
-            let correction_vector =
-                (parent_particle.position - child_particle.position) * self.stiffness;
-            body.particles[*child_idx].apply_position_correction(&correction_vector);
+                let correction_vector =
+                    (parent_particle.position - child_particle.position) * self.stiffness;
+                body.particles[*child_idx].apply_position_correction(&correction_vector);
+            }
         }
     }
 }
