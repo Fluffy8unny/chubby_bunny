@@ -248,6 +248,39 @@ impl Playground {
         )));
 
         simple_quad.children.push(small_quad);
+        simple_quad
+            .children_constraints
+            .push(Box::new(WallConstraint {
+                idx_body: 0,
+                parent_point_idx_origin: 0,
+                parent_point_idx_end: 1,
+                stiffness: 0.95,
+            }));
+        simple_quad
+            .children_constraints
+            .push(Box::new(WallConstraint {
+                idx_body: 0,
+                parent_point_idx_origin: 1,
+                parent_point_idx_end: 2,
+                stiffness: 0.95,
+            }));
+        simple_quad
+            .children_constraints
+            .push(Box::new(WallConstraint {
+                idx_body: 0,
+                parent_point_idx_origin: 2,
+                parent_point_idx_end: 3,
+                stiffness: 0.95,
+            }));
+        simple_quad
+            .children_constraints
+            .push(Box::new(WallConstraint {
+                idx_body: 0,
+                parent_point_idx_origin: 3,
+                parent_point_idx_end: 0,
+                stiffness: 0.95,
+            }));
+
         /*
         simple_quad
             .children_constraints

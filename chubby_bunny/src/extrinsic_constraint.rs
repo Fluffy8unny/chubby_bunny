@@ -31,30 +31,30 @@ where
         _dt: T,
         _solver_settings: &SolverSettings,
     ) {
-        let body = &mut bodies[self.idx_body];
+        for body in bodies.iter_mut() {
+            //calculate line based on parent points
+            let line_origin = parent_particles[self.parent_point_idx_origin].position;
+            let line_end = parent_particles[self.parent_point_idx_end].position;
+            let line_direction = line_end - line_origin;
+            if line_direction.norm_squared() <= T::zero() {
+                return;
+            }
 
-        //calculate line based on parent points
-        let line_origin = parent_particles[self.parent_point_idx_origin].position;
-        let line_end = parent_particles[self.parent_point_idx_end].position;
-        let line_direction = line_end - line_origin;
-        if line_direction.norm_squared() <= T::zero() {
-            return;
-        }
+            let line_normal = Vector2::new(-line_direction.y, line_direction.x).normalize();
+            let eps = T::from(1.0e-4_f32);
+            for particle in body.particles.iter_mut().filter(|p| !p.pinned) {
+                let to_particle = particle.position - line_origin;
+                let distance = to_particle.dot(&line_normal);
+                if distance < T::zero() {
+                    let correction_vector = line_normal * (-distance + eps);
+                    particle.apply_position_correction(&correction_vector);
 
-        let line_normal = Vector2::new(-line_direction.y, line_direction.x).normalize();
-        let eps = T::from(1.0e-4_f32);
-        for particle in body.particles.iter_mut().filter(|p| !p.pinned) {
-            let to_particle = particle.position - line_origin;
-            let distance = to_particle.dot(&line_normal);
-            if distance < T::zero() {
-                let correction_vector = line_normal * (-distance + eps);
-                particle.apply_position_correction(&correction_vector);
-
-                let normal_velocity = particle.velocity.dot(&line_normal);
-                if normal_velocity < T::zero() {
-                    let reflected_velocity = particle.velocity
-                        - line_normal * normal_velocity * (T::one() + self.stiffness);
-                    particle.velocity = reflected_velocity;
+                    let normal_velocity = particle.velocity.dot(&line_normal);
+                    if normal_velocity < T::zero() {
+                        let reflected_velocity = particle.velocity
+                            - line_normal * normal_velocity * (T::one() + self.stiffness);
+                        particle.velocity = reflected_velocity;
+                    }
                 }
             }
         }
