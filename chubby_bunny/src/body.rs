@@ -59,47 +59,46 @@ impl<T> Body<T> {
             child.apply_forces_recursively(forces, dt);
         }
     }
-    fn solve_constraints_recursivly(&mut self, dt: T)
-    where
-        T: nalgebra::RealField + Copy,
-    {
-        // Solve constraints to maintain this body's internal structure.
-        for constraint in &self.constraints {
-            constraint.solve(&mut self.particles, &dt);
-        }
 
-        for child in &mut self.children {
-            child.solve_constraints_recursivly(dt);
-        }
+    fn solve_constraints_recursivly(&mut self, dt: T, num_iterations: usize)
+    where
+        T: nalgebra::RealField + Copy + From<f32>,
+    {
+        for _ in 0..num_iterations {
+            let t_per_itt = dt / T::from(num_iterations as f32);
 
         // Solve constraints between this body and its direct children.
         for constraint in &self.children_constraints {
-            constraint.solve(&mut self.children, &self.particles, &dt);
+            constraint.solve(&mut self.children, &self.particles, &t_per_itt);
+        }
+        
+        // Solve constraints to maintain this body's internal structure.
+        for constraint in &self.constraints {
+            constraint.solve(&mut self.particles, &t_per_itt);
         }
 
+        for child in &mut self.children {
+            child.solve_constraints_recursivly(t_per_itt, num_iterations);
+        }
+
+    }
         //todo: not implemented yet
         //self.solve_children_collisions(dt);
     }
+
     pub fn perform_step<F>(&mut self, forces: &Vec<F>, dt: T)
     where
         F: Force<T>,
-        T: nalgebra::RealField + Copy,
+        T: nalgebra::RealField + Copy + From<f32>,
     {
+        //calculate how external forces would affect the body
         self.apply_forces_recursively(forces, dt);
 
-        // Solve extrinsic constraints between this body and its children
-        for constraint in &self.children_constraints {
-            constraint.solve(&mut self.children, &self.particles, &dt);
-        }
-        // Solve constraints to maintain the structure of the body
-        for constraint in &self.constraints {
-            constraint.solve(&mut self.particles, &dt);
-        }
+        //solve constraints of the body and between it and its chidlren
+        self.solve_constraints_recursivly(dt, 10_usize);
+        
         //update velocities after all forces and constraints are processed
         self.update_positions_recursively(dt);
 
-        for child in &mut self.children {
-            child.perform_step(forces, dt);
-        }
     }
 }

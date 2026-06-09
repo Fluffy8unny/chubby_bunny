@@ -115,28 +115,28 @@ impl Playground {
             nalgebra::Vector2::new(0.0, 0.0),
             nalgebra::Vector2::new(0.0, 0.0),
             1.0,
-            0.01,
+            0.001,
             false,
         ));
         simple_quad.particles.push(Particle::new(
             nalgebra::Vector2::new(100.0, 0.0),
             nalgebra::Vector2::new(0.0, 0.0),
             1.0,
-            0.01,
+            0.001,
             false,
         ));
         simple_quad.particles.push(Particle::new(
             nalgebra::Vector2::new(100.0, 100.0),
             nalgebra::Vector2::new(0.0, 0.0),
             1.0,
-            0.01,
+            0.001,
             false,
         ));
         simple_quad.particles.push(Particle::new(
             nalgebra::Vector2::new(0.0, 100.0),
             nalgebra::Vector2::new(0.0, 0.0),
             1.0,
-            0.01,
+            0.001,
             false,
         ));
 
@@ -170,7 +170,7 @@ impl Playground {
             false,
         ));
 
-        let stiffness = 0.01;
+        let stiffness = 0.25;
         simple_quad
             .constraints
             .push(Box::new(DistanceConstraint::new(
@@ -239,7 +239,7 @@ impl Playground {
         simple_quad.constraints.push(Box::new(AreaConstraint::new(
             vec![0, 1, 2, 3],
             &simple_quad.particles,
-            0.9,
+            0.1,
         )));
 
         small_quad.constraints.push(Box::new(AreaConstraint::new(
@@ -314,7 +314,7 @@ impl Playground {
         let dt = dt_ms / 1000.0;
         for body in self.bodies.values_mut() {
             let constant_force =
-                chubby_bunny::force::constant_force(nalgebra::Vector2::new(0.0, 50.0));
+                chubby_bunny::force::constant_force(nalgebra::Vector2::new(0.0, 450.0));
             let constant_force2 =
                 chubby_bunny::force::constant_force(nalgebra::Vector2::new(30.0, 0.0));
             body.perform_step(&vec![constant_force, constant_force2], dt);

@@ -1,4 +1,4 @@
-use crate::constraint_utils::constraint_alpha_with_reference_dt;
+use crate::constraint_common::constraint_alpha_with_reference_dt;
 use crate::Particle;
 use nalgebra::Vector2;
 
@@ -44,7 +44,7 @@ where
             return;
         }
         let move_direction = line_between / point_distance;
-        let alpha = constraint_alpha_with_reference_dt(self.stiffness, *dt, T::from(60.0));
+        let alpha = constraint_alpha_with_reference_dt(self.stiffness, *dt, T::from(1.0/60.0));
 
         let correction_magnitude = alpha * (self.target_distance - point_distance) / T::from(2.0);
         let correction_vector = move_direction * correction_magnitude;
@@ -103,7 +103,7 @@ where
             / n;
 
         let scale_correction = (self.rest_area / current_area).sqrt() - T::one();
-        let alpha = constraint_alpha_with_reference_dt(self.stiffness, *dt, T::from(60.0));
+        let alpha = constraint_alpha_with_reference_dt(self.stiffness, *dt, T::from(1.0/60.0));
 
         for idx in &self.idxs {
             let offset = particles[*idx].position - centroid;
