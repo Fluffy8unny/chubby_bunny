@@ -141,7 +141,6 @@ impl Playground {
         ));
 
         let mut small_quad = Body::empty();
-        let small_quad_id = small_quad.id;
         small_quad.particles.push(Particle::new(
             nalgebra::Vector2::new(25.0, 25.0),
             nalgebra::Vector2::new(0.0, 0.0),

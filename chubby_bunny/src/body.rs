@@ -1,5 +1,3 @@
-use nalgebra::LBLT;
-
 use crate::Force;
 use crate::GlobalExtrinsicConstraint;
 use crate::IntrinsicContraint;
