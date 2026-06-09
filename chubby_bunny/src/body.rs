@@ -66,20 +66,17 @@ impl<T> Body<T> {
     where
         T: nalgebra::RealField + Copy + From<f32>,
     {
-        for _ in 0..solver_settings.constraint_iterations {
-            // Solve constraints between this body and its direct children.
-            for constraint in &self.children_constraints {
-                constraint.solve(&mut self.children, &self.particles, dt, solver_settings);
-            }
+        // Solve constraints to maintain this body's internal structure.
+        for constraint in &self.constraints {
+            constraint.solve(&mut self.particles, dt, solver_settings);
+        }
+        // Solve constraints between this body and its direct children.
+        for constraint in &self.children_constraints {
+            constraint.solve(&mut self.children, &self.particles, dt, solver_settings);
+        }
 
-            // Solve constraints to maintain this body's internal structure.
-            for constraint in &self.constraints {
-                constraint.solve(&mut self.particles, dt, solver_settings);
-            }
-
-            for child in &mut self.children {
-                child.solve_constraints_recursivly(dt, solver_settings);
-            }
+        for child in &mut self.children {
+            child.solve_constraints_recursivly(dt, solver_settings);
         }
         //todo: not implemented yet
         //self.solve_children_collisions(dt);
@@ -94,8 +91,9 @@ impl<T> Body<T> {
         self.apply_forces_recursively(forces, dt);
 
         //solve constraints of the body and between it and its chidlren
-        self.solve_constraints_recursivly(dt, solver_settings);
-
+        for _ in 0..solver_settings.constraint_iterations {
+            self.solve_constraints_recursivly(dt, solver_settings);
+        }
         //update velocities after all forces and constraints are processed
         self.update_positions_recursively(dt);
     }

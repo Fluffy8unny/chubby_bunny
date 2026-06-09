@@ -50,11 +50,10 @@ where
                     particle.apply_position_correction(&correction_vector);
 
                     let normal_velocity = particle.velocity.dot(&line_normal);
-                    if normal_velocity < T::zero() {
-                        let reflected_velocity = particle.velocity
-                            - line_normal * normal_velocity * (T::one() + self.stiffness);
-                        particle.velocity = reflected_velocity;
-                    }
+                    let reflected_velocity = particle.velocity
+                        - line_normal * normal_velocity * (T::one() + self.stiffness);
+                    particle.pre_integration_position =
+                        particle.position - reflected_velocity * _dt;
                 }
             }
         }

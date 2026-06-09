@@ -169,7 +169,7 @@ impl Playground {
             false,
         ));
 
-        let stiffness = 0.015;
+        let stiffness = 0.5;
         simple_quad
             .constraints
             .push(Box::new(DistanceConstraint::new(
@@ -238,13 +238,13 @@ impl Playground {
         simple_quad.constraints.push(Box::new(AreaConstraint::new(
             vec![0, 1, 2, 3],
             &simple_quad.particles,
-            0.01,
+            0.9,
         )));
 
         small_quad.constraints.push(Box::new(AreaConstraint::new(
             vec![0, 1, 2, 3],
             &small_quad.particles,
-            0.2,
+            0.5,
         )));
 
         simple_quad.children.push(small_quad);
@@ -353,7 +353,7 @@ impl Playground {
                 reference_dt: 1.0 / 60.0,
                 constraint_iterations: 10,
             };
-            body.perform_step(&vec![constant_force, constant_force2], dt, &settings);
+            body.perform_step(&vec![constant_force], dt, &settings);
         }
         self.polygon_arrays = bodies_to_polygon_arrays(self.bodies.values(), &self.meta_data);
     }
