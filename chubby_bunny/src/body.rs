@@ -30,43 +30,53 @@ impl<T> Body<T> {
         }
     }
 
-    pub fn perform_step<F>(&mut self, forces: &Vec<F>, dt: T)
+    fn update_positions_recursively(&mut self, dt: T)
+    where
+        T: nalgebra::RealField + Copy,
+    {
+        for particle in self.particles.iter_mut() {
+            particle.post_integration_update(dt);
+        }
+        for child in &mut self.children {
+            child.update_positions_recursively(dt);
+        }
+    }
+
+    fn apply_forces_recursively<F>(&mut self, forces: &Vec<F>, dt: T)
     where
         F: Force<T>,
         T: nalgebra::RealField + Copy,
     {
-        let initial_positions: Vec<_> = self.particles.iter().map(|p| p.position).collect();
-
-        // Update particle positions based on their velocities and apply external forces
         for particle in self.particles.iter_mut().filter(|p| !p.pinned) {
             let force = forces
                 .iter()
                 .fold(nalgebra::Vector2::zeros(), |acc, force| {
                     acc + force.apply(particle)
                 });
-            let acceleration = force / particle.mass;
-            let velocity = particle.velocity + acceleration * dt;
-            particle.apply_position_correction(&(velocity * dt));
+            particle.apply_force(&force, dt);
         }
-        for i in 0..10 {
-            // Solve extrinsic constraints between this body and its children
-            for constraint in &self.children_constraints {
-                constraint.solve(&mut self.children, &self.particles);
-            }
-            // Solve constraints to maintain the structure of the body
-            for constraint in &self.constraints {
-                constraint.solve(&mut self.particles);
-            }
+        for child in &mut self.children {
+            child.apply_forces_recursively(forces, dt);
+        }
+    }
+
+    pub fn perform_step<F>(&mut self, forces: &Vec<F>, dt: T)
+    where
+        F: Force<T>,
+        T: nalgebra::RealField + Copy,
+    {
+        self.apply_forces_recursively(forces, dt);
+
+        // Solve extrinsic constraints between this body and its children
+        for constraint in &self.children_constraints {
+            constraint.solve(&mut self.children, &self.particles);
+        }
+        // Solve constraints to maintain the structure of the body
+        for constraint in &self.constraints {
+            constraint.solve(&mut self.particles, &dt);
         }
         //update velocities after all forces and constraints are processed
-        if dt > T::zero() {
-            for (particle, pre_pos) in self.particles.iter_mut().zip(initial_positions.iter()) {
-                if !particle.pinned {
-                    particle.velocity =
-                        (particle.position - *pre_pos) * ((T::one() - particle.friction) / dt);
-                }
-            }
-        }
+        self.update_positions_recursively(dt);
 
         for child in &mut self.children {
             child.perform_step(forces, dt);

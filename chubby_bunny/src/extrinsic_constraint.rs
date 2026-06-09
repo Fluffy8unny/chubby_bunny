@@ -3,7 +3,7 @@ use crate::Particle;
 use nalgebra::Vector2;
 
 pub trait ExtrinsicConstraint<T = f32> {
-    fn solve(&self, bodies: &mut Vec<Body<T>>, parent_particles: &[Particle<T>]);
+    fn solve(&self, bodies: &mut Vec<Body<T>>, parent_particles: &[Particle<T>], dt: &T);
 }
 
 pub struct WallConstraint<T> {
@@ -17,7 +17,7 @@ impl<T> ExtrinsicConstraint<T> for WallConstraint<T>
 where
     T: nalgebra::RealField + Copy + From<f32>,
 {
-    fn solve(&self, bodies: &mut Vec<Body<T>>, parent_particles: &[Particle<T>]) {
+    fn solve(&self, bodies: &mut Vec<Body<T>>, parent_particles: &[Particle<T>], dt: &T) {
         let body = &mut bodies[self.idx_body];
 
         //calculate line based on parent points
@@ -78,7 +78,7 @@ impl<T> ExtrinsicConstraint<T> for AttachmentConstraint<T>
 where
     T: nalgebra::RealField + Copy + From<f32>,
 {
-    fn solve(&self, bodies: &mut Vec<Body<T>>, parent_particles: &[Particle<T>]) {
+    fn solve(&self, bodies: &mut Vec<Body<T>>, parent_particles: &[Particle<T>], dt: &T) {
         let body = &mut bodies[self.idx_body];
         for (parent_idx, child_idx) in self
             .point_idxs_parent

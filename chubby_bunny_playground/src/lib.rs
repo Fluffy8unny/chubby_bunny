@@ -111,66 +111,66 @@ impl Playground {
 
     pub fn init(&mut self) {
         let mut simple_quad = Body::empty();
-        simple_quad.particles.push(Particle {
-            position: nalgebra::Vector2::new(0.0, 0.0),
-            velocity: nalgebra::Vector2::new(0.0, 0.0),
-            mass: 4.0,
-            friction: 0.01,
-            pinned: false,
-        });
-        simple_quad.particles.push(Particle {
-            position: nalgebra::Vector2::new(100.0, 0.0),
-            velocity: nalgebra::Vector2::new(0.0, 0.0),
-            mass: 1.0,
-            friction: 0.01,
-            pinned: false,
-        });
-        simple_quad.particles.push(Particle {
-            position: nalgebra::Vector2::new(100.0, 100.0),
-            velocity: nalgebra::Vector2::new(0.0, 0.0),
-            mass: 1.0,
-            friction: 0.01,
-            pinned: false,
-        });
-        simple_quad.particles.push(Particle {
-            position: nalgebra::Vector2::new(0.0, 100.0),
-            velocity: nalgebra::Vector2::new(0.0, 0.0),
-            mass: 1.0,
-            friction: 0.01,
-            pinned: false,
-        });
+        simple_quad.particles.push(Particle::new(
+            nalgebra::Vector2::new(0.0, 0.0),
+            nalgebra::Vector2::new(0.0, 0.0),
+            1.0,
+            0.01,
+            false,
+        ));
+        simple_quad.particles.push(Particle::new(
+            nalgebra::Vector2::new(100.0, 0.0),
+            nalgebra::Vector2::new(0.0, 0.0),
+            1.0,
+            0.01,
+            false,
+        ));
+        simple_quad.particles.push(Particle::new(
+            nalgebra::Vector2::new(100.0, 100.0),
+            nalgebra::Vector2::new(0.0, 0.0),
+            1.0,
+            0.01,
+            false,
+        ));
+        simple_quad.particles.push(Particle::new(
+            nalgebra::Vector2::new(0.0, 100.0),
+            nalgebra::Vector2::new(0.0, 0.0),
+            1.0,
+            0.01,
+            false,
+        ));
 
         let mut small_quad = Body::empty();
-        small_quad.particles.push(Particle {
-            position: nalgebra::Vector2::new(25.0, 25.0),
-            velocity: nalgebra::Vector2::new(0.0, 0.0),
-            mass: 1.0,
-            friction: 0.001,
-            pinned: false,
-        });
-        small_quad.particles.push(Particle {
-            position: nalgebra::Vector2::new(75.0, 25.0),
-            velocity: nalgebra::Vector2::new(0.0, 0.0),
-            mass: 1.0,
-            friction: 0.001,
-            pinned: false,
-        });
-        small_quad.particles.push(Particle {
-            position: nalgebra::Vector2::new(75.0, 75.0),
-            velocity: nalgebra::Vector2::new(0.0, 0.0),
-            mass: 1.0,
-            friction: 0.001,
-            pinned: false,
-        });
-        small_quad.particles.push(Particle {
-            position: nalgebra::Vector2::new(25.0, 75.0),
-            velocity: nalgebra::Vector2::new(0.0, 0.0),
-            mass: 1.0,
-            friction: 0.001,
-            pinned: false,
-        });
+        small_quad.particles.push(Particle::new(
+            nalgebra::Vector2::new(25.0, 25.0),
+            nalgebra::Vector2::new(0.0, 0.0),
+            1.0,
+            0.001,
+            false,
+        ));
+        small_quad.particles.push(Particle::new(
+            nalgebra::Vector2::new(75.0, 25.0),
+            nalgebra::Vector2::new(0.0, 0.0),
+            1.0,
+            0.001,
+            false,
+        ));
+        small_quad.particles.push(Particle::new(
+            nalgebra::Vector2::new(75.0, 75.0),
+            nalgebra::Vector2::new(0.0, 0.0),
+            1.0,
+            0.001,
+            false,
+        ));
+        small_quad.particles.push(Particle::new(
+            nalgebra::Vector2::new(25.0, 75.0),
+            nalgebra::Vector2::new(0.0, 0.0),
+            1.0,
+            0.001,
+            false,
+        ));
 
-        let stiffness = 0.9;
+        let stiffness = 0.01;
         simple_quad
             .constraints
             .push(Box::new(DistanceConstraint::new(
@@ -239,7 +239,7 @@ impl Playground {
         simple_quad.constraints.push(Box::new(AreaConstraint::new(
             vec![0, 1, 2, 3],
             &simple_quad.particles,
-            0.2,
+            0.9,
         )));
 
         small_quad.constraints.push(Box::new(AreaConstraint::new(
@@ -261,34 +261,34 @@ impl Playground {
             )));
         */
         let mut container_body = Body::empty();
-        container_body.particles.push(Particle {
-            position: nalgebra::Vector2::new(0.0, 500.0),
-            velocity: nalgebra::Vector2::new(0.0, 0.0),
-            mass: 1.0,
-            friction: 0.01,
-            pinned: true,
-        });
-        container_body.particles.push(Particle {
-            position: nalgebra::Vector2::new(500.0, 500.0),
-            velocity: nalgebra::Vector2::new(0.0, 0.0),
-            mass: 1.0,
-            friction: 0.01,
-            pinned: true,
-        });
-        container_body.particles.push(Particle {
-            position: nalgebra::Vector2::new(500.0, 0.0),
-            velocity: nalgebra::Vector2::new(0.0, 0.0),
-            mass: 1.0,
-            friction: 0.01,
-            pinned: true,
-        });
-        container_body.particles.push(Particle {
-            position: nalgebra::Vector2::new(0.0, 0.0),
-            velocity: nalgebra::Vector2::new(0.0, 0.0),
-            mass: 1.0,
-            friction: 0.01,
-            pinned: true,
-        });
+        container_body.particles.push(Particle::new(
+            nalgebra::Vector2::new(0.0, 500.0),
+            nalgebra::Vector2::new(0.0, 0.0),
+            1.0,
+            0.01,
+            true,
+        ));
+        container_body.particles.push(Particle::new(
+            nalgebra::Vector2::new(500.0, 500.0),
+            nalgebra::Vector2::new(0.0, 0.0),
+            1.0,
+            0.01,
+            true,
+        ));
+        container_body.particles.push(Particle::new(
+            nalgebra::Vector2::new(500.0, 0.0),
+            nalgebra::Vector2::new(0.0, 0.0),
+            1.0,
+            0.01,
+            true,
+        ));
+        container_body.particles.push(Particle::new(
+            nalgebra::Vector2::new(0.0, 0.0),
+            nalgebra::Vector2::new(0.0, 0.0),
+            1.0,
+            0.01,
+            true,
+        ));
         let quad_id = simple_quad.id;
         container_body.children.push(simple_quad);
         container_body
@@ -316,7 +316,7 @@ impl Playground {
             let constant_force =
                 chubby_bunny::force::constant_force(nalgebra::Vector2::new(0.0, 50.0));
             let constant_force2 =
-                chubby_bunny::force::constant_force(nalgebra::Vector2::new(10.0, 0.0));
+                chubby_bunny::force::constant_force(nalgebra::Vector2::new(30.0, 0.0));
             body.perform_step(&vec![constant_force, constant_force2], dt);
         }
         self.polygon_arrays = bodies_to_polygon_arrays(self.bodies.values(), &self.meta_data);
