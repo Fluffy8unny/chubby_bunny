@@ -169,7 +169,7 @@ impl Playground {
             false,
         ));
 
-        let stiffness = 0.5;
+        let stiffness = 0.1;
         let shear_stiffness = 0.2;
         simple_quad
             .constraints
@@ -273,7 +273,7 @@ impl Playground {
         simple_quad.constraints.push(Box::new(AreaConstraint::new(
             vec![0, 1, 2, 3],
             &simple_quad.particles,
-            0.5,
+            0.1,
         )));
 
         small_quad.constraints.push(Box::new(AreaConstraint::new(
@@ -329,7 +329,7 @@ impl Playground {
         */
         let mut container_body = Body::empty();
         container_body.particles.push(Particle::new(
-            nalgebra::Vector2::new(0.0, 500.0),
+            nalgebra::Vector2::new(0.0, 400.0),
             nalgebra::Vector2::new(0.0, 0.0),
             1.0,
             0.01,
@@ -381,7 +381,7 @@ impl Playground {
         let dt = dt_ms / 1000.0;
         for body in self.bodies.values_mut() {
             let constant_force =
-                chubby_bunny::force::constant_force(nalgebra::Vector2::new(0.0, 450.0));
+                chubby_bunny::force::constant_force(nalgebra::Vector2::new(0.0, 650.0));
             let _constant_force2 =
                 chubby_bunny::force::constant_force(nalgebra::Vector2::new(30.0, 0.0));
             let settings = SolverSettings {

@@ -48,13 +48,15 @@ where
                 if distance < T::zero() {
                     let correction_vector = line_normal * (-distance + eps);
                     particle.apply_position_correction(&correction_vector);
-
                     //we're cheating a bit here, but it's fine for velet integration.
                     let normal_velocity = particle.velocity.dot(&line_normal);
-                    let reflected_velocity =
-                        particle.velocity - line_normal * normal_velocity * (T::from(2.0_f32));
-                    particle.pre_integration_position =
-                        particle.position - reflected_velocity * dt * self.stiffness;
+
+                    if normal_velocity < T::zero() {
+                        let reflected_velocity =
+                            particle.velocity - line_normal * normal_velocity * (T::from(2.0_f32));
+                        particle.pre_integration_position =
+                            particle.position - reflected_velocity * dt * self.stiffness;
+                    }
                 }
             }
         }
