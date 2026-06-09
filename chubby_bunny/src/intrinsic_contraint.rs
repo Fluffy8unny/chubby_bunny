@@ -1,8 +1,9 @@
+use crate::constraint_utils::constraint_alpha_with_reference_dt;
 use crate::Particle;
 use nalgebra::Vector2;
 
 pub trait IntrinsicContraint<T = f32> {
-    fn solve(&self, particles: &mut Vec<Particle<T>>);
+    fn solve(&self, particles: &mut Vec<Particle<T>>, dt: &T);
 }
 
 pub struct DistanceConstraint<T> {
@@ -36,16 +37,16 @@ impl<T> IntrinsicContraint<T> for DistanceConstraint<T>
 where
     T: nalgebra::RealField + Copy + From<f32>,
 {
-    fn solve(&self, particles: &mut Vec<Particle<T>>) {
+    fn solve(&self, particles: &mut Vec<Particle<T>>, dt: &T) {
         let line_between = particles[self.idx_right].position - particles[self.idx_left].position;
         let point_distance = line_between.norm();
         if point_distance <= T::zero() {
             return;
         }
         let move_direction = line_between / point_distance;
+        let alpha = constraint_alpha_with_reference_dt(self.stiffness, *dt, T::from(60.0));
 
-        let correction_magnitude =
-            self.stiffness * (self.target_distance - point_distance) / T::from(2.0);
+        let correction_magnitude = alpha * (self.target_distance - point_distance) / T::from(2.0);
         let correction_vector = move_direction * correction_magnitude;
 
         particles[self.idx_left].apply_position_correction(&-correction_vector);
@@ -88,7 +89,7 @@ impl<T> IntrinsicContraint<T> for AreaConstraint<T>
 where
     T: nalgebra::RealField + Copy + From<f32>,
 {
-    fn solve(&self, particles: &mut Vec<Particle<T>>) {
+    fn solve(&self, particles: &mut Vec<Particle<T>>, dt: &T) {
         let current_area = Self::calculate_area(&self.idxs, particles);
         if current_area <= T::zero() {
             return;
@@ -101,13 +102,12 @@ where
             .fold(Vector2::zeros(), |acc, &i| acc + particles[i].position)
             / n;
 
-        // area scales as the square of linear scale, so linear scale factor is sqrt(rest/current)
         let scale_correction = (self.rest_area / current_area).sqrt() - T::one();
+        let alpha = constraint_alpha_with_reference_dt(self.stiffness, *dt, T::from(60.0));
 
         for idx in &self.idxs {
             let offset = particles[*idx].position - centroid;
-            particles[*idx]
-                .apply_position_correction(&(offset * scale_correction * self.stiffness));
+            particles[*idx].apply_position_correction(&(offset * scale_correction * alpha));
         }
     }
 }

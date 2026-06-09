@@ -59,7 +59,27 @@ impl<T> Body<T> {
             child.apply_forces_recursively(forces, dt);
         }
     }
+    fn solve_constraints_recursivly(&mut self, dt: T)
+    where
+        T: nalgebra::RealField + Copy,
+    {
+        // Solve constraints to maintain this body's internal structure.
+        for constraint in &self.constraints {
+            constraint.solve(&mut self.particles, &dt);
+        }
 
+        for child in &mut self.children {
+            child.solve_constraints_recursivly(dt);
+        }
+
+        // Solve constraints between this body and its direct children.
+        for constraint in &self.children_constraints {
+            constraint.solve(&mut self.children, &self.particles, &dt);
+        }
+
+        //todo: not implemented yet
+        //self.solve_children_collisions(dt);
+    }
     pub fn perform_step<F>(&mut self, forces: &Vec<F>, dt: T)
     where
         F: Force<T>,
@@ -69,7 +89,7 @@ impl<T> Body<T> {
 
         // Solve extrinsic constraints between this body and its children
         for constraint in &self.children_constraints {
-            constraint.solve(&mut self.children, &self.particles);
+            constraint.solve(&mut self.children, &self.particles, &dt);
         }
         // Solve constraints to maintain the structure of the body
         for constraint in &self.constraints {
