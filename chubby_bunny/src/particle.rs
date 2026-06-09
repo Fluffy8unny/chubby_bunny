@@ -1,5 +1,7 @@
 use nalgebra::Vector2;
 
+use crate::SolverSettings;
+
 #[derive(Debug, Clone)]
 pub struct Particle<T = f32> {
     pub position: Vector2<T>,
@@ -44,10 +46,13 @@ where
         self.position += *position_correction;
     }
 
-    pub fn post_integration_update(&mut self, dt: T) {
+    pub fn post_integration_update(&mut self, dt: T, solver_settings: &SolverSettings)
+    where
+        T: nalgebra::RealField + Copy + From<f32>,
+    {
         if dt > T::zero() && !self.pinned {
-            self.velocity =
-                (self.position - self.pre_integration_position) * (T::one() - self.friction) / dt;
+            let decay = T::one() - self.friction * (dt / T::from(solver_settings.reference_dt));
+            self.velocity = (self.position - self.pre_integration_position) * decay / dt;
             self.pre_integration_position = self.position;
         }
     }

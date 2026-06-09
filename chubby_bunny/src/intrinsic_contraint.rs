@@ -1,4 +1,6 @@
-use crate::constraint_common::constraint_alpha_with_reference_dt;
+use crate::constraint_common::{
+    constraint_alpha_with_reference_dt, get_distance_correction_vector,
+};
 use crate::Particle;
 use crate::SolverSettings;
 use nalgebra::Vector2;
@@ -39,18 +41,15 @@ where
     T: nalgebra::RealField + Copy + From<f32>,
 {
     fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings) {
-        let line_between = particles[self.idx_right].position - particles[self.idx_left].position;
-        let point_distance = line_between.norm();
-        if point_distance <= T::zero() {
-            return;
-        }
-        let move_direction = line_between / point_distance;
-        let alpha = constraint_alpha_with_reference_dt(self.stiffness, dt, solver_settings);
-
-        let correction_magnitude = alpha * (self.target_distance - point_distance) / T::from(2.0);
-        let correction_vector = move_direction * correction_magnitude;
-
-        particles[self.idx_left].apply_position_correction(&-correction_vector);
+        let correction_vector = get_distance_correction_vector(
+            &particles[self.idx_left],
+            &particles[self.idx_right],
+            self.stiffness,
+            self.target_distance,
+            dt,
+            solver_settings,
+        );
+        particles[self.idx_left].apply_position_correction(&(-correction_vector));
         particles[self.idx_right].apply_position_correction(&correction_vector);
     }
 }

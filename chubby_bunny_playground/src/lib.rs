@@ -1,5 +1,6 @@
 use chubby_bunny::{
-    AreaConstraint, Body, BodyId, DistanceConstraint, Particle, SolverSettings, WallConstraint,
+    AreaConstraint, AttachmentConstraint, Body, BodyId, DistanceConstraint,
+    ExtrinsicConstraintType, Particle, SolverSettings, WallConstraint,
 };
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
@@ -67,7 +68,7 @@ fn body_to_polygon_array(
     let edges: Vec<(u32, u32)> = (0..n).map(|i| (i as u32, ((i + 1) % n) as u32)).collect();
     let children = body
         .children
-        .iter()
+        .values()
         .map(|child| body_to_polygon_array(child, meta_data, depth + 1))
         .collect();
     let meta = meta_data
@@ -140,6 +141,7 @@ impl Playground {
         ));
 
         let mut small_quad = Body::empty();
+        let small_quad_id = small_quad.id;
         small_quad.particles.push(Particle::new(
             nalgebra::Vector2::new(25.0, 25.0),
             nalgebra::Vector2::new(0.0, 0.0),
@@ -170,7 +172,7 @@ impl Playground {
         ));
 
         let stiffness = 0.1;
-        let shear_stiffness = 0.2;
+        let shear_stiffness = 0.3;
         simple_quad
             .constraints
             .push(Box::new(DistanceConstraint::new(
@@ -281,55 +283,52 @@ impl Playground {
             &small_quad.particles,
             0.5,
         )));
-
-        simple_quad.children.push(small_quad);
         simple_quad
             .children_constraints
-            .push(Box::new(WallConstraint {
-                idx_body: 0,
+            .push(ExtrinsicConstraintType::Local(Box::new(
+                AttachmentConstraint::new(
+                    small_quad.id,
+                    &simple_quad,
+                    &small_quad,
+                    vec![0, 1, 2, 3],
+                    vec![0, 1, 2, 3],
+                    1.0,
+                ),
+            )));
+
+        simple_quad.children.insert(small_quad.id, small_quad);
+        simple_quad
+            .children_constraints
+            .push(ExtrinsicConstraintType::Global(Box::new(WallConstraint {
                 parent_point_idx_origin: 0,
                 parent_point_idx_end: 1,
                 stiffness: 0.95,
-            }));
+            })));
         simple_quad
             .children_constraints
-            .push(Box::new(WallConstraint {
-                idx_body: 0,
+            .push(ExtrinsicConstraintType::Global(Box::new(WallConstraint {
                 parent_point_idx_origin: 1,
                 parent_point_idx_end: 2,
                 stiffness: 0.95,
-            }));
+            })));
         simple_quad
             .children_constraints
-            .push(Box::new(WallConstraint {
-                idx_body: 0,
+            .push(ExtrinsicConstraintType::Global(Box::new(WallConstraint {
                 parent_point_idx_origin: 2,
                 parent_point_idx_end: 3,
                 stiffness: 0.95,
-            }));
+            })));
         simple_quad
             .children_constraints
-            .push(Box::new(WallConstraint {
-                idx_body: 0,
+            .push(ExtrinsicConstraintType::Global(Box::new(WallConstraint {
                 parent_point_idx_origin: 3,
                 parent_point_idx_end: 0,
                 stiffness: 0.95,
-            }));
+            })));
 
-        /*
-        simple_quad
-            .children_constraints
-            .push(Box::new(AttachmentConstraint::new(
-                0,
-                vec![0, 1],
-                vec![0, 1],
-                1.0,
-                self.target_fps,
-            )));
-        */
         let mut container_body = Body::empty();
         container_body.particles.push(Particle::new(
-            nalgebra::Vector2::new(0.0, 400.0),
+            nalgebra::Vector2::new(0.0, 100.0),
             nalgebra::Vector2::new(0.0, 0.0),
             1.0,
             0.01,
@@ -356,24 +355,21 @@ impl Playground {
             0.01,
             true,
         ));
-        let quad_id = simple_quad.id;
-        container_body.children.push(simple_quad);
+        container_body.children.insert(simple_quad.id, simple_quad);
         container_body
             .children_constraints
-            .push(Box::new(WallConstraint {
-                idx_body: quad_id,
+            .push(ExtrinsicConstraintType::Global(Box::new(WallConstraint {
                 parent_point_idx_origin: 1,
                 parent_point_idx_end: 0,
                 stiffness: 1.0,
-            }));
+            })));
         container_body
             .children_constraints
-            .push(Box::new(WallConstraint {
-                idx_body: quad_id,
+            .push(ExtrinsicConstraintType::Global(Box::new(WallConstraint {
                 parent_point_idx_origin: 2,
                 parent_point_idx_end: 1,
                 stiffness: 1.0,
-            }));
+            })));
         self.bodies.insert(container_body.id, container_body);
     }
 

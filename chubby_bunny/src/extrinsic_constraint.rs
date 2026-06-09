@@ -1,37 +1,50 @@
+use std::collections::HashMap;
+
+use crate::constraint_common::get_distance_correction_vector;
 use crate::Body;
+use crate::BodyId;
 use crate::Particle;
 use crate::SolverSettings;
 use nalgebra::Vector2;
 
-pub trait ExtrinsicConstraint<T = f32> {
+pub trait GlobalExtrinsicConstraint<T = f32> {
     fn solve(
         &self,
-        bodies: &mut Vec<Body<T>>,
+        bodies: &mut HashMap<BodyId, Body<T>>,
         parent_particles: &[Particle<T>],
         dt: T,
         solver_settings: &SolverSettings,
     );
 }
+pub trait LocalExtrinsicConstraint<T = f32> {
+    fn solve(
+        &self,
+        body: &mut Body<T>,
+        parent_particles: &[Particle<T>],
+        dt: T,
+        solver_settings: &SolverSettings,
+    );
+    fn get_id(&self) -> BodyId;
+}
 
 pub struct WallConstraint<T> {
-    pub idx_body: usize,
     pub parent_point_idx_origin: usize,
     pub parent_point_idx_end: usize,
     pub stiffness: T,
 }
 
-impl<T> ExtrinsicConstraint<T> for WallConstraint<T>
+impl<T> GlobalExtrinsicConstraint<T> for WallConstraint<T>
 where
     T: nalgebra::RealField + Copy + From<f32>,
 {
     fn solve(
         &self,
-        bodies: &mut Vec<Body<T>>,
+        bodies: &mut HashMap<BodyId, Body<T>>,
         parent_particles: &[Particle<T>],
         dt: T,
-        solver_settings: &SolverSettings,
+        _solver_settings: &SolverSettings,
     ) {
-        for body in bodies.iter_mut() {
+        for body in bodies.values_mut() {
             //calculate line based on parent points
             let line_origin = parent_particles[self.parent_point_idx_origin].position;
             let line_end = parent_particles[self.parent_point_idx_end].position;
@@ -51,6 +64,7 @@ where
                     //we're cheating a bit here, but it's fine for velet integration.
                     let normal_velocity = particle.velocity.dot(&line_normal);
 
+                    //prevent this from being changed more than once per framer
                     if normal_velocity < T::zero() {
                         let reflected_velocity =
                             particle.velocity - line_normal * normal_velocity * (T::from(2.0_f32));
@@ -64,48 +78,81 @@ where
 }
 
 pub struct AttachmentConstraint<T> {
+    pub id: BodyId,
     pub point_idxs_parent: Vec<usize>,
     pub point_idxs_child: Vec<usize>,
+    pub target_distances: Vec<T>,
     pub stiffness: T,
 }
 impl<T> AttachmentConstraint<T> {
-    pub fn new(point_idxs_parent: Vec<usize>, point_idxs_child: Vec<usize>, stiffness: T) -> Self {
+    pub fn new(
+        body_id: BodyId,
+        parent: &Body<T>,
+        child: &Body<T>,
+        point_idxs_parent: Vec<usize>,
+        point_idxs_child: Vec<usize>,
+        stiffness: T,
+    ) -> Self
+    where
+        T: nalgebra::RealField + Copy + From<f32>,
+    {
         assert_eq!(
             point_idxs_parent.len(),
             point_idxs_child.len(),
             "Parent and child point index lists must be of the same length"
         );
+        let mut target_distances = vec![T::zero(); point_idxs_parent.len()];
+        for (i, (parent_idx, child_idx)) in point_idxs_parent
+            .iter()
+            .zip(point_idxs_child.iter())
+            .enumerate()
+        {
+            let parent_particle = &parent.particles[*parent_idx];
+            let child_particle = &child.particles[*child_idx];
+            target_distances[i] = (parent_particle.position - child_particle.position).norm();
+        }
         Self {
+            id: body_id,
             point_idxs_parent,
             point_idxs_child,
+            target_distances,
             stiffness,
         }
     }
 }
-impl<T> ExtrinsicConstraint<T> for AttachmentConstraint<T>
+impl<T> LocalExtrinsicConstraint<T> for AttachmentConstraint<T>
 where
     T: nalgebra::RealField + Copy + From<f32>,
 {
+    fn get_id(&self) -> BodyId {
+        self.id
+    }
+
     fn solve(
         &self,
-        bodies: &mut Vec<Body<T>>,
+        body: &mut Body<T>,
         parent_particles: &[Particle<T>],
         _dt: T,
         _solver_settings: &SolverSettings,
     ) {
-        for body in bodies.iter_mut() {
-            for (parent_idx, child_idx) in self
-                .point_idxs_parent
-                .iter()
-                .zip(self.point_idxs_child.iter())
-            {
-                let parent_particle = &parent_particles[*parent_idx];
-                let child_particle = &body.particles[*child_idx];
+        for ((parent_idx, child_idx), target_distance) in self
+            .point_idxs_parent
+            .iter()
+            .zip(self.point_idxs_child.iter())
+            .zip(self.target_distances.iter())
+        {
+            let parent_particle = &parent_particles[*parent_idx];
+            let child_particle = &body.particles[*child_idx];
 
-                let correction_vector =
-                    (parent_particle.position - child_particle.position) * self.stiffness;
-                body.particles[*child_idx].apply_position_correction(&correction_vector);
-            }
+            let correction_vector = get_distance_correction_vector(
+                parent_particle,
+                child_particle,
+                self.stiffness,
+                *target_distance,
+                _dt,
+                _solver_settings,
+            );
+            body.particles[*child_idx].apply_position_correction(&correction_vector);
         }
     }
 }

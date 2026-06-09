@@ -1,8 +1,12 @@
-use crate::ExtrinsicConstraint;
+use nalgebra::LBLT;
+
 use crate::Force;
+use crate::GlobalExtrinsicConstraint;
 use crate::IntrinsicContraint;
+use crate::LocalExtrinsicConstraint;
 use crate::Particle;
 use crate::SolverSettings;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(0);
@@ -10,13 +14,16 @@ pub type BodyId = usize;
 pub fn next_id() -> BodyId {
     NEXT_ID.fetch_add(1, Ordering::Relaxed) as BodyId
 }
-
+pub enum ExtrinsicConstraintType<T> {
+    Global(Box<dyn GlobalExtrinsicConstraint<T>>),
+    Local(Box<dyn LocalExtrinsicConstraint<T>>),
+}
 pub struct Body<T = f32> {
     pub id: BodyId,
     pub particles: Vec<Particle<T>>,
     pub constraints: Vec<Box<dyn IntrinsicContraint<T>>>,
-    pub children: Vec<Body<T>>,
-    pub children_constraints: Vec<Box<dyn ExtrinsicConstraint<T>>>,
+    pub children: HashMap<BodyId, Body<T>>,
+    pub children_constraints: Vec<ExtrinsicConstraintType<T>>,
 }
 
 impl<T> Body<T> {
@@ -26,21 +33,21 @@ impl<T> Body<T> {
             id,
             particles: Vec::new(),
             constraints: Vec::new(),
-            children: Vec::new(),
+            children: HashMap::new(),
             children_constraints: Vec::new(),
         }
     }
 
-    fn update_positions_recursively(&mut self, dt: T)
+    fn update_positions_recursively(&mut self, dt: T, solver_settings: &SolverSettings)
     where
-        T: nalgebra::RealField + Copy,
+        T: nalgebra::RealField + Copy + From<f32>,
     {
         for particle in self.particles.iter_mut() {
-            particle.post_integration_update(dt);
+            particle.post_integration_update(dt, solver_settings);
         }
 
-        for child in &mut self.children {
-            child.update_positions_recursively(dt);
+        for child in self.children.values_mut() {
+            child.update_positions_recursively(dt, solver_settings);
         }
     }
 
@@ -57,7 +64,7 @@ impl<T> Body<T> {
                 });
             particle.apply_force(&force, dt);
         }
-        for child in &mut self.children {
+        for child in self.children.values_mut() {
             child.apply_forces_recursively(forces, dt);
         }
     }
@@ -72,10 +79,25 @@ impl<T> Body<T> {
         }
         // Solve constraints between this body and its direct children.
         for constraint in &self.children_constraints {
-            constraint.solve(&mut self.children, &self.particles, dt, solver_settings);
+            match constraint {
+                ExtrinsicConstraintType::Global(c) => {
+                    c.solve(&mut self.children, &self.particles, dt, solver_settings)
+                }
+                ExtrinsicConstraintType::Local(c) => {
+                    let id = c.get_id();
+                    if let Some(child) = self.children.get_mut(&id) {
+                        c.solve(child, &self.particles, dt, solver_settings);
+                    } else {
+                        eprintln!(
+                            "Child with id {} not found for local extrinsic constraint",
+                            id
+                        );
+                    }
+                }
+            }
         }
 
-        for child in &mut self.children {
+        for child in self.children.values_mut() {
             child.solve_constraints_recursivly(dt, solver_settings);
         }
         //todo: not implemented yet
@@ -95,6 +117,6 @@ impl<T> Body<T> {
             self.solve_constraints_recursivly(dt, solver_settings);
         }
         //update velocities after all forces and constraints are processed
-        self.update_positions_recursively(dt);
+        self.update_positions_recursively(dt, solver_settings);
     }
 }
