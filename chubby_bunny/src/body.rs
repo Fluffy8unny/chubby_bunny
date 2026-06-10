@@ -1,9 +1,11 @@
+use crate::collision_constraint::CollisionConstraint;
 use crate::Force;
 use crate::GlobalExtrinsicConstraint;
 use crate::IntrinsicContraint;
 use crate::LocalExtrinsicConstraint;
 use crate::Particle;
 use crate::SolverSettings;
+use itertools::Itertools;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -22,6 +24,7 @@ pub struct Body<T = f32> {
     pub constraints: Vec<Box<dyn IntrinsicContraint<T>>>,
     pub children: HashMap<BodyId, Body<T>>,
     pub children_constraints: Vec<ExtrinsicConstraintType<T>>,
+    pub collision_constraint: Option<CollisionConstraint<T>>,
 }
 
 impl<T> Body<T> {
@@ -33,6 +36,7 @@ impl<T> Body<T> {
             constraints: Vec::new(),
             children: HashMap::new(),
             children_constraints: Vec::new(),
+            collision_constraint: None,
         }
     }
 
@@ -75,6 +79,7 @@ impl<T> Body<T> {
         for constraint in &self.constraints {
             constraint.solve(&mut self.particles, dt, solver_settings);
         }
+
         // Solve constraints between this body and its direct children.
         for constraint in &self.children_constraints {
             match constraint {
@@ -98,8 +103,19 @@ impl<T> Body<T> {
         for child in self.children.values_mut() {
             child.solve_constraints_recursivly(dt, solver_settings);
         }
-        //todo: not implemented yet
-        //self.solve_children_collisions(dt);
+
+        let child_ids: Vec<BodyId> = self.children.keys().copied().collect();
+        for pair in child_ids.iter().combinations(2) {
+            let (a_id, b_id) = (*pair[0], *pair[1]);
+            if let Some(mut child_a) = self.children.remove(&a_id) {
+                if let Some(child_b) = self.children.get_mut(&b_id) {
+                    if let Some(collision_constraint) = &self.collision_constraint {
+                        collision_constraint.solve(&mut child_a, child_b, dt, solver_settings);
+                    }
+                }
+                self.children.insert(a_id, child_a);
+            }
+        }
     }
 
     pub fn perform_step<F>(&mut self, forces: &Vec<F>, dt: T, solver_settings: &SolverSettings)

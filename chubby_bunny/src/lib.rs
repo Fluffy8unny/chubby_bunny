@@ -14,6 +14,7 @@ pub mod extrinsic_constraint;
 pub use extrinsic_constraint::{
     AttachmentConstraint, GlobalExtrinsicConstraint, LocalExtrinsicConstraint, WallConstraint,
 };
-
+pub mod collision_constraint;
+pub use collision_constraint::CollisionConstraint;
 mod constraint_common;
 pub use constraint_common::SolverSettings;

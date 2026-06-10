@@ -1,9 +1,11 @@
 use chubby_bunny::{
-    AreaConstraint, AttachmentConstraint, Body, BodyId, DistanceConstraint,
+    AreaConstraint, AttachmentConstraint, Body, BodyId, CollisionConstraint, DistanceConstraint,
     ExtrinsicConstraintType, Particle, SolverSettings, WallConstraint,
 };
+use nalgebra::Vector2;
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
+
 #[wasm_bindgen]
 #[derive(Debug, Clone, Copy, serde::Serialize)]
 pub struct Color {
@@ -98,6 +100,67 @@ where
         .collect()
 }
 
+fn create_quad(
+    start: Vector2<f32>,
+    size: f32,
+    stiffness_distance: f32,
+    stiffness_shear: f32,
+    stiffness_area: f32,
+) -> Body {
+    let mut body = Body::empty();
+    body.particles.push(Particle::new(
+        start,
+        nalgebra::Vector2::new(0.0, 0.0),
+        1.0,
+        0.001,
+        false,
+    ));
+    body.particles.push(Particle::new(
+        start + Vector2::new(size, 0.0),
+        nalgebra::Vector2::new(0.0, 0.0),
+        1.0,
+        0.001,
+        false,
+    ));
+    body.particles.push(Particle::new(
+        start + Vector2::new(size, size),
+        nalgebra::Vector2::new(0.0, 0.0),
+        1.0,
+        0.001,
+        false,
+    ));
+    body.particles.push(Particle::new(
+        start + Vector2::new(0.0, size),
+        nalgebra::Vector2::new(0.0, 0.0),
+        1.0,
+        0.001,
+        false,
+    ));
+
+    for i in 0..4 {
+        body.constraints.push(Box::new(DistanceConstraint::new(
+            i,
+            (i + 1) % 4,
+            &body.particles,
+            stiffness_distance,
+        )));
+    }
+    for i in 0..2 {
+        body.constraints.push(Box::new(DistanceConstraint::new(
+            i,
+            (i + 2) % 4,
+            &body.particles,
+            stiffness_shear,
+        )));
+    }
+
+    body.constraints.push(Box::new(AreaConstraint::new(
+        vec![0, 1, 2, 3],
+        &body.particles,
+        stiffness_area,
+    )));
+    body
+}
 #[wasm_bindgen]
 impl Playground {
     #[wasm_bindgen(constructor)]
@@ -110,178 +173,12 @@ impl Playground {
     }
 
     pub fn init(&mut self) {
-        let mut simple_quad = Body::empty();
-        simple_quad.particles.push(Particle::new(
-            nalgebra::Vector2::new(0.0, 0.0),
-            nalgebra::Vector2::new(0.0, 0.0),
-            1.0,
-            0.001,
-            false,
-        ));
-        simple_quad.particles.push(Particle::new(
-            nalgebra::Vector2::new(100.0, 0.0),
-            nalgebra::Vector2::new(0.0, 0.0),
-            1.0,
-            0.001,
-            false,
-        ));
-        simple_quad.particles.push(Particle::new(
-            nalgebra::Vector2::new(100.0, 100.0),
-            nalgebra::Vector2::new(0.0, 0.0),
-            1.0,
-            0.001,
-            false,
-        ));
-        simple_quad.particles.push(Particle::new(
-            nalgebra::Vector2::new(0.0, 100.0),
-            nalgebra::Vector2::new(0.0, 0.0),
-            1.0,
-            0.001,
-            false,
-        ));
+        let mut simple_quad = create_quad(Vector2::new(0.0, 0.0), 100.0, 0.1, 0.3, 0.1);
+        let mut third_quad = create_quad(Vector2::new(200.0, 0.0), 50.0, 0.5, 0.3, 0.5);
+        let mut fourth_quad = create_quad(Vector2::new(300.0, 0.0), 75.0, 0.3, 0.3, 0.5);
+        let mut fifth = create_quad(Vector2::new(300.0, 200.0), 50.0, 0.3, 0.3, 0.5);
+        let mut small_quad = create_quad(Vector2::new(25.0, 25.0), 25.0, 0.5, 0.3, 0.5);
 
-        let mut small_quad = Body::empty();
-        small_quad.particles.push(Particle::new(
-            nalgebra::Vector2::new(25.0, 25.0),
-            nalgebra::Vector2::new(0.0, 0.0),
-            1.0,
-            0.001,
-            false,
-        ));
-        small_quad.particles.push(Particle::new(
-            nalgebra::Vector2::new(75.0, 25.0),
-            nalgebra::Vector2::new(0.0, 0.0),
-            1.0,
-            0.001,
-            false,
-        ));
-        small_quad.particles.push(Particle::new(
-            nalgebra::Vector2::new(75.0, 75.0),
-            nalgebra::Vector2::new(0.0, 0.0),
-            1.0,
-            0.001,
-            false,
-        ));
-        small_quad.particles.push(Particle::new(
-            nalgebra::Vector2::new(25.0, 75.0),
-            nalgebra::Vector2::new(0.0, 0.0),
-            1.0,
-            0.001,
-            false,
-        ));
-
-        let stiffness = 0.1;
-        let shear_stiffness = 0.3;
-        simple_quad
-            .constraints
-            .push(Box::new(DistanceConstraint::new(
-                0,
-                1,
-                &simple_quad.particles,
-                stiffness,
-            )));
-        simple_quad
-            .constraints
-            .push(Box::new(DistanceConstraint::new(
-                1,
-                2,
-                &simple_quad.particles,
-                stiffness,
-            )));
-        simple_quad
-            .constraints
-            .push(Box::new(DistanceConstraint::new(
-                2,
-                3,
-                &simple_quad.particles,
-                stiffness,
-            )));
-        simple_quad
-            .constraints
-            .push(Box::new(DistanceConstraint::new(
-                3,
-                0,
-                &simple_quad.particles,
-                stiffness,
-            )));
-        // Diagonals add shear resistance; edge lengths + area alone still allow
-        // a soft quadrilateral to skew under load.
-        simple_quad
-            .constraints
-            .push(Box::new(DistanceConstraint::new(
-                0,
-                2,
-                &simple_quad.particles,
-                shear_stiffness,
-            )));
-        simple_quad
-            .constraints
-            .push(Box::new(DistanceConstraint::new(
-                1,
-                3,
-                &simple_quad.particles,
-                shear_stiffness,
-            )));
-
-        small_quad
-            .constraints
-            .push(Box::new(DistanceConstraint::new(
-                0,
-                1,
-                &small_quad.particles,
-                stiffness,
-            )));
-        small_quad
-            .constraints
-            .push(Box::new(DistanceConstraint::new(
-                1,
-                2,
-                &small_quad.particles,
-                stiffness,
-            )));
-        small_quad
-            .constraints
-            .push(Box::new(DistanceConstraint::new(
-                2,
-                3,
-                &small_quad.particles,
-                stiffness,
-            )));
-        small_quad
-            .constraints
-            .push(Box::new(DistanceConstraint::new(
-                3,
-                0,
-                &small_quad.particles,
-                stiffness,
-            )));
-        small_quad
-            .constraints
-            .push(Box::new(DistanceConstraint::new(
-                0,
-                2,
-                &small_quad.particles,
-                shear_stiffness,
-            )));
-        small_quad
-            .constraints
-            .push(Box::new(DistanceConstraint::new(
-                1,
-                3,
-                &small_quad.particles,
-                shear_stiffness,
-            )));
-        simple_quad.constraints.push(Box::new(AreaConstraint::new(
-            vec![0, 1, 2, 3],
-            &simple_quad.particles,
-            0.1,
-        )));
-
-        small_quad.constraints.push(Box::new(AreaConstraint::new(
-            vec![0, 1, 2, 3],
-            &small_quad.particles,
-            0.5,
-        )));
         simple_quad
             .children_constraints
             .push(ExtrinsicConstraintType::Local(Box::new(
@@ -291,7 +188,7 @@ impl Playground {
                     &small_quad,
                     vec![0, 1, 2, 3],
                     vec![0, 1, 2, 3],
-                    1.0,
+                    0.5,
                 ),
             )));
 
@@ -355,6 +252,10 @@ impl Playground {
             true,
         ));
         container_body.children.insert(simple_quad.id, simple_quad);
+        container_body.children.insert(third_quad.id, third_quad);
+        container_body.children.insert(fourth_quad.id, fourth_quad);
+        container_body.children.insert(fifth.id, fifth);
+        container_body.collision_constraint = Some(CollisionConstraint::new(0.8));
         container_body
             .children_constraints
             .push(ExtrinsicConstraintType::Global(Box::new(WallConstraint {
@@ -376,7 +277,7 @@ impl Playground {
         let dt = dt_ms / 1000.0;
         for body in self.bodies.values_mut() {
             let constant_force =
-                chubby_bunny::force::constant_force(nalgebra::Vector2::new(0.0, 650.0));
+                chubby_bunny::force::constant_force(nalgebra::Vector2::new(0.0, 300.0));
             let _constant_force2 =
                 chubby_bunny::force::constant_force(nalgebra::Vector2::new(30.0, 0.0));
             let settings = SolverSettings {
