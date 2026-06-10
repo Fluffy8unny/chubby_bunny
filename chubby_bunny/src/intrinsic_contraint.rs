@@ -20,12 +20,7 @@ impl<T> DistanceConstraint<T>
 where
     T: nalgebra::RealField + Copy + From<f32>,
 {
-    pub fn new(
-        idx_left: usize,
-        idx_right: usize,
-        particles: &Vec<Particle<T>>,
-        stiffness: T,
-    ) -> Self {
+    pub fn new(idx_left: usize, idx_right: usize, particles: &[Particle<T>], stiffness: T) -> Self {
         let target_distance = (particles[idx_right].position - particles[idx_left].position).norm();
         Self {
             idx_left,
@@ -64,7 +59,7 @@ impl<T> AreaConstraint<T>
 where
     T: nalgebra::RealField + Copy + From<f32>,
 {
-    pub fn new(idxs: Vec<usize>, particles: &Vec<Particle<T>>, stiffness: T) -> Self {
+    pub fn new(idxs: Vec<usize>, particles: &[Particle<T>], stiffness: T) -> Self {
         let rest_area = Self::calculate_area(&idxs, particles);
         Self {
             idxs,
@@ -73,7 +68,7 @@ where
         }
     }
 
-    fn calculate_area(idxs: &Vec<usize>, particles: &Vec<Particle<T>>) -> T {
+    fn calculate_area(idxs: &[usize], particles: &[Particle<T>]) -> T {
         let mut area = T::zero();
         for i in 0..idxs.len() {
             let current = &particles[idxs[i]];

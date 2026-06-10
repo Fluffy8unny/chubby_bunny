@@ -34,7 +34,5 @@ where
     let alpha = constraint_alpha_with_reference_dt(stiffness, dt, solver_settings);
 
     let correction_magnitude = alpha * (target_distance - point_distance) / T::from(2.0);
-    let correction_vector = move_direction * correction_magnitude;
-
-    return correction_vector;
+    move_direction * correction_magnitude
 }

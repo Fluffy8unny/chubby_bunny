@@ -174,10 +174,10 @@ impl Playground {
 
     pub fn init(&mut self) {
         let mut simple_quad = create_quad(Vector2::new(0.0, 0.0), 100.0, 0.1, 0.3, 0.1);
-        let mut third_quad = create_quad(Vector2::new(200.0, 0.0), 50.0, 0.5, 0.3, 0.5);
-        let mut fourth_quad = create_quad(Vector2::new(300.0, 0.0), 75.0, 0.3, 0.3, 0.5);
-        let mut fifth = create_quad(Vector2::new(300.0, 200.0), 50.0, 0.3, 0.3, 0.5);
-        let mut small_quad = create_quad(Vector2::new(25.0, 25.0), 25.0, 0.5, 0.3, 0.5);
+        let third_quad = create_quad(Vector2::new(200.0, 0.0), 50.0, 0.5, 0.3, 0.5);
+        let fourth_quad = create_quad(Vector2::new(300.0, 0.0), 75.0, 0.3, 0.3, 0.5);
+        let fifth = create_quad(Vector2::new(300.0, 200.0), 50.0, 0.3, 0.3, 0.5);
+        let small_quad = create_quad(Vector2::new(25.0, 25.0), 25.0, 0.5, 0.3, 0.5);
 
         simple_quad
             .children_constraints
@@ -292,5 +292,11 @@ impl Playground {
     pub fn get_polygon_arrays(&self) -> Result<JsValue, JsValue> {
         serde_wasm_bindgen::to_value(&self.polygon_arrays)
             .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+}
+
+impl Default for Playground {
+    fn default() -> Self {
+        Self::new()
     }
 }

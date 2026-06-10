@@ -1,10 +1,5 @@
 use crate::collision_constraint::CollisionConstraint;
-use crate::Force;
-use crate::GlobalExtrinsicConstraint;
-use crate::IntrinsicContraint;
-use crate::LocalExtrinsicConstraint;
-use crate::Particle;
-use crate::SolverSettings;
+use crate::{ExtrinsicConstraintType, Force, IntrinsicContraint, Particle, SolverSettings};
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -14,10 +9,7 @@ pub type BodyId = usize;
 pub fn next_id() -> BodyId {
     NEXT_ID.fetch_add(1, Ordering::Relaxed) as BodyId
 }
-pub enum ExtrinsicConstraintType<T> {
-    Global(Box<dyn GlobalExtrinsicConstraint<T>>),
-    Local(Box<dyn LocalExtrinsicConstraint<T>>),
-}
+
 pub struct Body<T = f32> {
     pub id: BodyId,
     pub particles: Vec<Particle<T>>,

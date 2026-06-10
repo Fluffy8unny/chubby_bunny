@@ -6,7 +6,10 @@ use crate::BodyId;
 use crate::Particle;
 use crate::SolverSettings;
 use nalgebra::Vector2;
-
+pub enum ExtrinsicConstraintType<T> {
+    Global(Box<dyn GlobalExtrinsicConstraint<T>>),
+    Local(Box<dyn LocalExtrinsicConstraint<T>>),
+}
 pub trait GlobalExtrinsicConstraint<T = f32> {
     fn solve(
         &self,
