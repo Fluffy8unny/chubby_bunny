@@ -1,5 +1,8 @@
 use crate::collision_constraint::CollisionConstraint;
-use crate::{ExtrinsicConstraintType, Force, IntrinsicContraint, Number, Particle, SolverSettings};
+use crate::{
+    ExtrinsicConstraintType, FloatingPointNumber, Force, IntrinsicContraint, Particle,
+    SolverSettings,
+};
 use itertools::Itertools;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -32,7 +35,7 @@ impl<T> Body<T> {
     }
     fn update_positions_recursively(&mut self, dt: T, solver_settings: &SolverSettings)
     where
-        T: Number,
+        T: FloatingPointNumber,
     {
         for particle in self.particles.iter_mut() {
             particle.post_integration_update(dt, solver_settings);
@@ -46,7 +49,7 @@ impl<T> Body<T> {
     fn apply_forces_recursively<F>(&mut self, forces: &Vec<F>, dt: T)
     where
         F: Force<T>,
-        T: Number,
+        T: FloatingPointNumber,
     {
         for particle in self.particles.iter_mut().filter(|p| !p.pinned) {
             let force = forces
@@ -63,7 +66,7 @@ impl<T> Body<T> {
 
     fn solve_constraints_recursivly(&mut self, dt: T, solver_settings: &SolverSettings)
     where
-        T: Number,
+        T: FloatingPointNumber,
     {
         // Solve constraints to maintain this body's internal structure.
         for constraint in &self.constraints {
@@ -107,7 +110,7 @@ impl<T> Body<T> {
     pub fn perform_step<F>(&mut self, forces: &Vec<F>, dt: T, solver_settings: &SolverSettings)
     where
         F: Force<T>,
-        T: Number,
+        T: FloatingPointNumber,
     {
         //calculate how external forces would affect the body
         self.apply_forces_recursively(forces, dt);

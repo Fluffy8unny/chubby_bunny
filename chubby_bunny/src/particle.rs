@@ -1,6 +1,5 @@
-use nalgebra::Vector2;
-
 use crate::SolverSettings;
+use nalgebra::Vector2;
 
 #[derive(Debug, Clone)]
 pub struct Particle<T = f32> {

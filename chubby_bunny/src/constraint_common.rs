@@ -1,11 +1,11 @@
-use crate::{Number, Particle};
+use crate::{FloatingPointNumber, Particle};
 use nalgebra::Vector2;
 pub struct SolverSettings {
     pub reference_dt: f32,
     pub constraint_iterations: usize,
 }
 
-pub fn constraint_alpha_with_reference_dt<T: Number>(
+pub fn constraint_alpha_with_reference_dt<T: FloatingPointNumber>(
     stiffness: T,
     dt: T,
     settings: &SolverSettings,
@@ -15,7 +15,7 @@ pub fn constraint_alpha_with_reference_dt<T: Number>(
     alpha.clamp(T::zero(), T::one())
 }
 
-pub fn get_distance_correction_vector<T: Number>(
+pub fn get_distance_correction_vector<T: FloatingPointNumber>(
     particle_a: &Particle<T>,
     particle_b: &Particle<T>,
     stiffness: T,

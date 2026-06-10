@@ -21,5 +21,5 @@ pub use collision_constraint::CollisionConstraint;
 mod constraint_common;
 pub use constraint_common::SolverSettings;
 
-pub trait Number: nalgebra::RealField + Copy + From<f32> {}
-impl<T> Number for T where T: nalgebra::RealField + Copy + From<f32> {}
+pub trait FloatingPointNumber: nalgebra::RealField + Copy + From<f32> {}
+impl<T> FloatingPointNumber for T where T: nalgebra::RealField + Copy + From<f32> {}

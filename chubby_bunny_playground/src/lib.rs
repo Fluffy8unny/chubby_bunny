@@ -99,6 +99,117 @@ where
         .map(|body| body_to_polygon_array(body, meta_data, 0))
         .collect()
 }
+fn create_polygon(
+    center: Vector2<f32>,
+    radius: f32,
+    num_sides: usize,
+    stiffness_distance: f32,
+    stiffness_shear: f32,
+    stiffness_area: f32,
+) -> Body {
+    let mut polygon = Body::empty();
+    for i in 0..num_sides {
+        let angle = (i as f32 / num_sides as f32) * std::f32::consts::TAU;
+        let position = center + Vector2::new(angle.cos(), angle.sin()) * radius;
+        polygon.particles.push(Particle::new(
+            position,
+            nalgebra::Vector2::new(0.0, 0.0),
+            1.0,
+            0.001,
+            false,
+        ));
+    }
+
+    for i in 0..num_sides {
+        polygon.constraints.push(Box::new(DistanceConstraint::new(
+            i,
+            (i + 1) % num_sides,
+            &polygon.particles,
+            stiffness_distance,
+        )));
+    }
+
+    for i in 0..(num_sides / 2_usize) {
+        polygon.constraints.push(Box::new(DistanceConstraint::new(
+            i,
+            (i + (num_sides / 2)) % num_sides,
+            &polygon.particles,
+            stiffness_shear,
+        )));
+    }
+
+    let idxs: Vec<usize> = (0..num_sides).collect();
+    polygon.constraints.push(Box::new(AreaConstraint::new(
+        idxs,
+        &polygon.particles,
+        stiffness_area,
+    )));
+
+    polygon
+}
+
+fn create_rect(
+    start: Vector2<f32>,
+    width: f32,
+    height: f32,
+    stiffness_distance: f32,
+    stiffness_shear: f32,
+    stiffness_area: f32,
+) -> Body {
+    let mut rect = Body::empty();
+    rect.particles.push(Particle::new(
+        start,
+        nalgebra::Vector2::new(0.0, 0.0),
+        1.0,
+        0.001,
+        false,
+    ));
+    rect.particles.push(Particle::new(
+        start + Vector2::new(width, 0.0),
+        nalgebra::Vector2::new(0.0, 0.0),
+        1.0,
+        0.001,
+        false,
+    ));
+    rect.particles.push(Particle::new(
+        start + Vector2::new(width, height),
+        nalgebra::Vector2::new(0.0, 0.0),
+        1.0,
+        0.001,
+        false,
+    ));
+    rect.particles.push(Particle::new(
+        start + Vector2::new(0.0, height),
+        nalgebra::Vector2::new(0.0, 0.0),
+        1.0,
+        0.001,
+        false,
+    ));
+
+    for i in 0..4 {
+        rect.constraints.push(Box::new(DistanceConstraint::new(
+            i,
+            (i + 1) % 4,
+            &rect.particles,
+            stiffness_distance,
+        )));
+    }
+    for i in 0..2 {
+        rect.constraints.push(Box::new(DistanceConstraint::new(
+            i,
+            (i + 2) % 4,
+            &rect.particles,
+            stiffness_shear,
+        )));
+    }
+
+    rect.constraints.push(Box::new(AreaConstraint::new(
+        vec![0, 1, 2, 3],
+        &rect.particles,
+        stiffness_area,
+    )));
+    rect
+}
 
 fn create_quad(
     start: Vector2<f32>,
@@ -107,60 +218,16 @@ fn create_quad(
     stiffness_shear: f32,
     stiffness_area: f32,
 ) -> Body {
-    let mut body = Body::empty();
-    body.particles.push(Particle::new(
+    create_rect(
         start,
-        nalgebra::Vector2::new(0.0, 0.0),
-        1.0,
-        0.001,
-        false,
-    ));
-    body.particles.push(Particle::new(
-        start + Vector2::new(size, 0.0),
-        nalgebra::Vector2::new(0.0, 0.0),
-        1.0,
-        0.001,
-        false,
-    ));
-    body.particles.push(Particle::new(
-        start + Vector2::new(size, size),
-        nalgebra::Vector2::new(0.0, 0.0),
-        1.0,
-        0.001,
-        false,
-    ));
-    body.particles.push(Particle::new(
-        start + Vector2::new(0.0, size),
-        nalgebra::Vector2::new(0.0, 0.0),
-        1.0,
-        0.001,
-        false,
-    ));
-
-    for i in 0..4 {
-        body.constraints.push(Box::new(DistanceConstraint::new(
-            i,
-            (i + 1) % 4,
-            &body.particles,
-            stiffness_distance,
-        )));
-    }
-    for i in 0..2 {
-        body.constraints.push(Box::new(DistanceConstraint::new(
-            i,
-            (i + 2) % 4,
-            &body.particles,
-            stiffness_shear,
-        )));
-    }
-
-    body.constraints.push(Box::new(AreaConstraint::new(
-        vec![0, 1, 2, 3],
-        &body.particles,
+        size,
+        size,
+        stiffness_distance,
+        stiffness_shear,
         stiffness_area,
-    )));
-    body
+    )
 }
+
 #[wasm_bindgen]
 impl Playground {
     #[wasm_bindgen(constructor)]
@@ -176,7 +243,7 @@ impl Playground {
         let mut simple_quad = create_quad(Vector2::new(0.0, 0.0), 100.0, 0.1, 0.3, 0.1);
         let third_quad = create_quad(Vector2::new(200.0, 0.0), 50.0, 0.5, 0.3, 0.5);
         let fourth_quad = create_quad(Vector2::new(300.0, 0.0), 75.0, 0.3, 0.3, 0.5);
-        let fifth = create_quad(Vector2::new(300.0, 200.0), 50.0, 0.3, 0.3, 0.5);
+        let ball = create_polygon(Vector2::new(300.0, 200.0), 80.0, 16, 0.9, 0.9, 0.9);
         let small_quad = create_quad(Vector2::new(25.0, 25.0), 25.0, 0.5, 0.3, 0.5);
 
         simple_quad
@@ -254,7 +321,7 @@ impl Playground {
         container_body.children.push(simple_quad);
         container_body.children.push(third_quad);
         container_body.children.push(fourth_quad);
-        container_body.children.push(fifth);
+        container_body.children.push(ball);
         container_body.collision_constraint = Some(CollisionConstraint::new(0.8));
         container_body
             .children_constraints

@@ -1,6 +1,7 @@
 use crate::constraint_common::get_distance_correction_vector;
-use crate::{Body, BodyId, Number, Particle, SolverSettings};
+use crate::{Body, BodyId, FloatingPointNumber, Particle, SolverSettings};
 use nalgebra::Vector2;
+
 pub enum ExtrinsicConstraintType<T> {
     Global(Box<dyn GlobalExtrinsicConstraint<T>>),
     Local(Box<dyn LocalExtrinsicConstraint<T>>),
@@ -31,7 +32,7 @@ pub struct WallConstraint<T> {
     pub stiffness: T,
 }
 
-impl<T: Number> GlobalExtrinsicConstraint<T> for WallConstraint<T> {
+impl<T: FloatingPointNumber> GlobalExtrinsicConstraint<T> for WallConstraint<T> {
     fn solve(
         &self,
         bodies: &mut Vec<Body<T>>,
@@ -79,7 +80,7 @@ pub struct AttachmentConstraint<T> {
     pub target_distances: Vec<T>,
     pub stiffness: T,
 }
-impl<T: Number> AttachmentConstraint<T> {
+impl<T: FloatingPointNumber> AttachmentConstraint<T> {
     pub fn new(
         body_id: BodyId,
         parent: &Body<T>,
@@ -112,7 +113,7 @@ impl<T: Number> AttachmentConstraint<T> {
         }
     }
 }
-impl<T: Number> LocalExtrinsicConstraint<T> for AttachmentConstraint<T> {
+impl<T: FloatingPointNumber> LocalExtrinsicConstraint<T> for AttachmentConstraint<T> {
     fn get_id(&self) -> BodyId {
         self.id
     }
