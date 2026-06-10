@@ -4,6 +4,7 @@ use crate::{
     SolverSettings,
 };
 use itertools::Itertools;
+use nalgebra::Vector2;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(0);
@@ -33,6 +34,17 @@ impl<T> Body<T> {
             collision_constraint: None,
         }
     }
+    pub fn centroid(&self) -> Vector2<T>
+    where
+        T: FloatingPointNumber,
+    {
+        let n = T::from(self.particles.len() as f32);
+        self.particles
+            .iter()
+            .fold(Vector2::zeros(), |acc, p| acc + p.position)
+            / n
+    }
+
     fn update_positions_recursively(&mut self, dt: T, solver_settings: &SolverSettings)
     where
         T: FloatingPointNumber,

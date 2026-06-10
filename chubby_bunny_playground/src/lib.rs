@@ -129,10 +129,16 @@ fn create_polygon(
         )));
     }
 
-    for i in 0..(num_sides / 2_usize) {
+    for i in 0..num_sides {
         polygon.constraints.push(Box::new(DistanceConstraint::new(
             i,
             (i + (num_sides / 2)) % num_sides,
+            &polygon.particles,
+            stiffness_shear,
+        )));
+        polygon.constraints.push(Box::new(DistanceConstraint::new(
+            i,
+            (i + (num_sides / 3)) % num_sides,
             &polygon.particles,
             stiffness_shear,
         )));
@@ -240,11 +246,11 @@ impl Playground {
     }
 
     pub fn init(&mut self) {
-        let mut simple_quad = create_quad(Vector2::new(0.0, 0.0), 100.0, 0.1, 0.3, 0.1);
-        let third_quad = create_quad(Vector2::new(200.0, 0.0), 50.0, 0.5, 0.3, 0.5);
-        let fourth_quad = create_quad(Vector2::new(300.0, 0.0), 75.0, 0.3, 0.3, 0.5);
-        let ball = create_polygon(Vector2::new(300.0, 200.0), 80.0, 16, 0.9, 0.9, 0.9);
-        let small_quad = create_quad(Vector2::new(25.0, 25.0), 25.0, 0.5, 0.3, 0.5);
+        let mut simple_quad = create_quad(Vector2::new(0.0, 0.0), 100.0, 0.1, 0.3, 0.0);
+        let third_quad = create_quad(Vector2::new(200.0, 0.0), 50.0, 0.5, 0.3, 0.0);
+        let fourth_quad = create_polygon(Vector2::new(300.0, 0.0), 75.0, 12, 0.95, 0.95, 0.0);
+        let ball = create_polygon(Vector2::new(300.0, 200.0), 80.0, 20, 0.95, 0.95, 0.0);
+        let small_quad = create_quad(Vector2::new(25.0, 25.0), 25.0, 0.5, 0.3, 0.0);
 
         simple_quad
             .children_constraints
@@ -291,7 +297,7 @@ impl Playground {
 
         let mut container_body = Body::empty();
         container_body.particles.push(Particle::new(
-            nalgebra::Vector2::new(0.0, 100.0),
+            nalgebra::Vector2::new(0.0, 300.0),
             nalgebra::Vector2::new(0.0, 0.0),
             1.0,
             0.01,
@@ -322,7 +328,7 @@ impl Playground {
         container_body.children.push(third_quad);
         container_body.children.push(fourth_quad);
         container_body.children.push(ball);
-        container_body.collision_constraint = Some(CollisionConstraint::new(0.8));
+        container_body.collision_constraint = Some(CollisionConstraint::new(0.2));
         container_body
             .children_constraints
             .push(ExtrinsicConstraintType::Global(Box::new(WallConstraint {
@@ -344,12 +350,12 @@ impl Playground {
         let dt = dt_ms / 1000.0;
         for body in self.bodies.iter_mut() {
             let constant_force =
-                chubby_bunny::force::constant_force(nalgebra::Vector2::new(0.0, 300.0));
+                chubby_bunny::force::constant_force(nalgebra::Vector2::new(0.0, 400.0));
             let _constant_force2 =
                 chubby_bunny::force::constant_force(nalgebra::Vector2::new(30.0, 0.0));
             let settings = SolverSettings {
                 reference_dt: 1.0 / 60.0,
-                constraint_iterations: 5,
+                constraint_iterations: 10,
             };
             body.perform_step(&vec![constant_force], dt, &settings);
         }

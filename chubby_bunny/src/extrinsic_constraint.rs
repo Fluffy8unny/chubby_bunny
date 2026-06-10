@@ -57,6 +57,7 @@ impl<T: FloatingPointNumber> GlobalExtrinsicConstraint<T> for WallConstraint<T> 
                 if distance < T::zero() {
                     let correction_vector = line_normal * (-distance + eps);
                     particle.apply_position_correction(&correction_vector);
+                    /*
                     //we're cheating a bit here, but it's fine for velet integration.
                     let normal_velocity = particle.velocity.dot(&line_normal);
 
@@ -67,6 +68,7 @@ impl<T: FloatingPointNumber> GlobalExtrinsicConstraint<T> for WallConstraint<T> 
                         particle.pre_integration_position =
                             particle.position - reflected_velocity * dt * self.stiffness;
                     }
+                    */
                 }
             }
         }
