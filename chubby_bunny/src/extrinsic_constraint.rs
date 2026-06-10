@@ -1,10 +1,5 @@
-use std::collections::HashMap;
-
 use crate::constraint_common::get_distance_correction_vector;
-use crate::Body;
-use crate::BodyId;
-use crate::Particle;
-use crate::SolverSettings;
+use crate::{Body, BodyId, Number, Particle, SolverSettings};
 use nalgebra::Vector2;
 pub enum ExtrinsicConstraintType<T> {
     Global(Box<dyn GlobalExtrinsicConstraint<T>>),
@@ -13,7 +8,7 @@ pub enum ExtrinsicConstraintType<T> {
 pub trait GlobalExtrinsicConstraint<T = f32> {
     fn solve(
         &self,
-        bodies: &mut HashMap<BodyId, Body<T>>,
+        bodies: &mut Vec<Body<T>>,
         parent_particles: &[Particle<T>],
         dt: T,
         solver_settings: &SolverSettings,
@@ -36,18 +31,15 @@ pub struct WallConstraint<T> {
     pub stiffness: T,
 }
 
-impl<T> GlobalExtrinsicConstraint<T> for WallConstraint<T>
-where
-    T: nalgebra::RealField + Copy + From<f32>,
-{
+impl<T: Number> GlobalExtrinsicConstraint<T> for WallConstraint<T> {
     fn solve(
         &self,
-        bodies: &mut HashMap<BodyId, Body<T>>,
+        bodies: &mut Vec<Body<T>>,
         parent_particles: &[Particle<T>],
         dt: T,
         _solver_settings: &SolverSettings,
     ) {
-        for body in bodies.values_mut() {
+        for body in bodies.iter_mut() {
             //calculate line based on parent points
             let line_origin = parent_particles[self.parent_point_idx_origin].position;
             let line_end = parent_particles[self.parent_point_idx_end].position;
@@ -87,7 +79,7 @@ pub struct AttachmentConstraint<T> {
     pub target_distances: Vec<T>,
     pub stiffness: T,
 }
-impl<T> AttachmentConstraint<T> {
+impl<T: Number> AttachmentConstraint<T> {
     pub fn new(
         body_id: BodyId,
         parent: &Body<T>,
@@ -95,10 +87,7 @@ impl<T> AttachmentConstraint<T> {
         point_idxs_parent: Vec<usize>,
         point_idxs_child: Vec<usize>,
         stiffness: T,
-    ) -> Self
-    where
-        T: nalgebra::RealField + Copy + From<f32>,
-    {
+    ) -> Self {
         assert_eq!(
             point_idxs_parent.len(),
             point_idxs_child.len(),
@@ -123,10 +112,7 @@ impl<T> AttachmentConstraint<T> {
         }
     }
 }
-impl<T> LocalExtrinsicConstraint<T> for AttachmentConstraint<T>
-where
-    T: nalgebra::RealField + Copy + From<f32>,
-{
+impl<T: Number> LocalExtrinsicConstraint<T> for AttachmentConstraint<T> {
     fn get_id(&self) -> BodyId {
         self.id
     }

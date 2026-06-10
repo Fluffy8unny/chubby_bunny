@@ -1,8 +1,7 @@
 use crate::constraint_common::{
     constraint_alpha_with_reference_dt, get_distance_correction_vector,
 };
-use crate::Particle;
-use crate::SolverSettings;
+use crate::{Number, Particle, SolverSettings};
 use nalgebra::Vector2;
 
 pub trait IntrinsicContraint<T = f32> {
@@ -16,10 +15,7 @@ pub struct DistanceConstraint<T> {
     pub stiffness: T,
 }
 
-impl<T> DistanceConstraint<T>
-where
-    T: nalgebra::RealField + Copy + From<f32>,
-{
+impl<T: Number> DistanceConstraint<T> {
     pub fn new(idx_left: usize, idx_right: usize, particles: &[Particle<T>], stiffness: T) -> Self {
         let target_distance = (particles[idx_right].position - particles[idx_left].position).norm();
         Self {
@@ -31,10 +27,7 @@ where
     }
 }
 
-impl<T> IntrinsicContraint<T> for DistanceConstraint<T>
-where
-    T: nalgebra::RealField + Copy + From<f32>,
-{
+impl<T: Number> IntrinsicContraint<T> for DistanceConstraint<T> {
     fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings) {
         let correction_vector = get_distance_correction_vector(
             &particles[self.idx_left],
@@ -55,10 +48,7 @@ pub struct AreaConstraint<T> {
     pub stiffness: T,
 }
 
-impl<T> AreaConstraint<T>
-where
-    T: nalgebra::RealField + Copy + From<f32>,
-{
+impl<T: Number> AreaConstraint<T> {
     pub fn new(idxs: Vec<usize>, particles: &[Particle<T>], stiffness: T) -> Self {
         let rest_area = Self::calculate_area(&idxs, particles);
         Self {
@@ -80,10 +70,7 @@ where
     }
 }
 
-impl<T> IntrinsicContraint<T> for AreaConstraint<T>
-where
-    T: nalgebra::RealField + Copy + From<f32>,
-{
+impl<T: Number> IntrinsicContraint<T> for AreaConstraint<T> {
     fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings) {
         let current_area = Self::calculate_area(&self.idxs, particles);
         if current_area <= T::zero() {

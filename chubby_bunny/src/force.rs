@@ -1,4 +1,4 @@
-use crate::Particle;
+use crate::{Number, Particle};
 use nalgebra::Vector2;
 
 pub trait Force<T = f32> {
@@ -24,10 +24,7 @@ where
     ConstantForce { f }
 }
 
-pub fn no_force<T>() -> impl Force<T>
-where
-    T: nalgebra::RealField + Copy,
-{
+pub fn no_force<T: Number>() -> impl Force<T> {
     constant_force(Vector2::zeros())
 }
 
@@ -37,20 +34,18 @@ pub enum ForceDecayType {
     Quadratic,
 }
 
-pub fn point_based_force<T>(target: Vector2<T>, strength: T, decay: ForceDecayType) -> impl Force<T>
-where
-    T: nalgebra::RealField + Copy,
-{
+pub fn point_based_force<T: Number>(
+    target: Vector2<T>,
+    strength: T,
+    decay: ForceDecayType,
+) -> impl Force<T> {
     struct DistanceBasedForce<T> {
         target: Vector2<T>,
         strength: T,
         decay: ForceDecayType,
     }
 
-    impl<T> Force<T> for DistanceBasedForce<T>
-    where
-        T: nalgebra::RealField + Copy,
-    {
+    impl<T: Number> Force<T> for DistanceBasedForce<T> {
         fn apply(&self, particle: &Particle<T>) -> Vector2<T> {
             let direction = self.target - particle.position;
             let decayed_strength = match self.decay {

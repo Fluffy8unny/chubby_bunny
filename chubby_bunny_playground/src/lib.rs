@@ -34,7 +34,7 @@ struct PolygonArray {
 
 #[wasm_bindgen]
 pub struct Playground {
-    bodies: HashMap<BodyId, Body>,
+    bodies: Vec<Body>,
     polygon_arrays: Vec<PolygonArray>,
     meta_data: HashMap<BodyId, BodyMeta>,
 }
@@ -70,7 +70,7 @@ fn body_to_polygon_array(
     let edges: Vec<(u32, u32)> = (0..n).map(|i| (i as u32, ((i + 1) % n) as u32)).collect();
     let children = body
         .children
-        .values()
+        .iter()
         .map(|child| body_to_polygon_array(child, meta_data, depth + 1))
         .collect();
     let meta = meta_data
@@ -166,7 +166,7 @@ impl Playground {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Playground {
         Playground {
-            bodies: HashMap::new(),
+            bodies: Vec::new(),
             polygon_arrays: Vec::new(),
             meta_data: HashMap::new(),
         }
@@ -192,7 +192,7 @@ impl Playground {
                 ),
             )));
 
-        simple_quad.children.insert(small_quad.id, small_quad);
+        simple_quad.children.push(small_quad);
         simple_quad
             .children_constraints
             .push(ExtrinsicConstraintType::Global(Box::new(WallConstraint {
@@ -251,10 +251,10 @@ impl Playground {
             0.01,
             true,
         ));
-        container_body.children.insert(simple_quad.id, simple_quad);
-        container_body.children.insert(third_quad.id, third_quad);
-        container_body.children.insert(fourth_quad.id, fourth_quad);
-        container_body.children.insert(fifth.id, fifth);
+        container_body.children.push(simple_quad);
+        container_body.children.push(third_quad);
+        container_body.children.push(fourth_quad);
+        container_body.children.push(fifth);
         container_body.collision_constraint = Some(CollisionConstraint::new(0.8));
         container_body
             .children_constraints
@@ -270,12 +270,12 @@ impl Playground {
                 parent_point_idx_end: 1,
                 stiffness: 1.0,
             })));
-        self.bodies.insert(container_body.id, container_body);
+        self.bodies.push(container_body);
     }
 
     pub fn update(&mut self, dt_ms: f32) {
         let dt = dt_ms / 1000.0;
-        for body in self.bodies.values_mut() {
+        for body in self.bodies.iter_mut() {
             let constant_force =
                 chubby_bunny::force::constant_force(nalgebra::Vector2::new(0.0, 300.0));
             let _constant_force2 =
@@ -286,7 +286,7 @@ impl Playground {
             };
             body.perform_step(&vec![constant_force], dt, &settings);
         }
-        self.polygon_arrays = bodies_to_polygon_arrays(self.bodies.values(), &self.meta_data);
+        self.polygon_arrays = bodies_to_polygon_arrays(self.bodies.iter(), &self.meta_data);
     }
 
     pub fn get_polygon_arrays(&self) -> Result<JsValue, JsValue> {
