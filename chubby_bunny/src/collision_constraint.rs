@@ -1,4 +1,4 @@
-use crate::{Body, FloatingPointNumber, SolverSettings};
+use crate::{Body, BoundingBox, FloatingPointNumber, SolverSettings};
 use itertools::Itertools;
 use nalgebra::Vector2;
 
@@ -10,27 +10,6 @@ impl<T> CollisionConstraint<T> {
     pub fn new(stiffness: T) -> Self {
         Self { stiffness }
     }
-}
-
-struct BoundingBox<T> {
-    min: Vector2<T>,
-    max: Vector2<T>,
-}
-
-fn get_bounding_box<T: FloatingPointNumber>(body: &Body<T>) -> BoundingBox<T> {
-    body.particles.iter().fold(
-        BoundingBox {
-            min: Vector2::new(T::max_value().unwrap(), T::max_value().unwrap()),
-            max: Vector2::new(T::min_value().unwrap(), T::min_value().unwrap()),
-        },
-        |mut bbox, particle| {
-            bbox.min.x = bbox.min.x.min(particle.position.x);
-            bbox.min.y = bbox.min.y.min(particle.position.y);
-            bbox.max.x = bbox.max.x.max(particle.position.x);
-            bbox.max.y = bbox.max.y.max(particle.position.y);
-            bbox
-        },
-    )
 }
 
 fn boxes_intersect<T: FloatingPointNumber>(box_a: &BoundingBox<T>, box_b: &BoundingBox<T>) -> bool {
@@ -47,7 +26,7 @@ struct Edge<T> {
     pt_b: Vector2<T>,
 }
 impl<T: FloatingPointNumber> Edge<T> {
-    pub fn centroid(&self) -> Vector2<T> {
+    pub fn center(&self) -> Vector2<T> {
         (self.pt_a + self.pt_b) / T::from(2.0)
     }
 }
@@ -97,46 +76,12 @@ fn point_segment_distance_squared<T: FloatingPointNumber>(
     let diff = point - projection;
     (diff.norm_squared(), t, projection)
 }
-
-fn point_in_polygon<T: FloatingPointNumber>(point: Vector2<T>, body: &Body<T>) -> bool {
-    if body.particles.len() < 3 {
-        return false;
-    }
-
-    let mut inside = false;
-    for (a, b) in body.particles.iter().circular_tuple_windows() {
-        let a = a.position;
-        let b = b.position;
-
-        let intersects = (a.y > point.y) != (b.y > point.y);
-        if !intersects {
-            continue;
-        }
-
-        let dy = b.y - a.y;
-        if dy.abs() <= T::zero() {
-            continue;
-        }
-
-        let x_intersection = a.x + (point.y - a.y) * (b.x - a.x) / dy;
-        if point.x < x_intersection {
-            inside = !inside;
-        }
-    }
-    inside
-}
-
 fn edge_outward_normal<T: FloatingPointNumber>(
     edge: &Edge<T>,
     polygon_centroid: Vector2<T>,
 ) -> Vector2<T> {
     let edge_vector = edge.pt_b - edge.pt_a;
-    let mut normal = Vector2::new(-edge_vector.y, edge_vector.x);
-    let len2 = normal.norm_squared();
-    if len2 <= T::zero() {
-        return Vector2::zeros();
-    }
-    normal /= len2.sqrt();
+    let mut normal = Vector2::new(-edge_vector.y, edge_vector.x).normalize();
 
     let edge_mid = (edge.pt_a + edge.pt_b) / T::from(2.0);
     let to_mid = edge_mid - polygon_centroid;
@@ -156,7 +101,7 @@ fn find_containment_contacts<T: FloatingPointNumber>(
 
     for (contained_idx, contained_particle) in contained_body.particles.iter().enumerate() {
         let point = contained_particle.position;
-        if !point_in_polygon(point, container_body) {
+        if !container_body.point_in_polygon(point) {
             continue;
         }
 
@@ -181,11 +126,7 @@ fn find_containment_contacts<T: FloatingPointNumber>(
         };
 
         let mut normal = edge_outward_normal(best_edge, container_centroid);
-        if normal.norm_squared() <= T::zero() {
-            continue;
-        }
-
-        // Ensure the normal pushes the contained point away from the container.
+        // top might fail for concave shapes...
         if (point - best_projection).dot(&normal) > T::zero() {
             normal = -normal;
         }
@@ -213,14 +154,8 @@ fn penetration_depth_along_normal<T: FloatingPointNumber>(
     edge_b: &Edge<T>,
     normal: &Vector2<T>,
 ) -> T {
-    let n_len2 = normal.norm_squared();
-    if n_len2 <= T::zero() {
-        return T::zero();
-    }
-    let n = *normal / n_len2.sqrt();
-
-    let d0 = (edge_b.pt_a - edge_a.pt_a).dot(&n);
-    let d1 = (edge_b.pt_b - edge_a.pt_a).dot(&n);
+    let d0 = (edge_b.pt_a - edge_a.pt_a).dot(&normal);
+    let d1 = (edge_b.pt_b - edge_a.pt_a).dot(&normal);
 
     d0.max(d1).max(T::zero())
 }
@@ -241,34 +176,32 @@ fn get_line_segment_intersection<T: FloatingPointNumber>(
 
     let t = (q - p).perp(&s) / r_cross_s;
     let u = (q - p).perp(&r) / r_cross_s;
-
-    if t >= T::zero() && t <= T::one() && u >= T::zero() && u <= T::one() {
-        let normal_a = Vector2::new(-r.y, r.x).normalize();
-        let normal_b = Vector2::new(-s.y, s.x).normalize();
-
-        let penetration_depth_a = penetration_depth_along_normal(edge_a, edge_b, &normal_a);
-        let penetration_depth_b = penetration_depth_along_normal(edge_b, edge_a, &normal_b);
-
-        let (mut normal, penetration_depth) = if penetration_depth_a < penetration_depth_b {
-            (normal_a, penetration_depth_a)
-        } else {
-            (normal_b, penetration_depth_b)
-        };
-
-        let centroid_diff = edge_a.centroid() - edge_b.centroid();
-        if centroid_diff.dot(&normal) < T::zero() {
-            normal = -normal;
-        }
-
-        Some(Intersection {
-            normal,
-            rel_line_position_a: t,
-            rel_line_position_b: u,
-            penetration_depth,
-        })
-    } else {
-        None
+    if t < T::zero() || t > T::one() || u < T::zero() || u > T::one() {
+        return None;
     }
+    let normal_a = Vector2::new(-r.y, r.x).normalize();
+    let normal_b = Vector2::new(-s.y, s.x).normalize();
+
+    let penetration_depth_a = penetration_depth_along_normal(edge_a, edge_b, &normal_a);
+    let penetration_depth_b = penetration_depth_along_normal(edge_b, edge_a, &normal_b);
+
+    let (mut normal, penetration_depth) = if penetration_depth_a < penetration_depth_b {
+        (normal_a, penetration_depth_a)
+    } else {
+        (normal_b, penetration_depth_b)
+    };
+
+    let centroid_diff = edge_a.center() - edge_b.center();
+    if centroid_diff.dot(&normal) < T::zero() {
+        normal = -normal;
+    }
+
+    Some(Intersection {
+        normal,
+        rel_line_position_a: t,
+        rel_line_position_b: u,
+        penetration_depth,
+    })
 }
 
 impl<T: FloatingPointNumber> CollisionConstraint<T> {
@@ -284,8 +217,10 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
         let weight_a = T::one() - point_weight;
         let weight_b = point_weight;
 
-        body.particles[idx_a].apply_position_correction(&(correction_vector * weight_a));
-        body.particles[idx_b].apply_position_correction(&(correction_vector * weight_b));
+        body.particles[idx_a]
+            .apply_position_correction_to_particle(&(correction_vector * weight_a));
+        body.particles[idx_b]
+            .apply_position_correction_to_particle(&(correction_vector * weight_b));
     }
 
     fn resolve_containment_contacts(
@@ -295,13 +230,13 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
         contacts: Vec<ContainmentContact<T>>,
         time_correction_factor: T,
     ) {
-        let push_factor = self.stiffness * time_correction_factor;
+        //tood replace 0.5 with weight based
+        let push_factor = self.stiffness * time_correction_factor * T::from(0.5);
 
         for contact in contacts {
-            let correction_vector =
-                contact.normal * push_factor * contact.penetration_depth * T::from(0.5);
+            let correction_vector = contact.normal * push_factor * contact.penetration_depth;
             contained_body.particles[contact.contained_point_idx]
-                .apply_position_correction(&(correction_vector));
+                .apply_position_correction_to_particle(&(correction_vector));
             self.apply_position_correction_to_edge(
                 container_body,
                 &contact.edge,
@@ -318,7 +253,7 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
         dt: T,
         solver_settings: &SolverSettings,
     ) {
-        if !boxes_intersect(&get_bounding_box(body_a), &get_bounding_box(body_b)) {
+        if !boxes_intersect(&body_a.get_bounding_box(), &body_b.get_bounding_box()) {
             return;
         }
 

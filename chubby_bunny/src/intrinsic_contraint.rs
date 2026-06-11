@@ -37,8 +37,8 @@ impl<T: FloatingPointNumber> IntrinsicContraint<T> for DistanceConstraint<T> {
             dt,
             solver_settings,
         );
-        particles[self.idx_left].apply_position_correction(&(-correction_vector));
-        particles[self.idx_right].apply_position_correction(&correction_vector);
+        particles[self.idx_left].apply_position_correction_to_particle(&(-correction_vector));
+        particles[self.idx_right].apply_position_correction_to_particle(&correction_vector);
     }
 }
 
@@ -89,7 +89,8 @@ impl<T: FloatingPointNumber> IntrinsicContraint<T> for AreaConstraint<T> {
 
         for idx in &self.idxs {
             let offset = particles[*idx].position - centroid;
-            particles[*idx].apply_position_correction(&(offset * scale_correction * alpha));
+            particles[*idx]
+                .apply_position_correction_to_particle(&(offset * scale_correction * alpha));
         }
     }
 }

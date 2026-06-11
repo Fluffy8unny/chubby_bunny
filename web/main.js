@@ -1,18 +1,28 @@
 import init, { Playground } from "../pkg/chubby_bunny_playground.js";
 
 let playground = null;
+const canvas = document.getElementById('canvas');
 
-async function start() {
+const resizeCanvas= () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+const start = async () => {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
     console.log("Initializing...");
   await init();
 
   playground = new Playground();
-  playground.init();
+  playground.init(width, height);
   playground.last_timestamp = performance.now();
   requestAnimationFrame(loop);
 }
 
-function loop(timestamp) {
+const loop = (timestamp) => {
     console.log("Updating...");
   let dt = timestamp - (playground.last_timestamp || timestamp);
   playground.last_timestamp = timestamp;
@@ -21,7 +31,7 @@ function loop(timestamp) {
   requestAnimationFrame(loop);
 }
 
-function render_polygon_arrays( polygon_arrays , ctx) {
+const render_polygon_arrays = ( polygon_arrays , ctx) => {
     for (let p of polygon_arrays.vertices) {
             ctx.beginPath();
             ctx.arc(p[0], p[1], 4, 0, Math.PI * 2);
@@ -38,7 +48,7 @@ function render_polygon_arrays( polygon_arrays , ctx) {
         render_polygon_arrays(child, ctx);
     }
 }
-function render() {
+const render = () =>  {
   const polygon_arrays = playground.get_polygon_arrays();
   const canvas = document.getElementById("canvas");
   const ctx = canvas.getContext("2d");

@@ -37,7 +37,7 @@ impl<T: FloatingPointNumber> GlobalExtrinsicConstraint<T> for WallConstraint<T> 
         &self,
         bodies: &mut Vec<Body<T>>,
         parent_particles: &[Particle<T>],
-        dt: T,
+        _dt: T,
         _solver_settings: &SolverSettings,
     ) {
         for body in bodies.iter_mut() {
@@ -56,7 +56,7 @@ impl<T: FloatingPointNumber> GlobalExtrinsicConstraint<T> for WallConstraint<T> 
                 let distance = to_particle.dot(&line_normal);
                 if distance < T::zero() {
                     let correction_vector = line_normal * (-distance + eps);
-                    particle.apply_position_correction(&correction_vector);
+                    particle.apply_position_correction_to_particle(&correction_vector);
                     /*
                     //we're cheating a bit here, but it's fine for velet integration.
                     let normal_velocity = particle.velocity.dot(&line_normal);
@@ -144,7 +144,7 @@ impl<T: FloatingPointNumber> LocalExtrinsicConstraint<T> for AttachmentConstrain
                 _dt,
                 _solver_settings,
             );
-            body.particles[*child_idx].apply_position_correction(&correction_vector);
+            body.particles[*child_idx].apply_position_correction_to_particle(&correction_vector);
         }
     }
 }

@@ -21,6 +21,10 @@ pub struct Body<T = f32> {
     pub children_constraints: Vec<ExtrinsicConstraintType<T>>,
     pub collision_constraint: Option<CollisionConstraint<T>>,
 }
+pub struct BoundingBox<T> {
+    pub min: Vector2<T>,
+    pub max: Vector2<T>,
+}
 
 impl<T> Body<T> {
     pub fn empty() -> Self {
@@ -34,6 +38,7 @@ impl<T> Body<T> {
             collision_constraint: None,
         }
     }
+
     pub fn centroid(&self) -> Vector2<T>
     where
         T: FloatingPointNumber,
@@ -43,6 +48,56 @@ impl<T> Body<T> {
             .iter()
             .fold(Vector2::zeros(), |acc, p| acc + p.position)
             / n
+    }
+
+    pub fn get_bounding_box(&self) -> BoundingBox<T>
+    where
+        T: FloatingPointNumber,
+    {
+        self.particles.iter().fold(
+            BoundingBox {
+                min: Vector2::new(T::max_value().unwrap(), T::max_value().unwrap()),
+                max: Vector2::new(T::min_value().unwrap(), T::min_value().unwrap()),
+            },
+            |mut bbox, particle| {
+                bbox.min.x = bbox.min.x.min(particle.position.x);
+                bbox.min.y = bbox.min.y.min(particle.position.y);
+                bbox.max.x = bbox.max.x.max(particle.position.x);
+                bbox.max.y = bbox.max.y.max(particle.position.y);
+                bbox
+            },
+        )
+    }
+
+    pub fn point_in_polygon(&self, point: Vector2<T>) -> bool
+    where
+        T: FloatingPointNumber,
+    {
+        if self.particles.len() < 3 {
+            return false;
+        }
+
+        let mut inside = false;
+        for (a, b) in self.particles.iter().circular_tuple_windows() {
+            let a = a.position;
+            let b = b.position;
+
+            let intersects = (a.y > point.y) != (b.y > point.y);
+            if !intersects {
+                continue;
+            }
+
+            let dy = b.y - a.y;
+            if dy.abs() <= T::zero() {
+                continue;
+            }
+
+            let x_intersection = a.x + (point.y - a.y) * (b.x - a.x) / dy;
+            if point.x < x_intersection {
+                inside = !inside;
+            }
+        }
+        inside
     }
 
     fn update_positions_recursively(&mut self, dt: T, solver_settings: &SolverSettings)

@@ -35,10 +35,10 @@ where
     pub fn apply_force(&mut self, force: &Vector2<T>, dt: T) {
         let acceleration = force / self.mass;
         let velocity = self.velocity + acceleration * dt;
-        self.apply_position_correction(&(velocity * dt));
+        self.apply_position_correction_to_particle(&(velocity * dt));
     }
 
-    pub fn apply_position_correction(&mut self, position_correction: &Vector2<T>) {
+    pub fn apply_position_correction_to_particle(&mut self, position_correction: &Vector2<T>) {
         if self.pinned {
             return;
         }
