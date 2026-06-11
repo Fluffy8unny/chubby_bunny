@@ -9,99 +9,9 @@ use wasm_bindgen::prelude::*;
 mod primitives;
 use primitives::{create_polygon, create_quad};
 
-#[wasm_bindgen]
-#[derive(Debug, Clone, Copy, serde::Serialize)]
-pub struct Color {
-    pub r: u8,
-    pub g: u8,
-    pub b: u8,
-}
+mod js_types;
+use js_types::{bodies_to_polygon_arrays, default_meta, BodyMeta, Color, PolygonArray};
 
-#[wasm_bindgen]
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct BodyMeta {
-    pub id: BodyId,
-    pub z_index: i32,
-    pub line_color: Color,
-    pub fill_color: Color,
-}
-
-#[derive(serde::Serialize)]
-struct PolygonArray {
-    vertices: Vec<(f32, f32)>,
-    edges: Vec<(u32, u32)>,
-    meta: BodyMeta,
-    z_index: i32,
-    children: Vec<PolygonArray>,
-}
-
-#[wasm_bindgen]
-pub struct Playground {
-    bodies: Vec<Body>,
-    polygon_arrays: Vec<PolygonArray>,
-    meta_data: HashMap<BodyId, BodyMeta>,
-}
-
-fn default_meta(id: BodyId, z_index: i32) -> BodyMeta {
-    BodyMeta {
-        id,
-        z_index,
-        line_color: Color {
-            r: 30,
-            g: 30,
-            b: 30,
-        },
-        fill_color: Color {
-            r: 190,
-            g: 190,
-            b: 190,
-        },
-    }
-}
-
-fn body_to_polygon_array(
-    body: &Body,
-    meta_data: &HashMap<BodyId, BodyMeta>,
-    depth: i32,
-) -> PolygonArray {
-    let vertices: Vec<(f32, f32)> = body
-        .particles
-        .iter()
-        .map(|p| (p.position.x, p.position.y))
-        .collect();
-    let n = vertices.len();
-    let edges: Vec<(u32, u32)> = (0..n).map(|i| (i as u32, ((i + 1) % n) as u32)).collect();
-    let children = body
-        .children
-        .iter()
-        .map(|child| body_to_polygon_array(child, meta_data, depth + 1))
-        .collect();
-    let meta = meta_data
-        .get(&body.id)
-        .cloned()
-        .unwrap_or_else(|| default_meta(body.id, depth));
-
-    PolygonArray {
-        vertices,
-        edges,
-        meta,
-        z_index: depth,
-        children,
-    }
-}
-
-fn bodies_to_polygon_arrays<'a, I>(
-    bodies: I,
-    meta_data: &HashMap<BodyId, BodyMeta>,
-) -> Vec<PolygonArray>
-where
-    I: IntoIterator<Item = &'a Body>,
-{
-    bodies
-        .into_iter()
-        .map(|body| body_to_polygon_array(body, meta_data, 0))
-        .collect()
-}
 fn create_container(width: usize, height: usize) -> Body {
     let mut container_body = Body::empty();
     let mut create_particle_helper = |x, y| {
@@ -128,6 +38,12 @@ fn create_container(width: usize, height: usize) -> Body {
             })));
     }
     container_body
+}
+#[wasm_bindgen]
+pub struct Playground {
+    bodies: Vec<Body>,
+    polygon_arrays: Vec<PolygonArray>,
+    meta_data: HashMap<BodyId, BodyMeta>,
 }
 #[wasm_bindgen]
 impl Playground {
@@ -163,7 +79,7 @@ impl Playground {
 
         simple_quad.children.push(small_quad);
         let mut container_body = create_container(width, height);
-
+        let container_id = container_body.id;
         container_body.children.push(simple_quad);
         container_body.children.push(third_quad);
         container_body.children.push(fourth_quad);
@@ -184,6 +100,26 @@ impl Playground {
                 stiffness: 1.0,
             })));
         self.bodies.push(container_body);
+        self.meta_data.insert(
+            container_id,
+            BodyMeta {
+                id: container_id,
+                z_index: 0,
+                line_weight: 3.0,
+                line_color: Color {
+                    r: 33,
+                    g: 33,
+                    b: 33,
+                    a: 1.0,
+                },
+                fill_color: Color {
+                    r: 33,
+                    g: 33,
+                    b: 33,
+                    a: 1.0,
+                },
+            },
+        );
     }
 
     pub fn update(&mut self, dt_ms: f32) {
