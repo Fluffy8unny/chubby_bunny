@@ -137,8 +137,8 @@ fn find_containment_contacts<T: FloatingPointNumber>(
             edge: Edge {
                 idx_a: best_edge.idx_a,
                 idx_b: best_edge.idx_b,
-                pt_a: best_edge.pt_a.clone(),
-                pt_b: best_edge.pt_b.clone(),
+                pt_a: best_edge.pt_a,
+                pt_b: best_edge.pt_b,
             },
             rel_edge_position: best_t,
             normal,
@@ -154,8 +154,8 @@ fn penetration_depth_along_normal<T: FloatingPointNumber>(
     edge_b: &Edge<T>,
     normal: &Vector2<T>,
 ) -> T {
-    let d0 = (edge_b.pt_a - edge_a.pt_a).dot(&normal);
-    let d1 = (edge_b.pt_b - edge_a.pt_a).dot(&normal);
+    let d0 = (edge_b.pt_a - edge_a.pt_a).dot(normal);
+    let d1 = (edge_b.pt_b - edge_a.pt_a).dot(normal);
 
     d0.max(d1).max(T::zero())
 }

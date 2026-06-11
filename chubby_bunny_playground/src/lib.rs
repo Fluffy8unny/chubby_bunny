@@ -10,8 +10,10 @@ mod primitives;
 use primitives::{create_polygon, create_quad};
 
 mod js_types;
-use js_types::{bodies_to_polygon_arrays, default_meta, BodyMeta, Color, PolygonArray};
+use js_types::{bodies_to_polygon_arrays, BodyMeta, Color, PolygonArray};
 
+mod input;
+use input::{InputState, MouseButton, MouseEvent};
 fn create_container(width: usize, height: usize) -> Body {
     let mut container_body = Body::empty();
     let mut create_particle_helper = |x, y| {
@@ -39,6 +41,7 @@ fn create_container(width: usize, height: usize) -> Body {
     }
     container_body
 }
+
 #[wasm_bindgen]
 pub struct Playground {
     bodies: Vec<Body>,
@@ -55,7 +58,6 @@ impl Playground {
             meta_data: HashMap::new(),
         }
     }
-
     pub fn init(&mut self, width: usize, height: usize) {
         let mut simple_quad = create_quad(Vector2::new(0.0, 100.0), 100.0, 0.1, 0.3, 0.0, 0.01);
         let third_quad = create_quad(Vector2::new(200.0, 200.0), 50.0, 0.5, 0.3, 0.0, 0.01);
@@ -123,16 +125,15 @@ impl Playground {
     }
 
     pub fn update(&mut self, dt_ms: f32) {
-        let reference_dt = 1.0 / 60.0;
-        let dt = (dt_ms / 1000.0).min(2.0 * reference_dt); //someone left the tab etc...
+        let dt = dt_ms / 1000.0;
         for body in self.bodies.iter_mut() {
             let constant_force =
                 chubby_bunny::force::constant_force(nalgebra::Vector2::new(0.0, 400.0));
             let _constant_force2 =
                 chubby_bunny::force::constant_force(nalgebra::Vector2::new(30.0, 0.0));
             let settings = SolverSettings {
-                reference_dt,
-                constraint_iterations: 5,
+                reference_dt: 1.0 / 60.0,
+                constraint_iterations: 10,
             };
             body.perform_step(&vec![constant_force], dt, &settings);
         }

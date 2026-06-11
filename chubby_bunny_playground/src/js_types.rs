@@ -29,7 +29,7 @@ pub struct PolygonArray {
     children: Vec<PolygonArray>,
 }
 
-pub fn default_meta(id: BodyId, z_index: i32) -> BodyMeta {
+fn default_meta(id: BodyId, z_index: i32) -> BodyMeta {
     BodyMeta {
         id,
         z_index,
