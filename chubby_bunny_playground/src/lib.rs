@@ -16,7 +16,7 @@ use js_types::{
 };
 
 mod input;
-use input::{calc_average_mouse_speed_and_timestamp, InputState, MouseButton, MouseState};
+use input::{InputState, MouseButton, MouseState};
 
 fn create_container(width: usize, height: usize) -> Body {
     let mut container_body = Body::empty();
@@ -136,22 +136,18 @@ impl Playground {
         }
     }
 
-    fn handle_drag(&mut self, mouse_staet: &[MouseState]) {
-        if let Ok((speed, dt)) = calc_average_mouse_speed_and_timestamp(mouse_staet, 2) {
-            web_sys::console::log_1(
-                &format!(
-                    "Average mouse speed: {:?}, dt: {:?} offset: {:?}",
-                    speed,
-                    dt,
-                    speed * dt
-                )
-                .into(),
-            );
-            let offset = speed * dt;
-            if let Some(selected_body) = self.current_selected_body {
-                for container in self.bodies.iter_mut() {
-                    container.move_child_by_id(selected_body, offset);
-                }
+    fn handle_drag(&mut self, mouse_states: &[MouseState]) {
+        if mouse_states.len() < 2 {
+            return;
+        }
+
+        let previous = mouse_states[mouse_states.len() - 2].mouse_position;
+        let current = mouse_states[mouse_states.len() - 1].mouse_position;
+        let offset = current - previous;
+
+        if let Some(selected_body) = self.current_selected_body {
+            for container in self.bodies.iter_mut() {
+                container.move_child_by_id(selected_body, offset);
             }
         }
     }

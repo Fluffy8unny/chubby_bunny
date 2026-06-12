@@ -55,14 +55,12 @@ pub fn calc_average_mouse_speed_and_timestamp(
 pub struct InputState {
     mouse_events: HashMap<MouseButton, Vec<MouseState>>,
     pub events: VecDeque<Event>,
-    last_mouse_position: Option<MouseState>,
 }
 impl InputState {
     pub fn new() -> Self {
         Self {
             mouse_events: HashMap::new(),
             events: VecDeque::new(),
-            last_mouse_position: None,
         }
     }
 
@@ -110,14 +108,5 @@ impl InputState {
                 states: states.clone(),
             });
         }
-
-        if let Some(last_state) = self.last_mouse_position {
-            self.events.push_back(Event {
-                event_type: MouseEventType::Move,
-                button: MouseButton::Left, // Assuming left button for move events
-                states: vec![new_state, last_state],
-            });
-        }
-        self.last_mouse_position = Some(new_state);
     }
 }
