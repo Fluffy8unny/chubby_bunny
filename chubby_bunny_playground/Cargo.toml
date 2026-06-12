@@ -9,6 +9,7 @@ crate-type = ["cdylib"]
 [dependencies]
 chubby_bunny = { path = "../chubby_bunny" }
 nalgebra = "0.35"
+itertools = "0.14"
 wasm-bindgen = "0.2"
 serde = { version = "1", features = ["derive"] }
 serde-wasm-bindgen = "0.6"

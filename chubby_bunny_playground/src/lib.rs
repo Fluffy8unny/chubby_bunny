@@ -13,7 +13,8 @@ mod js_types;
 use js_types::{bodies_to_polygon_arrays, BodyMeta, Color, PolygonArray};
 
 mod input;
-use input::{InputState, MouseButton, MouseEvent};
+use input::InputState;
+
 fn create_container(width: usize, height: usize) -> Body {
     let mut container_body = Body::empty();
     let mut create_particle_helper = |x, y| {

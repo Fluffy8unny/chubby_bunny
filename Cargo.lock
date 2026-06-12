@@ -49,6 +49,7 @@ name = "chubby_bunny_playground"
 version = "0.1.0"
 dependencies = [
  "chubby_bunny",
+ "itertools",
  "nalgebra",
  "serde",
  "serde-wasm-bindgen",
