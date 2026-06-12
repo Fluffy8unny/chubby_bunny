@@ -100,6 +100,49 @@ impl<T> Body<T> {
         inside
     }
 
+    pub fn pin_child_by_id(&mut self, id: BodyId, pinned: bool) {
+        if self.id == id {
+            self.set_pinned(pinned);
+        } else {
+            for child in self.children.iter_mut() {
+                child.pin_child_by_id(id, pinned);
+            }
+        }
+    }
+
+    pub fn set_pinned(&mut self, pinned: bool) {
+        for particle in self.particles.iter_mut() {
+            particle.pinned = pinned;
+        }
+        for child in self.children.iter_mut() {
+            child.set_pinned(pinned);
+        }
+    }
+    pub fn move_child_by_id(&mut self, id: BodyId, offset: Vector2<T>)
+    where
+        T: FloatingPointNumber,
+    {
+        if self.id == id {
+            self.move_uniform(offset);
+        } else {
+            for child in self.children.iter_mut() {
+                child.move_child_by_id(id, offset);
+            }
+        }
+    }
+    pub fn move_uniform(&mut self, offset: Vector2<T>)
+    where
+        T: FloatingPointNumber,
+    {
+        for particle in self.particles.iter_mut() {
+            particle.pre_integration_position = particle.position;
+            particle.position += offset;
+        }
+        for child in self.children.iter_mut() {
+            child.move_uniform(offset);
+        }
+    }
+
     fn update_positions_recursively(&mut self, dt: T, solver_settings: &SolverSettings)
     where
         T: FloatingPointNumber,

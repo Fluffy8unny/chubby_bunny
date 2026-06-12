@@ -1,9 +1,6 @@
-use chubby_bunny::FloatingPointNumber;
-use core::time;
 use itertools::Itertools;
 use nalgebra::Vector2;
 use std::collections::{HashMap, VecDeque};
-use std::time::Instant;
 use wasm_bindgen::prelude::*;
 #[wasm_bindgen]
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -26,8 +23,8 @@ pub struct Event {
     pub states: Vec<MouseState>,
 }
 
-#[derive(Debug, Clone, Copy)]
-struct MouseState {
+#[derive(Debug, Copy, Clone)]
+pub struct MouseState {
     pub mouse_position: Vector2<f32>,
     pub time_stamp: f32,
 }
@@ -36,7 +33,7 @@ pub fn calc_average_mouse_speed_and_timestamp(
     n: usize,
 ) -> Result<(Vector2<f32>, f32), &'static str> {
     if states.len() < 2 {
-        return Err("Not enough values to calcualte speed");
+        return Err("Not enough values to calculate speed");
     }
     let vals = states.iter().rev().take(n);
     let count = vals.len();
@@ -58,12 +55,14 @@ pub fn calc_average_mouse_speed_and_timestamp(
 pub struct InputState {
     mouse_events: HashMap<MouseButton, Vec<MouseState>>,
     pub events: VecDeque<Event>,
+    last_mouse_position: Option<MouseState>,
 }
 impl InputState {
     pub fn new() -> Self {
         Self {
             mouse_events: HashMap::new(),
             events: VecDeque::new(),
+            last_mouse_position: None,
         }
     }
 
@@ -99,17 +98,26 @@ impl InputState {
     }
 
     pub fn mouse_move(&mut self, position: Vector2<f32>, time_stamp: f32) {
-        let new_event = MouseState {
+        let new_state = MouseState {
             mouse_position: position,
             time_stamp: time_stamp,
         };
-        for (button, events) in self.mouse_events.iter_mut() {
-            events.push(new_event);
+        for (button, states) in self.mouse_events.iter_mut() {
+            states.push(new_state);
             self.events.push_back(Event {
                 event_type: MouseEventType::Move,
                 button: *button,
-                states: events.clone(),
+                states: states.clone(),
             });
         }
+
+        if let Some(last_state) = self.last_mouse_position {
+            self.events.push_back(Event {
+                event_type: MouseEventType::Move,
+                button: MouseButton::Left, // Assuming left button for move events
+                states: vec![new_state, last_state],
+            });
+        }
+        self.last_mouse_position = Some(new_state);
     }
 }

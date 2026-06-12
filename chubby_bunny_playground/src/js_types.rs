@@ -29,7 +29,7 @@ pub struct PolygonArray {
     children: Vec<PolygonArray>,
 }
 
-fn default_meta(id: BodyId, z_index: i32) -> BodyMeta {
+pub fn default_meta(id: BodyId, z_index: i32) -> BodyMeta {
     BodyMeta {
         id,
         z_index,
@@ -48,7 +48,44 @@ fn default_meta(id: BodyId, z_index: i32) -> BodyMeta {
         },
     }
 }
-
+pub fn default_meta_for_container(id: BodyId) -> BodyMeta {
+    BodyMeta {
+        id,
+        z_index: 0,
+        line_weight: 3.0,
+        line_color: Color {
+            r: 33,
+            g: 33,
+            b: 33,
+            a: 1.0,
+        },
+        fill_color: Color {
+            r: 33,
+            g: 33,
+            b: 33,
+            a: 1.0,
+        },
+    }
+}
+pub fn selected_meta(id: BodyId, z_index: i32) -> BodyMeta {
+    BodyMeta {
+        id,
+        z_index,
+        line_weight: 3.0,
+        line_color: Color {
+            r: 255,
+            g: 0,
+            b: 0,
+            a: 1.0,
+        },
+        fill_color: Color {
+            r: 255,
+            g: 0,
+            b: 0,
+            a: 0.5,
+        },
+    }
+}
 pub fn body_to_polygon_array(
     body: &Body,
     meta_data: &HashMap<BodyId, BodyMeta>,

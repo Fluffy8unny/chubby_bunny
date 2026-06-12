@@ -1,20 +1,22 @@
 use chubby_bunny::{
-    AttachmentConstraint, Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, Particle,
-    SolverSettings, WallConstraint,
+    body, AttachmentConstraint, Body, BodyId, CollisionConstraint, ExtrinsicConstraintType,
+    Particle, SolverSettings, WallConstraint,
 };
-use core::time;
 use nalgebra::Vector2;
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
+use web_sys::console;
 
 mod primitives;
 use primitives::{create_polygon, create_quad};
 
 mod js_types;
-use js_types::{bodies_to_polygon_arrays, BodyMeta, Color, PolygonArray};
+use js_types::{
+    bodies_to_polygon_arrays, default_meta_for_container, selected_meta, BodyMeta, PolygonArray,
+};
 
 mod input;
-use input::{InputState, MouseButton};
+use input::{calc_average_mouse_speed_and_timestamp, InputState, MouseButton, MouseState};
 
 fn create_container(width: usize, height: usize) -> Body {
     let mut container_body = Body::empty();
@@ -50,6 +52,7 @@ pub struct Playground {
     polygon_arrays: Vec<PolygonArray>,
     meta_data: HashMap<BodyId, BodyMeta>,
     user_input: InputState,
+    current_selected_body: Option<BodyId>,
 }
 #[wasm_bindgen]
 impl Playground {
@@ -60,6 +63,7 @@ impl Playground {
             polygon_arrays: Vec::new(),
             meta_data: HashMap::new(),
             user_input: InputState::new(),
+            current_selected_body: None,
         }
     }
     pub fn init(&mut self, width: usize, height: usize) {
@@ -106,29 +110,76 @@ impl Playground {
                 stiffness: 1.0,
             })));
         self.bodies.push(container_body);
-        self.meta_data.insert(
-            container_id,
-            BodyMeta {
-                id: container_id,
-                z_index: 0,
-                line_weight: 3.0,
-                line_color: Color {
-                    r: 33,
-                    g: 33,
-                    b: 33,
-                    a: 1.0,
-                },
-                fill_color: Color {
-                    r: 33,
-                    g: 33,
-                    b: 33,
-                    a: 1.0,
-                },
-            },
-        );
+        self.meta_data
+            .insert(container_id, default_meta_for_container(container_id));
     }
 
+    fn handle_selection(&mut self, position: Vector2<f32>) {
+        for container in self.bodies.iter_mut() {
+            for body in container.children.iter_mut() {
+                if body.point_in_polygon(position) {
+                    self.current_selected_body = Some(body.id);
+                    self.meta_data.insert(body.id, selected_meta(body.id, 1));
+                    body.pin_child_by_id(body.id, true);
+                }
+            }
+        }
+    }
+
+    fn handle_deselection(&mut self) {
+        if let Some(selected_body) = self.current_selected_body {
+            self.meta_data.remove(&selected_body);
+            for container in self.bodies.iter_mut() {
+                container.pin_child_by_id(selected_body, false);
+            }
+            self.current_selected_body = None;
+        }
+    }
+
+    fn handle_drag(&mut self, mouse_staet: &[MouseState]) {
+        if let Ok((speed, dt)) = calc_average_mouse_speed_and_timestamp(mouse_staet, 2) {
+            web_sys::console::log_1(
+                &format!(
+                    "Average mouse speed: {:?}, dt: {:?} offset: {:?}",
+                    speed,
+                    dt,
+                    speed * dt
+                )
+                .into(),
+            );
+            let offset = speed * dt;
+            if let Some(selected_body) = self.current_selected_body {
+                for container in self.bodies.iter_mut() {
+                    container.move_child_by_id(selected_body, offset);
+                }
+            }
+        }
+    }
     pub fn update(&mut self, dt_ms: f32) {
+        //handle user input
+        while let Some(event) = self.user_input.events.pop_front() {
+            match event.event_type {
+                input::MouseEventType::Down => {
+                    if let Some(initial_mouse_state) = event.states.first() {
+                        let position = initial_mouse_state.mouse_position;
+                        if event.button == MouseButton::Left {
+                            self.handle_selection(position);
+                        }
+                    }
+                }
+                input::MouseEventType::Up => {
+                    if event.button == MouseButton::Left {
+                        self.handle_deselection();
+                    }
+                }
+                input::MouseEventType::Move => {
+                    self.handle_drag(&event.states);
+                }
+            }
+        }
+
+        //calculate how user input would affect the physics step. For now we just log the average velocity of the mouse during each click and drag.
+        //update physics
         let dt = dt_ms / 1000.0;
         for body in self.bodies.iter_mut() {
             let constant_force =
