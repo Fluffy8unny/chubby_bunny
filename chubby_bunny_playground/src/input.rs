@@ -2,6 +2,8 @@ use itertools::Itertools;
 use nalgebra::Vector2;
 use std::collections::{HashMap, VecDeque};
 use wasm_bindgen::prelude::*;
+
+const MAX_STATES_PER_BUTTON: usize = 16;
 #[wasm_bindgen]
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum MouseButton {
@@ -20,7 +22,7 @@ pub enum MouseEventType {
 pub struct Event {
     pub event_type: MouseEventType,
     pub button: MouseButton,
-    pub states: Vec<MouseState>,
+    pub state: MouseState,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -28,32 +30,9 @@ pub struct MouseState {
     pub mouse_position: Vector2<f32>,
     pub time_stamp: f32,
 }
-pub fn calc_average_mouse_speed_and_timestamp(
-    states: &[MouseState],
-    n: usize,
-) -> Result<(Vector2<f32>, f32), &'static str> {
-    if states.len() < 2 {
-        return Err("Not enough values to calculate speed");
-    }
-    let vals = states.iter().rev().take(n);
-    let count = vals.len();
-    Ok(vals
-        .tuple_windows()
-        .map(|(a, b)| {
-            let delta_pos = b.mouse_position - a.mouse_position;
-            let delta_time = (b.time_stamp - a.time_stamp) / 1000.0;
-            (delta_pos / delta_time, delta_time)
-        })
-        .fold((Vector2::zeros(), 0_f32), |acc, delta| {
-            (
-                acc.0 + delta.0 / count as f32,
-                acc.1 + delta.1 / count as f32,
-            )
-        }))
-}
 
 pub struct InputState {
-    mouse_events: HashMap<MouseButton, Vec<MouseState>>,
+    mouse_events: HashMap<MouseButton, VecDeque<MouseState>>,
     pub events: VecDeque<Event>,
 }
 impl InputState {
@@ -64,31 +43,68 @@ impl InputState {
         }
     }
 
+    fn push_state_capped(states: &mut VecDeque<MouseState>, state: MouseState) {
+        states.push_back(state);
+        if states.len() > MAX_STATES_PER_BUTTON {
+            states.pop_front();
+        }
+    }
+
+    pub fn get_average_mouse_displacement_and_time_delta(
+        &self,
+        button: MouseButton,
+        n: usize,
+    ) -> Option<(Vector2<f32>, f32)> {
+        let states = self.mouse_events.get(&button)?;
+        if states.len() < 2 {
+            return None;
+        }
+        let count = states.len().min(n);
+        let vals = states.iter().rev().take(count);
+
+        Some(
+            vals.tuple_windows()
+                .map(|(a, b)| {
+                    let delta_pos = a.mouse_position - b.mouse_position;
+                    let delta_time = (a.time_stamp - b.time_stamp) / 1000.0;
+                    (delta_pos, delta_time)
+                })
+                .fold((Vector2::zeros(), 0_f32), |acc, delta| {
+                    (
+                        acc.0 + delta.0 / count as f32,
+                        acc.1 + delta.1 / count as f32,
+                    )
+                }),
+        )
+    }
     pub fn mouse_down(&mut self, button: MouseButton, position: Vector2<f32>, time_stamp: f32) {
-        let new_events = vec![MouseState {
+        let state = MouseState {
             mouse_position: position,
             time_stamp,
-        }];
+        };
 
-        self.mouse_events.insert(button, new_events.clone());
+        let mut new_events = VecDeque::new();
+        Self::push_state_capped(&mut new_events, state);
+
+        self.mouse_events.insert(button, new_events);
         self.events.push_back(Event {
             event_type: MouseEventType::Down,
             button,
-            states: new_events,
+            state,
         });
     }
 
     pub fn mouse_up(&mut self, button: MouseButton, position: Vector2<f32>, time_stamp: f32) {
-        if let Some(mut events) = self.mouse_events.remove(&button) {
-            let event = MouseState {
+        if let Some(mut states) = self.mouse_events.remove(&button) {
+            let state = MouseState {
                 mouse_position: position,
                 time_stamp,
             };
-            events.push(event);
+            Self::push_state_capped(&mut states, state);
             self.events.push_back(Event {
                 event_type: MouseEventType::Up,
                 button,
-                states: events,
+                state,
             });
         } else {
             eprint!("Received mouse up event for button {:?} without it being pressed first. This should only happen on init.", button);
@@ -98,14 +114,14 @@ impl InputState {
     pub fn mouse_move(&mut self, position: Vector2<f32>, time_stamp: f32) {
         let new_state = MouseState {
             mouse_position: position,
-            time_stamp: time_stamp,
+            time_stamp,
         };
         for (button, states) in self.mouse_events.iter_mut() {
-            states.push(new_state);
+            Self::push_state_capped(states, new_state);
             self.events.push_back(Event {
                 event_type: MouseEventType::Move,
                 button: *button,
-                states: states.clone(),
+                state: new_state,
             });
         }
     }

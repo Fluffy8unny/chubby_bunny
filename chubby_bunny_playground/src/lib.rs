@@ -1,11 +1,10 @@
 use chubby_bunny::{
-    body, AttachmentConstraint, Body, BodyId, CollisionConstraint, ExtrinsicConstraintType,
-    Particle, SolverSettings, WallConstraint,
+    AttachmentConstraint, Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, Particle,
+    SolverSettings, WallConstraint,
 };
 use nalgebra::Vector2;
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
-use web_sys::console;
 
 mod primitives;
 use primitives::{create_polygon, create_quad};
@@ -16,7 +15,7 @@ use js_types::{
 };
 
 mod input;
-use input::{InputState, MouseButton, MouseState};
+use input::{InputState, MouseButton};
 
 fn create_container(width: usize, height: usize) -> Body {
     let mut container_body = Body::empty();
@@ -67,8 +66,8 @@ impl Playground {
         }
     }
     pub fn init(&mut self, width: usize, height: usize) {
-        let mut simple_quad = create_quad(Vector2::new(0.0, 100.0), 100.0, 0.1, 0.3, 0.0, 0.01);
-        let third_quad = create_quad(Vector2::new(200.0, 200.0), 50.0, 0.5, 0.3, 0.0, 0.01);
+        let mut simple_quad = create_quad(Vector2::new(0.0, 100.0), 100.0, 0.9, 0.3, 0.0, 0.01);
+        let third_quad = create_quad(Vector2::new(200.0, 200.0), 50.0, 0.9, 0.3, 0.0, 0.01);
         let fourth_quad =
             create_polygon(Vector2::new(300.0, 100.0), 75.0, 12, 0.6, 0.95, 0.0, 0.01);
         let ball = create_polygon(Vector2::new(300.0, 200.0), 80.0, 20, 0.95, 0.6, 0.0, 0.01);
@@ -94,7 +93,7 @@ impl Playground {
         container_body.children.push(third_quad);
         container_body.children.push(fourth_quad);
         container_body.children.push(ball);
-        container_body.collision_constraint = Some(CollisionConstraint::new(0.2));
+        container_body.collision_constraint = Some(CollisionConstraint::new(0.99));
         container_body
             .children_constraints
             .push(ExtrinsicConstraintType::Global(Box::new(WallConstraint {
@@ -133,34 +132,37 @@ impl Playground {
                 container.pin_child_by_id(selected_body, false);
             }
             self.current_selected_body = None;
+            //todo add velocity to the body based on the average velocity of the mouse during the drag
         }
     }
 
-    fn handle_drag(&mut self, mouse_states: &[MouseState]) {
-        if mouse_states.len() < 2 {
+    fn handle_drag(&mut self, button: MouseButton) {
+        if button != MouseButton::Left {
             return;
         }
-
-        let previous = mouse_states[mouse_states.len() - 2].mouse_position;
-        let current = mouse_states[mouse_states.len() - 1].mouse_position;
-        let offset = current - previous;
-
-        if let Some(selected_body) = self.current_selected_body {
-            for container in self.bodies.iter_mut() {
-                container.move_child_by_id(selected_body, offset);
+        if let Some((avg_displacement, _avg_time_delta)) = self
+            .user_input
+            .get_average_mouse_displacement_and_time_delta(button, 5)
+        {
+            if let Some(selected_body) = self.current_selected_body {
+                for container in self.bodies.iter_mut() {
+                    container.move_child_by_id(selected_body, avg_displacement);
+                }
             }
+        } else {
+            web_sys::console::log_1(
+                &"Not enough data for average displacement and time delta.".into(),
+            );
         }
     }
+
     pub fn update(&mut self, dt_ms: f32) {
         //handle user input
         while let Some(event) = self.user_input.events.pop_front() {
             match event.event_type {
                 input::MouseEventType::Down => {
-                    if let Some(initial_mouse_state) = event.states.first() {
-                        let position = initial_mouse_state.mouse_position;
-                        if event.button == MouseButton::Left {
-                            self.handle_selection(position);
-                        }
+                    if event.button == MouseButton::Left {
+                        self.handle_selection(event.state.mouse_position);
                     }
                 }
                 input::MouseEventType::Up => {
@@ -169,7 +171,7 @@ impl Playground {
                     }
                 }
                 input::MouseEventType::Move => {
-                    self.handle_drag(&event.states);
+                    self.handle_drag(event.button);
                 }
             }
         }
