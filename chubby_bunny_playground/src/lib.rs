@@ -2,6 +2,7 @@ use chubby_bunny::{
     AttachmentConstraint, Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, Particle,
     SolverSettings, WallConstraint,
 };
+use core::time;
 use nalgebra::Vector2;
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
@@ -13,7 +14,7 @@ mod js_types;
 use js_types::{bodies_to_polygon_arrays, BodyMeta, Color, PolygonArray};
 
 mod input;
-use input::InputState;
+use input::{InputState, MouseButton};
 
 fn create_container(width: usize, height: usize) -> Body {
     let mut container_body = Body::empty();
@@ -48,6 +49,7 @@ pub struct Playground {
     bodies: Vec<Body>,
     polygon_arrays: Vec<PolygonArray>,
     meta_data: HashMap<BodyId, BodyMeta>,
+    user_input: InputState,
 }
 #[wasm_bindgen]
 impl Playground {
@@ -57,6 +59,7 @@ impl Playground {
             bodies: Vec::new(),
             polygon_arrays: Vec::new(),
             meta_data: HashMap::new(),
+            user_input: InputState::new(),
         }
     }
     pub fn init(&mut self, width: usize, height: usize) {
@@ -144,6 +147,20 @@ impl Playground {
     pub fn get_polygon_arrays(&self) -> Result<JsValue, JsValue> {
         serde_wasm_bindgen::to_value(&self.polygon_arrays)
             .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    pub fn mouse_down(&mut self, x: f32, y: f32, mouse_button: MouseButton, time_stamp: f32) {
+        self.user_input
+            .mouse_down(mouse_button, Vector2::new(x, y), time_stamp);
+    }
+
+    pub fn mouse_up(&mut self, x: f32, y: f32, mouse_button: MouseButton, time_stamp: f32) {
+        self.user_input
+            .mouse_up(mouse_button, Vector2::new(x, y), time_stamp);
+    }
+
+    pub fn mouse_move(&mut self, x: f32, y: f32, time_stamp: f32) {
+        self.user_input.mouse_move(Vector2::new(x, y), time_stamp);
     }
 }
 

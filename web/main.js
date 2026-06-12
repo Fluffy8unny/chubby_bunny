@@ -2,6 +2,7 @@ import init, { Playground } from "../pkg/chubby_bunny_playground.js";
 
 let playground = null;
 const canvas = document.getElementById("canvas");
+let pendingInputEvents = [];
 
 const resizeCanvas = () => {
   canvas.width = window.innerWidth;
@@ -9,6 +10,53 @@ const resizeCanvas = () => {
 };
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
+
+document.addEventListener("mousemove", (event) => {
+  pendingInputEvents.push({
+    kind: "move",
+    x: event.clientX,
+    y: event.clientY,
+    time_stamp: performance.now(),
+  });
+});
+document.addEventListener("mousedown", (event) => {
+  pendingInputEvents.push({
+    kind: "down",
+    x: event.clientX,
+    y: event.clientY,
+    button: event.button,
+    time_stamp: performance.now(),
+  });
+});
+document.addEventListener("mouseup", (event) => {
+  pendingInputEvents.push({
+    kind: "up",
+    x: event.clientX,
+    y: event.clientY,
+    button: event.button,
+    time_stamp: performance.now(),
+  });
+});
+
+const flushInputEvents = () => {
+  for (const event of pendingInputEvents) {
+    if (event.kind === "move") {
+      playground.mouse_move(event.x, event.y, event.time_stamp);
+      continue;
+    }
+
+    if (event.kind === "down") {
+      playground.mouse_down(event.x, event.y, event.button, event.time_stamp);
+      continue;
+    }
+
+    if (event.kind === "up") {
+      playground.mouse_up(event.x, event.y, event.button, event.time_stamp);
+    }
+  }
+
+  pendingInputEvents = [];
+};
 
 const start = async () => {
   const width = window.innerWidth;
@@ -24,6 +72,7 @@ const start = async () => {
 const loop = (timestamp) => {
   let dt = timestamp - (playground.last_timestamp || timestamp);
   playground.last_timestamp = timestamp;
+  flushInputEvents();
   playground.update(dt);
   render();
   requestAnimationFrame(loop);
