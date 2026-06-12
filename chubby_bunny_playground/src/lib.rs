@@ -10,9 +10,7 @@ mod primitives;
 use primitives::{create_polygon, create_quad};
 
 mod js_types;
-use js_types::{
-    bodies_to_polygon_arrays, default_meta_for_container, selected_meta, BodyMeta, PolygonArray,
-};
+use js_types::{bodies_to_polygon_arrays, default_meta_for_container, BodyMeta, PolygonArray};
 
 mod input;
 use input::{InputState, MouseButton};
@@ -51,7 +49,7 @@ pub struct Playground {
     polygon_arrays: Vec<PolygonArray>,
     meta_data: HashMap<BodyId, BodyMeta>,
     user_input: InputState,
-    current_selected_body: Option<BodyId>,
+    current_selected_body: Vec<BodyId>,
 }
 #[wasm_bindgen]
 impl Playground {
@@ -62,7 +60,7 @@ impl Playground {
             polygon_arrays: Vec::new(),
             meta_data: HashMap::new(),
             user_input: InputState::new(),
-            current_selected_body: None,
+            current_selected_body: Vec::new(),
         }
     }
     pub fn init(&mut self, width: usize, height: usize) {
@@ -88,23 +86,23 @@ impl Playground {
 
         simple_quad.children.push(small_quad);
         let mut container_body = create_container(width, height);
-        let container_id = container_body.id;
         container_body.children.push(simple_quad);
         container_body.children.push(third_quad);
         container_body.children.push(fourth_quad);
         container_body.children.push(ball);
         container_body.collision_constraint = Some(CollisionConstraint::new(0.99));
+        self.meta_data.insert(
+            container_body.id,
+            default_meta_for_container(container_body.id),
+        );
         self.bodies.push(container_body);
-        self.meta_data
-            .insert(container_id, default_meta_for_container(container_id));
     }
 
     fn handle_selection(&mut self, position: Vector2<f32>) {
         for container in self.bodies.iter_mut() {
             for body in container.children.iter_mut() {
                 if body.point_in_polygon(position) {
-                    self.current_selected_body = Some(body.id);
-                    self.meta_data.insert(body.id, selected_meta(body.id, 1));
+                    self.current_selected_body.push(body.id);
                     body.pin_child_by_id(body.id, true);
                 }
             }
@@ -112,12 +110,10 @@ impl Playground {
     }
 
     fn handle_deselection(&mut self) {
-        if let Some(selected_body) = self.current_selected_body {
-            self.meta_data.remove(&selected_body);
+        while let Some(selected_body) = self.current_selected_body.pop() {
             for container in self.bodies.iter_mut() {
                 container.pin_child_by_id(selected_body, false);
             }
-            self.current_selected_body = None;
             //todo add velocity to the body based on the average velocity of the mouse during the drag
         }
     }
@@ -130,9 +126,9 @@ impl Playground {
             .user_input
             .get_average_mouse_displacement_and_time_delta(button, 5)
         {
-            if let Some(selected_body) = self.current_selected_body {
-                for container in self.bodies.iter_mut() {
-                    container.move_child_by_id(selected_body, avg_displacement);
+            for container in self.bodies.iter_mut() {
+                for selected_body in &self.current_selected_body {
+                    container.move_child_by_id(*selected_body, avg_displacement);
                 }
             }
         } else {
@@ -174,7 +170,11 @@ impl Playground {
             };
             body.perform_step(&vec![constant_force], dt, &settings);
         }
-        self.polygon_arrays = bodies_to_polygon_arrays(self.bodies.iter(), &self.meta_data);
+        self.polygon_arrays = bodies_to_polygon_arrays(
+            self.bodies.iter(),
+            &self.meta_data,
+            &self.current_selected_body,
+        );
     }
 
     pub fn get_polygon_arrays(&self) -> Result<JsValue, JsValue> {

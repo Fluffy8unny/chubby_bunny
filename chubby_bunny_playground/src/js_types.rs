@@ -52,12 +52,12 @@ pub fn default_meta_for_container(id: BodyId) -> BodyMeta {
     BodyMeta {
         id,
         z_index: 0,
-        line_weight: 3.0,
+        line_weight: 0.0,
         line_color: Color {
             r: 33,
             g: 33,
             b: 33,
-            a: 1.0,
+            a: 0.0,
         },
         fill_color: Color {
             r: 33,
@@ -89,6 +89,7 @@ pub fn selected_meta(id: BodyId, z_index: i32) -> BodyMeta {
 pub fn body_to_polygon_array(
     body: &Body,
     meta_data: &HashMap<BodyId, BodyMeta>,
+    current_selection: &Vec<BodyId>,
     depth: i32,
 ) -> PolygonArray {
     let vertices: Vec<(f32, f32)> = body
@@ -99,12 +100,16 @@ pub fn body_to_polygon_array(
     let children = body
         .children
         .iter()
-        .map(|child| body_to_polygon_array(child, meta_data, depth + 1))
+        .map(|child| body_to_polygon_array(child, meta_data, current_selection, depth + 1))
         .collect();
-    let meta = meta_data
-        .get(&body.id)
-        .cloned()
-        .unwrap_or_else(|| default_meta(body.id, depth));
+    let meta = if current_selection.contains(&body.id) {
+        selected_meta(body.id, depth)
+    } else {
+        meta_data
+            .get(&body.id)
+            .cloned()
+            .unwrap_or_else(|| default_meta(body.id, depth))
+    };
 
     PolygonArray {
         vertices,
@@ -117,12 +122,13 @@ pub fn body_to_polygon_array(
 pub fn bodies_to_polygon_arrays<'a, I>(
     bodies: I,
     meta_data: &HashMap<BodyId, BodyMeta>,
+    current_selection: &Vec<BodyId>,
 ) -> Vec<PolygonArray>
 where
     I: IntoIterator<Item = &'a Body>,
 {
     bodies
         .into_iter()
-        .map(|body| body_to_polygon_array(body, meta_data, 0))
+        .map(|body| body_to_polygon_array(body, meta_data, current_selection, 0))
         .collect()
 }

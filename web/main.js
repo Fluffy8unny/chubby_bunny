@@ -10,32 +10,26 @@ const resizeCanvas = () => {
 };
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
+const getEvent = (eventName, event) => {
+  return {
+    kind: eventName,
+    x: event.clientX,
+    y: event.clientY,
+    button: event.button,
+    time_stamp: performance.now(),
+  };
+};
 
 document.addEventListener("mousemove", (event) => {
-  pendingInputEvents.push({
-    kind: "move",
-    x: event.clientX,
-    y: event.clientY,
-    time_stamp: performance.now(),
-  });
+  pendingInputEvents.push(getEvent("move", event));
 });
+
 document.addEventListener("mousedown", (event) => {
-  pendingInputEvents.push({
-    kind: "down",
-    x: event.clientX,
-    y: event.clientY,
-    button: event.button,
-    time_stamp: performance.now(),
-  });
+  pendingInputEvents.push(getEvent("down", event));
 });
+
 document.addEventListener("mouseup", (event) => {
-  pendingInputEvents.push({
-    kind: "up",
-    x: event.clientX,
-    y: event.clientY,
-    button: event.button,
-    time_stamp: performance.now(),
-  });
+  pendingInputEvents.push(getEvent("up", event));
 });
 
 const flushInputEvents = () => {

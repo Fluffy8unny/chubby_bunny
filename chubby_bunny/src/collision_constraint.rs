@@ -231,7 +231,7 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
         time_correction_factor: T,
     ) {
         //tood replace 0.5 with weight based
-        let push_factor = self.stiffness * time_correction_factor * T::from(0.5);
+        let push_factor = self.stiffness * time_correction_factor;
 
         for contact in contacts {
             let correction_vector = contact.normal * push_factor * contact.penetration_depth;
