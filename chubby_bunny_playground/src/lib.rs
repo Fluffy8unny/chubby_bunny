@@ -94,20 +94,6 @@ impl Playground {
         container_body.children.push(fourth_quad);
         container_body.children.push(ball);
         container_body.collision_constraint = Some(CollisionConstraint::new(0.99));
-        container_body
-            .children_constraints
-            .push(ExtrinsicConstraintType::Global(Box::new(WallConstraint {
-                parent_point_idx_origin: 1,
-                parent_point_idx_end: 0,
-                stiffness: 1.0,
-            })));
-        container_body
-            .children_constraints
-            .push(ExtrinsicConstraintType::Global(Box::new(WallConstraint {
-                parent_point_idx_origin: 2,
-                parent_point_idx_end: 1,
-                stiffness: 1.0,
-            })));
         self.bodies.push(container_body);
         self.meta_data
             .insert(container_id, default_meta_for_container(container_id));
@@ -182,8 +168,6 @@ impl Playground {
         for body in self.bodies.iter_mut() {
             let constant_force =
                 chubby_bunny::force::constant_force(nalgebra::Vector2::new(0.0, 400.0));
-            let _constant_force2 =
-                chubby_bunny::force::constant_force(nalgebra::Vector2::new(30.0, 0.0));
             let settings = SolverSettings {
                 reference_dt: 1.0 / 60.0,
                 constraint_iterations: 10,
