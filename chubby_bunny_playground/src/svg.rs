@@ -359,10 +359,22 @@ fn add_shape_aware_shear_constraints<T: FloatingPointNumber>(body: &mut Body<T>,
         return;
     }
 
-    // Baseline strategy: one deterministic long-span shear link per vertex.
-    let opposite_step = (n / 2).max(2);
+    // Deterministic long-span shear links with balanced opposite picks.
+    // For odd polygons, alternating floor/ceil opposite offsets avoids a
+    // directional bias that can push local points outward.
+    let opposite_step_lo = (n / 2).max(2);
+    let opposite_step_hi = ((n + 1) / 2).max(2);
+    let mut seen_pairs: HashSet<(usize, usize)> = HashSet::new();
+
     for i in 0..n {
-        let j = (i + opposite_step) % n;
+        let step = if n % 2 == 0 {
+            opposite_step_lo
+        } else if i % 2 == 0 {
+            opposite_step_lo
+        } else {
+            opposite_step_hi
+        };
+        let j = (i + step) % n;
         if i == j {
             continue;
         }
@@ -371,6 +383,11 @@ fn add_shape_aware_shear_constraints<T: FloatingPointNumber>(body: &mut Body<T>,
         let ccw = (i + n - j) % n;
         let ring_distance = cw.min(ccw);
         if ring_distance <= 1 {
+            continue;
+        }
+
+        let key = if i < j { (i, j) } else { (j, i) };
+        if !seen_pairs.insert(key) {
             continue;
         }
 
