@@ -1,8 +1,95 @@
 use super::js_types::{BodyMeta, Color};
-use chubby_bunny::{AreaConstraint, Body, BodyId, DistanceConstraint, Particle};
+use chubby_bunny::{
+    AreaConstraint, AttachmentConstraint, Body, BodyId, DistanceConstraint,
+    ExtrinsicConstraintType, FloatingPointNumber, Particle,
+};
 use nalgebra::Vector2;
 use serde::Deserialize;
+use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::rc::Rc;
+
+pub struct ParticleSettings<T: FloatingPointNumber> {
+    pub mass: T,
+    pub friction: T,
+    pub is_static: bool,
+}
+pub struct ConstraintSettings<T: FloatingPointNumber> {
+    pub stiffness_distance: T,
+    pub stiffness_shear: T,
+    pub stiffness_area: T,
+    pub attachment_stiffness: T,
+}
+pub struct AttachmentSettings<T: FloatingPointNumber> {
+    pub child_sample_stride: usize,
+    pub max_total_attachments: usize,
+    pub max_distance_factor: T,
+}
+
+impl<T: FloatingPointNumber> Default for AttachmentSettings<T> {
+    fn default() -> Self {
+        Self {
+            child_sample_stride: 4,
+            max_total_attachments: 12,
+            max_distance_factor: T::from(2.0),
+        }
+    }
+}
+
+pub struct BodySettings<T: FloatingPointNumber> {
+    pub particle_settings: ParticleSettings<T>,
+    pub constraint_settings: ConstraintSettings<T>,
+    pub attachment_settings: AttachmentSettings<T>,
+}
+
+impl<T: FloatingPointNumber> BodySettings<T> {
+    pub fn from_values(
+        mass: T,
+        friction: T,
+        is_static: bool,
+        stiffness_distance: T,
+        stiffness_shear: T,
+        stiffness_area: T,
+        attachment_stiffness: T,
+    ) -> Self {
+        Self::from_values_with_attachment(
+            mass,
+            friction,
+            is_static,
+            stiffness_distance,
+            stiffness_shear,
+            stiffness_area,
+            attachment_stiffness,
+            AttachmentSettings::default(),
+        )
+    }
+
+    pub fn from_values_with_attachment(
+        mass: T,
+        friction: T,
+        is_static: bool,
+        stiffness_distance: T,
+        stiffness_shear: T,
+        stiffness_area: T,
+        attachment_stiffness: T,
+        attachment_settings: AttachmentSettings<T>,
+    ) -> Self {
+        Self {
+            particle_settings: ParticleSettings {
+                mass,
+                friction,
+                is_static,
+            },
+            constraint_settings: ConstraintSettings {
+                stiffness_distance,
+                stiffness_shear,
+                stiffness_area,
+                attachment_stiffness,
+            },
+            attachment_settings,
+        }
+    }
+}
 
 /// Root SVG element.
 #[derive(Debug, Deserialize)]
@@ -30,7 +117,7 @@ struct Group {
 #[derive(Debug, Deserialize)]
 struct SvgPath {
     #[serde(rename = "@id")]
-    pub id: Option<String>,
+    pub _id: Option<String>,
     #[serde(rename = "@d")]
     pub d: Option<String>,
     #[serde(rename = "@style")]
@@ -152,23 +239,26 @@ fn tokenize_path_data(d: &str) -> Vec<String> {
         .collect()
 }
 
-fn parse_single(tokens: &[String], i: usize) -> Option<(f32, usize)> {
-    let v = tokens.get(i)?.parse::<f32>().ok()?;
+fn parse_single<T: FloatingPointNumber>(tokens: &[String], i: usize) -> Option<(T, usize)> {
+    let v = T::from(tokens.get(i)?.parse::<f32>().ok()?);
     Some((v, i + 1))
 }
 
-fn parse_xy_pair(tokens: &[String], i: usize) -> Option<(Vector2<f32>, usize)> {
-    let x = tokens.get(i)?.parse::<f32>().ok()?;
-    let y = tokens.get(i + 1)?.parse::<f32>().ok()?;
+fn parse_xy_pair<T: FloatingPointNumber>(
+    tokens: &[String],
+    i: usize,
+) -> Option<(Vector2<T>, usize)> {
+    let x = T::from(tokens.get(i)?.parse::<f32>().ok()?);
+    let y = T::from(tokens.get(i + 1)?.parse::<f32>().ok()?);
     Some((Vector2::new(x, y), i + 2))
 }
 
-fn parse_simple_polygon_path(d: &str) -> Vec<Vector2<f32>> {
+fn parse_simple_polygon_path<T: FloatingPointNumber>(d: &str) -> Vec<Vector2<T>> {
     let tokens = tokenize_path_data(d);
     let mut i = 0usize;
     let mut command = 'M';
-    let mut current = Vector2::new(0.0f32, 0.0f32);
-    let mut points: Vec<Vector2<f32>> = Vec::new();
+    let mut current = Vector2::new(T::zero(), T::zero());
+    let mut points: Vec<Vector2<T>> = Vec::new();
 
     while i < tokens.len() {
         match tokens[i].as_str() {
@@ -185,7 +275,7 @@ fn parse_simple_polygon_path(d: &str) -> Vec<Vector2<f32>> {
 
         match command {
             'M' => {
-                if let Some((p, next_i)) = parse_xy_pair(&tokens, i) {
+                if let Some((p, next_i)) = parse_xy_pair::<T>(&tokens, i) {
                     current = p;
                     points.push(current);
                     i = next_i;
@@ -195,7 +285,7 @@ fn parse_simple_polygon_path(d: &str) -> Vec<Vector2<f32>> {
                 }
             }
             'm' => {
-                if let Some((p, next_i)) = parse_xy_pair(&tokens, i) {
+                if let Some((p, next_i)) = parse_xy_pair::<T>(&tokens, i) {
                     current = Vector2::new(current.x + p.x, current.y + p.y);
                     points.push(current);
                     i = next_i;
@@ -205,7 +295,7 @@ fn parse_simple_polygon_path(d: &str) -> Vec<Vector2<f32>> {
                 }
             }
             'L' => {
-                if let Some((p, next_i)) = parse_xy_pair(&tokens, i) {
+                if let Some((p, next_i)) = parse_xy_pair::<T>(&tokens, i) {
                     current = p;
                     points.push(current);
                     i = next_i;
@@ -214,7 +304,7 @@ fn parse_simple_polygon_path(d: &str) -> Vec<Vector2<f32>> {
                 }
             }
             'l' => {
-                if let Some((p, next_i)) = parse_xy_pair(&tokens, i) {
+                if let Some((p, next_i)) = parse_xy_pair::<T>(&tokens, i) {
                     current = Vector2::new(current.x + p.x, current.y + p.y);
                     points.push(current);
                     i = next_i;
@@ -223,7 +313,7 @@ fn parse_simple_polygon_path(d: &str) -> Vec<Vector2<f32>> {
                 }
             }
             'H' => {
-                if let Some((x, next_i)) = parse_single(&tokens, i) {
+                if let Some((x, next_i)) = parse_single::<T>(&tokens, i) {
                     current = Vector2::new(x, current.y);
                     points.push(current);
                     i = next_i;
@@ -232,7 +322,7 @@ fn parse_simple_polygon_path(d: &str) -> Vec<Vector2<f32>> {
                 }
             }
             'h' => {
-                if let Some((x, next_i)) = parse_single(&tokens, i) {
+                if let Some((x, next_i)) = parse_single::<T>(&tokens, i) {
                     current = Vector2::new(current.x + x, current.y);
                     points.push(current);
                     i = next_i;
@@ -241,7 +331,7 @@ fn parse_simple_polygon_path(d: &str) -> Vec<Vector2<f32>> {
                 }
             }
             'V' => {
-                if let Some((y, next_i)) = parse_single(&tokens, i) {
+                if let Some((y, next_i)) = parse_single::<T>(&tokens, i) {
                     current = Vector2::new(current.x, y);
                     points.push(current);
                     i = next_i;
@@ -250,7 +340,7 @@ fn parse_simple_polygon_path(d: &str) -> Vec<Vector2<f32>> {
                 }
             }
             'v' => {
-                if let Some((y, next_i)) = parse_single(&tokens, i) {
+                if let Some((y, next_i)) = parse_single::<T>(&tokens, i) {
                     current = Vector2::new(current.x, current.y + y);
                     points.push(current);
                     i = next_i;
@@ -267,55 +357,75 @@ fn parse_simple_polygon_path(d: &str) -> Vec<Vector2<f32>> {
     points
 }
 
-fn bbox_origin(points: &[Vector2<f32>]) -> Vector2<f32> {
-    points
-        .iter()
-        .fold(Vector2::new(f32::INFINITY, f32::INFINITY), |acc, p| {
-            Vector2::new(acc.x.min(p.x), acc.y.min(p.y))
-        })
+fn bbox_origin<T: FloatingPointNumber>(points: &[Vector2<T>]) -> Vector2<T> {
+    let mut iter = points.iter();
+    let first = iter.next().copied().unwrap_or_else(Vector2::zeros);
+    iter.fold(first, |acc, p| Vector2::new(acc.x.min(p.x), acc.y.min(p.y)))
 }
 
-fn normalize_points_to_anchor(
-    points: Vec<Vector2<f32>>,
-    anchor: Vector2<f32>,
-) -> Vec<Vector2<f32>> {
+fn normalize_points_to_anchor<T: FloatingPointNumber>(
+    points: Vec<Vector2<T>>,
+    anchor: Vector2<T>,
+) -> Vec<Vector2<T>> {
     points
         .into_iter()
         .map(|p| Vector2::new(p.x - anchor.x, p.y - anchor.y))
         .collect()
 }
 
-fn parse_svg_path_to_body(
+fn parse_svg_path_to_body<T: FloatingPointNumber>(
     path: &SvgPath,
     z_index: i32,
-    anchor: Option<Vector2<f32>>,
-) -> Option<(Body, BodyMeta, Vector2<f32>)> {
+    anchor: Option<Vector2<T>>,
+    settings: &BodySettings<T>,
+) -> Option<(Body<T>, BodyMeta, Vector2<T>)> {
     let d = path.d.as_deref()?;
-    let points = parse_simple_polygon_path(d);
+    let points = parse_simple_polygon_path::<T>(d);
     if points.len() < 3 {
         return None;
     }
-    let anchor = anchor.unwrap_or_else(|| bbox_origin(&points));
-    let points = normalize_points_to_anchor(points, anchor.clone());
+    let anchor = anchor.unwrap_or_else(|| bbox_origin::<T>(&points));
+    let points = normalize_points_to_anchor(points, anchor);
 
     let mut body = Body::empty();
     for point in points {
-        body.particles
-            .push(Particle::new(point, Vector2::zeros(), 1.0, 0.01, false));
+        body.particles.push(Particle::new(
+            point,
+            Vector2::zeros(),
+            settings.particle_settings.mass,
+            settings.particle_settings.friction,
+            settings.particle_settings.is_static,
+        ));
     }
 
     for i in 0..body.particles.len() {
-        body.constraints.push(Box::new(DistanceConstraint::new(
+        body.constraints.push(Rc::new(DistanceConstraint::new(
             i,
             (i + 1) % body.particles.len(),
             &body.particles,
-            1.0,
+            settings.constraint_settings.stiffness_distance,
         )));
     }
 
     let idxs: Vec<usize> = (0..body.particles.len()).collect();
-    body.constraints
-        .push(Box::new(AreaConstraint::new(idxs, &body.particles, 1.0)));
+    body.constraints.push(Rc::new(AreaConstraint::new(
+        idxs,
+        &body.particles,
+        settings.constraint_settings.stiffness_area,
+    )));
+
+    // Add cross constraints for additional shape rigidity, mirroring polygon construction.
+    let half = body.particles.len() / 2;
+    if half > 1 {
+        for i in 0..body.particles.len() {
+            body.constraints.push(Rc::new(DistanceConstraint::new(
+                i,
+                (i + half) % body.particles.len(),
+                &body.particles,
+                settings.constraint_settings.stiffness_shear,
+            )));
+        }
+    }
 
     let style = path.style.as_deref().unwrap_or("");
     let meta = parse_style_to_body_meta(style, body.id, z_index);
@@ -323,24 +433,28 @@ fn parse_svg_path_to_body(
     Some((body, meta, anchor))
 }
 
-fn parse_svg_to_hierarchy(svg: &Svg) -> (Vec<Body>, HashMap<BodyId, BodyMeta>) {
+fn parse_svg_to_hierarchy<T: FloatingPointNumber>(
+    svg: &Svg,
+    settings: &BodySettings<T>,
+) -> (Vec<Body<T>>, HashMap<BodyId, BodyMeta>) {
     let mut meta_map = HashMap::new();
-    let bodies = parse_nodes_recursive(&svg.children, 0, None, &mut meta_map);
+    let bodies = parse_nodes_recursive(&svg.children, 0, None, &mut meta_map, settings);
     (bodies, meta_map)
 }
 
-fn parse_nodes_recursive(
+fn parse_nodes_recursive<T: FloatingPointNumber>(
     nodes: &[SvgNode],
     z_index: i32,
-    anchor: Option<Vector2<f32>>,
+    anchor: Option<Vector2<T>>,
     meta_map: &mut HashMap<BodyId, BodyMeta>,
-) -> Vec<Body> {
+    settings: &BodySettings<T>,
+) -> Vec<Body<T>> {
     let mut bodies = Vec::new();
     for node in nodes {
         match node {
             SvgNode::Path(path) => {
                 if let Some((body, meta, _anchor)) =
-                    parse_svg_path_to_body(path, z_index, anchor.clone())
+                    parse_svg_path_to_body(path, z_index, anchor.clone(), settings)
                 {
                     meta_map.insert(body.id, meta);
                     bodies.push(body);
@@ -352,6 +466,7 @@ fn parse_nodes_recursive(
                     z_index + 1,
                     anchor.clone(),
                     meta_map,
+                    settings,
                 ));
             }
             SvgNode::Unknown => {}
@@ -360,12 +475,75 @@ fn parse_nodes_recursive(
     bodies
 }
 
-fn parse_group_recursive(
+fn nearest_parent_attachment_points<T: FloatingPointNumber>(
+    parent: &Body<T>,
+    child: &Body<T>,
+    settings: &AttachmentSettings<T>,
+) -> (Vec<usize>, Vec<usize>) {
+    if parent.particles.is_empty() || child.particles.is_empty() {
+        return (Vec::new(), Vec::new());
+    }
+
+    let stride = settings.child_sample_stride.max(1);
+    let mut candidates: Vec<(usize, usize, T)> = Vec::new();
+    let mut nearest_distances_sq: Vec<T> = Vec::new();
+
+    for (child_idx, child_particle) in child.particles.iter().enumerate().step_by(stride) {
+        let mut best_parent_idx = 0usize;
+        let mut best_distance_sq =
+            (parent.particles[0].position - child_particle.position).norm_squared();
+
+        for (parent_idx, parent_particle) in parent.particles.iter().enumerate().skip(1) {
+            let dist_sq = (parent_particle.position - child_particle.position).norm_squared();
+            if dist_sq < best_distance_sq {
+                best_distance_sq = dist_sq;
+                best_parent_idx = parent_idx;
+            }
+        }
+
+        candidates.push((best_parent_idx, child_idx, best_distance_sq));
+        nearest_distances_sq.push(best_distance_sq);
+    }
+
+    if candidates.is_empty() {
+        return (Vec::new(), Vec::new());
+    }
+
+    nearest_distances_sq.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
+    let len = nearest_distances_sq.len();
+    let median_distance_sq = if len % 2 == 0 {
+        (nearest_distances_sq[len / 2 - 1] + nearest_distances_sq[len / 2]) / T::from(2.0)
+    } else {
+        nearest_distances_sq[len / 2]
+    };
+
+    let max_distance_factor_sq = settings.max_distance_factor * settings.max_distance_factor;
+    let max_distance_sq = median_distance_sq * max_distance_factor_sq;
+    candidates.retain(|(_, _, distance_sq)| *distance_sq <= max_distance_sq);
+    candidates.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(Ordering::Equal));
+
+    let mut parent_idxs = Vec::new();
+    let mut child_idxs = Vec::new();
+    for (parent_idx, child_idx, _) in candidates {
+        if settings.max_total_attachments > 0 && parent_idxs.len() >= settings.max_total_attachments
+        {
+            break;
+        }
+
+        parent_idxs.push(parent_idx);
+        child_idxs.push(child_idx);
+    }
+
+    (parent_idxs, child_idxs)
+}
+
+fn parse_group_recursive<T: FloatingPointNumber>(
     group: &Group,
     z_index: i32,
-    anchor: Option<Vector2<f32>>,
+    anchor: Option<Vector2<T>>,
     meta_map: &mut HashMap<BodyId, BodyMeta>,
-) -> Vec<Body> {
+    settings: &BodySettings<T>,
+) -> Vec<Body<T>> {
     let (paths_and_others, child_groups_and_others): (Vec<_>, Vec<_>) = group
         .children
         .iter()
@@ -391,7 +569,7 @@ fn parse_group_recursive(
         return child_groups
             .into_iter()
             .flat_map(|child_group| {
-                parse_group_recursive(child_group, z_index + 1, anchor.clone(), meta_map)
+                parse_group_recursive(child_group, z_index + 1, anchor.clone(), meta_map, settings)
             })
             .collect();
     }
@@ -399,7 +577,7 @@ fn parse_group_recursive(
     let mut bodies = Vec::new();
     for path in direct_paths {
         if let Some((mut body, meta, body_anchor)) =
-            parse_svg_path_to_body(path, z_index, anchor.clone())
+            parse_svg_path_to_body(path, z_index, anchor.clone(), settings)
         {
             meta_map.insert(body.id, meta);
 
@@ -409,8 +587,30 @@ fn parse_group_recursive(
                     z_index + 1,
                     Some(body_anchor.clone()),
                     meta_map,
+                    settings,
                 );
-                body.children.extend(children);
+
+                for child in children {
+                    let (parent_idxs, child_idxs) = nearest_parent_attachment_points(
+                        &body,
+                        &child,
+                        &settings.attachment_settings,
+                    );
+                    if !parent_idxs.is_empty() {
+                        body.children_constraints
+                            .push(ExtrinsicConstraintType::Local(Box::new(
+                                AttachmentConstraint::new(
+                                    child.id,
+                                    &body,
+                                    &child,
+                                    parent_idxs,
+                                    child_idxs,
+                                    settings.constraint_settings.attachment_stiffness,
+                                ),
+                            )));
+                    }
+                    body.children.push(child);
+                }
             }
 
             bodies.push(body);
@@ -420,8 +620,11 @@ fn parse_group_recursive(
     bodies
 }
 
-pub fn load_svg(xml: &str) -> (Vec<Body>, HashMap<BodyId, BodyMeta>) {
-    let svg = quick_xml::de::from_str(xml)
+pub fn load_svg<T: FloatingPointNumber>(
+    xml: &str,
+    settings: &BodySettings<T>,
+) -> (Vec<Body<T>>, HashMap<BodyId, BodyMeta>) {
+    let svg: Svg = quick_xml::de::from_str(xml)
         .expect("Failed to parse SVG XML. Ensure the input is a valid SVG string.");
-    parse_svg_to_hierarchy(&svg)
+    parse_svg_to_hierarchy(&svg, settings)
 }

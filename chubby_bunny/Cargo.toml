@@ -7,3 +7,4 @@ edition = "2021"
 nalgebra = "0.35"
 itertools = "0.14"
 serde = { version = "1", features = ["derive"] }
+dyn-clone = "1.0"

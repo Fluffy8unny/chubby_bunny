@@ -4,10 +4,10 @@ use crate::constraint_common::{
 use crate::{FloatingPointNumber, Particle, SolverSettings};
 use nalgebra::Vector2;
 
-pub trait IntrinsicContraint<T = f32> {
+pub trait IntrinsicConstraint<T = f32> {
     fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings);
 }
-
+#[derive(Clone)]
 pub struct DistanceConstraint<T> {
     pub idx_left: usize,
     pub idx_right: usize,
@@ -27,7 +27,7 @@ impl<T: FloatingPointNumber> DistanceConstraint<T> {
     }
 }
 
-impl<T: FloatingPointNumber> IntrinsicContraint<T> for DistanceConstraint<T> {
+impl<T: FloatingPointNumber> IntrinsicConstraint<T> for DistanceConstraint<T> {
     fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings) {
         let correction_vector = get_distance_correction_vector(
             &particles[self.idx_left],
@@ -41,7 +41,7 @@ impl<T: FloatingPointNumber> IntrinsicContraint<T> for DistanceConstraint<T> {
         particles[self.idx_right].apply_position_correction_to_particle(&correction_vector);
     }
 }
-
+#[derive(Clone)]
 pub struct AreaConstraint<T> {
     pub idxs: Vec<usize>,
     pub rest_area: T,
@@ -70,7 +70,7 @@ impl<T: FloatingPointNumber> AreaConstraint<T> {
     }
 }
 
-impl<T: FloatingPointNumber> IntrinsicContraint<T> for AreaConstraint<T> {
+impl<T: FloatingPointNumber> IntrinsicConstraint<T> for AreaConstraint<T> {
     fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings) {
         let current_area = Self::calculate_area(&self.idxs, particles);
         if current_area <= T::zero() {

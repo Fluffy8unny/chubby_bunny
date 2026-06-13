@@ -1,12 +1,15 @@
 use crate::constraint_common::get_distance_correction_vector;
 use crate::{Body, BodyId, FloatingPointNumber, Particle, SolverSettings};
+use dyn_clone::DynClone;
 use nalgebra::Vector2;
+use std::collections::HashMap;
 
+#[derive(Clone)]
 pub enum ExtrinsicConstraintType<T> {
     Global(Box<dyn GlobalExtrinsicConstraint<T>>),
     Local(Box<dyn LocalExtrinsicConstraint<T>>),
 }
-pub trait GlobalExtrinsicConstraint<T = f32> {
+pub trait GlobalExtrinsicConstraint<T = f32>: DynClone {
     fn solve(
         &self,
         bodies: &mut Vec<Body<T>>,
@@ -15,7 +18,9 @@ pub trait GlobalExtrinsicConstraint<T = f32> {
         solver_settings: &SolverSettings,
     );
 }
-pub trait LocalExtrinsicConstraint<T = f32> {
+dyn_clone::clone_trait_object!(<T> GlobalExtrinsicConstraint<T>);
+
+pub trait LocalExtrinsicConstraint<T = f32>: DynClone {
     fn solve(
         &self,
         body: &mut Body<T>,
@@ -24,8 +29,11 @@ pub trait LocalExtrinsicConstraint<T = f32> {
         solver_settings: &SolverSettings,
     );
     fn get_id(&self) -> BodyId;
+    fn remap_body_ids(&mut self, _id_map: &HashMap<BodyId, BodyId>) {}
 }
+dyn_clone::clone_trait_object!(<T> LocalExtrinsicConstraint<T>);
 
+#[derive(Clone)]
 pub struct WallConstraint<T> {
     pub parent_point_idx_origin: usize,
     pub parent_point_idx_end: usize,
@@ -75,6 +83,7 @@ impl<T: FloatingPointNumber> GlobalExtrinsicConstraint<T> for WallConstraint<T> 
     }
 }
 
+#[derive(Clone)]
 pub struct AttachmentConstraint<T> {
     pub id: BodyId,
     pub point_idxs_parent: Vec<usize>,
@@ -118,6 +127,12 @@ impl<T: FloatingPointNumber> AttachmentConstraint<T> {
 impl<T: FloatingPointNumber> LocalExtrinsicConstraint<T> for AttachmentConstraint<T> {
     fn get_id(&self) -> BodyId {
         self.id
+    }
+
+    fn remap_body_ids(&mut self, id_map: &HashMap<BodyId, BodyId>) {
+        if let Some(new_id) = id_map.get(&self.id) {
+            self.id = *new_id;
+        }
     }
 
     fn solve(

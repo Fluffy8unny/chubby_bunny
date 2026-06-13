@@ -6,6 +6,14 @@ pub struct CollisionConstraint<T> {
     stiffness: T,
 }
 
+impl<T: Clone> Clone for CollisionConstraint<T> {
+    fn clone(&self) -> Self {
+        Self {
+            stiffness: self.stiffness.clone(),
+        }
+    }
+}
+
 impl<T> CollisionConstraint<T> {
     pub fn new(stiffness: T) -> Self {
         Self { stiffness }

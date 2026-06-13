@@ -1,5 +1,5 @@
 pub mod intrinsic_contraint;
-pub use intrinsic_contraint::{AreaConstraint, DistanceConstraint, IntrinsicContraint};
+pub use intrinsic_contraint::{AreaConstraint, DistanceConstraint, IntrinsicConstraint};
 
 pub mod body;
 pub use body::{Body, BodyId, BoundingBox};

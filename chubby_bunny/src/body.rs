@@ -1,10 +1,12 @@
 use crate::collision_constraint::CollisionConstraint;
 use crate::{
-    ExtrinsicConstraintType, FloatingPointNumber, Force, IntrinsicContraint, Particle,
+    ExtrinsicConstraintType, FloatingPointNumber, Force, IntrinsicConstraint, Particle,
     SolverSettings,
 };
 use itertools::Itertools;
 use nalgebra::Vector2;
+use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(0);
@@ -12,10 +14,11 @@ pub type BodyId = usize;
 pub fn next_id() -> BodyId {
     NEXT_ID.fetch_add(1, Ordering::Relaxed) as BodyId
 }
+#[derive(Clone)]
 pub struct Body<T = f32> {
     pub id: BodyId,
     pub particles: Vec<Particle<T>>,
-    pub constraints: Vec<Box<dyn IntrinsicContraint<T>>>,
+    pub constraints: Vec<Rc<dyn IntrinsicConstraint<T>>>,
     pub children: Vec<Body<T>>,
     pub children_constraints: Vec<ExtrinsicConstraintType<T>>,
     pub collision_constraint: Option<CollisionConstraint<T>>,
@@ -123,7 +126,7 @@ impl<T> Body<T> {
         T: FloatingPointNumber,
     {
         if self.id == id {
-            self.move_uniform(offset);
+            self.move_uniform(offset, Vector2::zeros());
         } else {
             for child in self.children.iter_mut() {
                 child.move_child_by_id(id, offset);
@@ -131,16 +134,57 @@ impl<T> Body<T> {
         }
     }
 
-    pub fn move_uniform(&mut self, offset: Vector2<T>)
+    pub fn move_uniform(&mut self, offset_now: Vector2<T>, offset_last_frame: Vector2<T>)
     where
         T: FloatingPointNumber,
     {
         for particle in self.particles.iter_mut() {
-            particle.pre_integration_position = particle.position;
-            particle.position += offset;
+            particle.pre_integration_position = particle.position + offset_last_frame;
+            particle.position += offset_now;
         }
         for child in self.children.iter_mut() {
-            child.move_uniform(offset);
+            child.move_uniform(offset_now, offset_last_frame);
+        }
+    }
+
+    pub fn duplicate(&self) -> Self
+    where
+        T: FloatingPointNumber,
+    {
+        let mut copy = self.clone();
+        let mut id_map = HashMap::new();
+        copy.reassign_ids_recursive(&mut id_map);
+        copy.remap_local_constraints_recursive(&id_map);
+        copy
+    }
+
+    pub fn duplicate_with_offset(&self, offset: Vector2<T>) -> Self
+    where
+        T: FloatingPointNumber,
+    {
+        let mut copy = self.duplicate();
+        copy.move_uniform(offset, offset);
+        copy
+    }
+
+    fn reassign_ids_recursive(&mut self, id_map: &mut HashMap<BodyId, BodyId>) {
+        let old_id = self.id;
+        self.id = next_id();
+        id_map.insert(old_id, self.id);
+        for child in self.children.iter_mut() {
+            child.reassign_ids_recursive(id_map);
+        }
+    }
+
+    fn remap_local_constraints_recursive(&mut self, id_map: &HashMap<BodyId, BodyId>) {
+        for constraint in self.children_constraints.iter_mut() {
+            if let ExtrinsicConstraintType::Local(local) = constraint {
+                local.remap_body_ids(id_map);
+            }
+        }
+
+        for child in self.children.iter_mut() {
+            child.remap_local_constraints_recursive(id_map);
         }
     }
 
