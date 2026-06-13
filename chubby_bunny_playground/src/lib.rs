@@ -94,12 +94,12 @@ impl Playground {
         container_body.children.push(third_quad);
         container_body.children.push(fourth_quad);
         container_body.children.push(ball);
-        let mut svg_settings = BodySettings::from_values(1.0, 0.02, false, 0.9, 0.25, 0.0, 0.3);
+        let mut svg_settings = BodySettings::from_values(1.0, 0.02, false, 0.8, 0.4, 0.00, 0.25);
         svg_settings.attachment_settings.child_sample_stride = 5;
         svg_settings.attachment_settings.max_total_attachments = 8;
         svg_settings
             .attachment_settings
-            .parent_springs_per_child_anchor = 2;
+            .parent_springs_per_child_anchor = 3;
         let (mut test_body, test_meta_data) =
             load_svg(include_str!("../../assets/t1.svg"), &svg_settings);
         for body in test_body.iter_mut() {
@@ -183,7 +183,7 @@ impl Playground {
                 chubby_bunny::force::constant_force(nalgebra::Vector2::new(0.0, 400.0));
             let settings = SolverSettings {
                 reference_dt: 1.0 / 60.0,
-                constraint_iterations: 10,
+                constraint_iterations: 20,
             };
             body.perform_step(&vec![constant_force], dt, &settings);
         }

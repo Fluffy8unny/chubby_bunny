@@ -630,8 +630,11 @@ fn nearest_parent_attachment_points<T: FloatingPointNumber>(
     for (base_parent_idx, child_idx, _) in candidates {
         let mut support_parent_idxs = Vec::new();
         if parent_len > 0 {
+            let start_offset = -((springs_per_child as isize) / 2);
             for i in 0..springs_per_child {
-                let idx = (base_parent_idx + (i * parent_len) / springs_per_child) % parent_len;
+                let offset = start_offset + i as isize;
+                let idx =
+                    (base_parent_idx as isize + offset).rem_euclid(parent_len as isize) as usize;
                 support_parent_idxs.push(idx);
             }
         }
