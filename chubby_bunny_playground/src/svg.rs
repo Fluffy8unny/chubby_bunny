@@ -6,7 +6,7 @@ use chubby_bunny::{
 use nalgebra::Vector2;
 use serde::Deserialize;
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 pub struct ParticleSettings<T: FloatingPointNumber> {
@@ -24,6 +24,7 @@ pub struct AttachmentSettings<T: FloatingPointNumber> {
     pub child_sample_stride: usize,
     pub max_total_attachments: usize,
     pub max_distance_factor: T,
+    pub parent_springs_per_child_anchor: usize,
 }
 
 impl<T: FloatingPointNumber> Default for AttachmentSettings<T> {
@@ -32,6 +33,7 @@ impl<T: FloatingPointNumber> Default for AttachmentSettings<T> {
             child_sample_stride: 4,
             max_total_attachments: 12,
             max_distance_factor: T::from(2.0),
+            parent_springs_per_child_anchor: 3,
         }
     }
 }
@@ -52,28 +54,6 @@ impl<T: FloatingPointNumber> BodySettings<T> {
         stiffness_area: T,
         attachment_stiffness: T,
     ) -> Self {
-        Self::from_values_with_attachment(
-            mass,
-            friction,
-            is_static,
-            stiffness_distance,
-            stiffness_shear,
-            stiffness_area,
-            attachment_stiffness,
-            AttachmentSettings::default(),
-        )
-    }
-
-    pub fn from_values_with_attachment(
-        mass: T,
-        friction: T,
-        is_static: bool,
-        stiffness_distance: T,
-        stiffness_shear: T,
-        stiffness_area: T,
-        attachment_stiffness: T,
-        attachment_settings: AttachmentSettings<T>,
-    ) -> Self {
         Self {
             particle_settings: ParticleSettings {
                 mass,
@@ -86,7 +66,7 @@ impl<T: FloatingPointNumber> BodySettings<T> {
                 stiffness_area,
                 attachment_stiffness,
             },
-            attachment_settings,
+            attachment_settings: AttachmentSettings::default(),
         }
     }
 }
@@ -373,6 +353,57 @@ fn normalize_points_to_anchor<T: FloatingPointNumber>(
         .collect()
 }
 
+fn add_shape_aware_shear_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffness: T) {
+    let n = body.particles.len();
+    if n < 4 || stiffness <= T::zero() {
+        return;
+    }
+
+    let mut seen_pairs: HashSet<(usize, usize)> = HashSet::new();
+    let mut add_pair = |a: usize, b: usize, body: &mut Body<T>| {
+        if a == b {
+            return;
+        }
+
+        let cw = (b + n - a) % n;
+        let ccw = (a + n - b) % n;
+        let ring_distance = cw.min(ccw);
+
+        // Skip edges and immediate neighbors; these are already covered.
+        if ring_distance <= 1 {
+            return;
+        }
+
+        let key = if a < b { (a, b) } else { (b, a) };
+        if seen_pairs.insert(key) {
+            body.constraints.push(Rc::new(DistanceConstraint::new(
+                a,
+                b,
+                &body.particles,
+                stiffness,
+            )));
+        }
+    };
+
+    // Build deterministic long-span chords around the opposite side. This
+    // avoids clustering from farthest-point picks and supports the middle.
+    let anchor_count = (n / 5).clamp(4, 28);
+    for a in 0..anchor_count {
+        let anchor_idx = (a * n) / anchor_count;
+
+        let half = (n / 2) as isize;
+        let spread = ((n / 6).max(2)) as isize;
+        let quarter = (n / 4) as isize;
+
+        let offsets = [half, half - spread, half + spread, quarter, -quarter];
+
+        for offset in offsets {
+            let j = ((anchor_idx as isize + offset).rem_euclid(n as isize)) as usize;
+            add_pair(anchor_idx, j, body);
+        }
+    }
+}
+
 fn parse_svg_path_to_body<T: FloatingPointNumber>(
     path: &SvgPath,
     z_index: i32,
@@ -414,18 +445,7 @@ fn parse_svg_path_to_body<T: FloatingPointNumber>(
         settings.constraint_settings.stiffness_area,
     )));
 
-    // Add cross constraints for additional shape rigidity, mirroring polygon construction.
-    let half = body.particles.len() / 2;
-    if half > 1 {
-        for i in 0..body.particles.len() {
-            body.constraints.push(Rc::new(DistanceConstraint::new(
-                i,
-                (i + half) % body.particles.len(),
-                &body.particles,
-                settings.constraint_settings.stiffness_shear,
-            )));
-        }
-    }
+    add_shape_aware_shear_constraints(&mut body, settings.constraint_settings.stiffness_shear);
 
     let style = path.style.as_deref().unwrap_or("");
     let meta = parse_style_to_body_meta(style, body.id, z_index);
@@ -485,53 +505,146 @@ fn nearest_parent_attachment_points<T: FloatingPointNumber>(
     }
 
     let stride = settings.child_sample_stride.max(1);
+    let sampled_child_indices: Vec<usize> = (0..child.particles.len()).step_by(stride).collect();
+    if sampled_child_indices.is_empty() {
+        return (Vec::new(), Vec::new());
+    }
+
+    let selected_child_indices = if settings.max_total_attachments > 0
+        && sampled_child_indices.len() > settings.max_total_attachments
+    {
+        let mut out = Vec::with_capacity(settings.max_total_attachments);
+        for k in 0..settings.max_total_attachments {
+            let mapped = (k * sampled_child_indices.len()) / settings.max_total_attachments;
+            let idx = sampled_child_indices[mapped];
+            if out.last().copied() != Some(idx) {
+                out.push(idx);
+            }
+        }
+        out
+    } else {
+        sampled_child_indices
+    };
+
+    let parent_centroid = parent
+        .particles
+        .iter()
+        .fold(Vector2::zeros(), |acc, p| acc + p.position)
+        / T::from(parent.particles.len() as f32);
+
     let mut candidates: Vec<(usize, usize, T)> = Vec::new();
-    let mut nearest_distances_sq: Vec<T> = Vec::new();
+    let mut candidate_distances_sq: Vec<T> = Vec::new();
 
-    for (child_idx, child_particle) in child.particles.iter().enumerate().step_by(stride) {
+    for child_idx in selected_child_indices {
+        let child_pos = child.particles[child_idx].position;
+        let child_vec = child_pos - parent_centroid;
+        let child_norm = child_vec.norm();
+
         let mut best_parent_idx = 0usize;
-        let mut best_distance_sq =
-            (parent.particles[0].position - child_particle.position).norm_squared();
+        let mut best_score = T::max_value().unwrap_or(T::from(1.0e12));
+        let mut best_dist_sq =
+            (parent.particles[0].position - child.particles[child_idx].position).norm_squared();
 
-        for (parent_idx, parent_particle) in parent.particles.iter().enumerate().skip(1) {
-            let dist_sq = (parent_particle.position - child_particle.position).norm_squared();
-            if dist_sq < best_distance_sq {
-                best_distance_sq = dist_sq;
+        for (parent_idx, parent_particle) in parent.particles.iter().enumerate() {
+            let parent_pos = parent_particle.position;
+            let dist_sq = (parent_pos - child_pos).norm_squared();
+
+            let score = if child_norm <= T::from(1.0e-6_f32) {
+                // Near centroid: fallback to nearest geometric neighbor.
+                dist_sq
+            } else {
+                let parent_vec = parent_pos - parent_centroid;
+                let parent_norm = parent_vec.norm();
+                if parent_norm <= T::from(1.0e-6_f32) {
+                    T::max_value().unwrap_or(T::from(1.0e12))
+                } else {
+                    let alignment = child_vec.dot(&parent_vec) / (child_norm * parent_norm);
+                    let radial_gap = parent_norm - child_norm;
+                    let angle_term = T::one() - alignment;
+                    let radial_penalty = if radial_gap > T::zero() {
+                        radial_gap * T::from(0.15_f32)
+                    } else {
+                        (-radial_gap) * T::from(2.0_f32) + T::from(1.0_f32)
+                    };
+                    let distance_penalty = dist_sq * T::from(0.01_f32);
+                    angle_term + radial_penalty + distance_penalty
+                }
+            };
+
+            if score < best_score {
+                best_score = score;
                 best_parent_idx = parent_idx;
+                best_dist_sq = dist_sq;
             }
         }
 
-        candidates.push((best_parent_idx, child_idx, best_distance_sq));
-        nearest_distances_sq.push(best_distance_sq);
+        candidates.push((best_parent_idx, child_idx, best_dist_sq));
+        candidate_distances_sq.push(best_dist_sq);
     }
 
     if candidates.is_empty() {
         return (Vec::new(), Vec::new());
     }
 
-    nearest_distances_sq.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
-    let len = nearest_distances_sq.len();
+    let mut all_candidates_by_distance = candidates.clone();
+    all_candidates_by_distance.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(Ordering::Equal));
+
+    candidate_distances_sq.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
+    let len = candidate_distances_sq.len();
     let median_distance_sq = if len % 2 == 0 {
-        (nearest_distances_sq[len / 2 - 1] + nearest_distances_sq[len / 2]) / T::from(2.0)
+        (candidate_distances_sq[len / 2 - 1] + candidate_distances_sq[len / 2]) / T::from(2.0)
     } else {
-        nearest_distances_sq[len / 2]
+        candidate_distances_sq[len / 2]
     };
 
-    let max_distance_factor_sq = settings.max_distance_factor * settings.max_distance_factor;
-    let max_distance_sq = median_distance_sq * max_distance_factor_sq;
-    candidates.retain(|(_, _, distance_sq)| *distance_sq <= max_distance_sq);
+    // Avoid over-pruning tiny anchor sets. Losing one of 3 anchors can destabilize pose recovery.
+    if candidates.len() > 4 {
+        let max_distance_factor_sq = settings.max_distance_factor * settings.max_distance_factor;
+        let max_distance_sq = median_distance_sq * max_distance_factor_sq;
+        candidates.retain(|(_, _, distance_sq)| *distance_sq <= max_distance_sq);
+    }
+
     candidates.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(Ordering::Equal));
+
+    // Keep at least 3 anchors when available.
+    let min_kept = candidates
+        .len()
+        .max(all_candidates_by_distance.len().min(3));
+    if candidates.len() < min_kept {
+        for fallback in all_candidates_by_distance {
+            if candidates.len() >= min_kept {
+                break;
+            }
+            if !candidates.iter().any(|c| c.1 == fallback.1) {
+                candidates.push(fallback);
+            }
+        }
+        candidates.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(Ordering::Equal));
+    }
 
     let mut parent_idxs = Vec::new();
     let mut child_idxs = Vec::new();
-    for (parent_idx, child_idx, _) in candidates {
-        if settings.max_total_attachments > 0 && parent_idxs.len() >= settings.max_total_attachments
-        {
-            break;
+    let parent_len = parent.particles.len();
+    let mut seen_pairs: HashSet<(usize, usize)> = HashSet::new();
+    let springs_per_child = settings.parent_springs_per_child_anchor.max(1);
+    for (base_parent_idx, child_idx, _) in candidates {
+        let mut support_parent_idxs = Vec::new();
+        if parent_len > 0 {
+            for i in 0..springs_per_child {
+                let idx = (base_parent_idx + (i * parent_len) / springs_per_child) % parent_len;
+                support_parent_idxs.push(idx);
+            }
         }
 
-        parent_idxs.push(parent_idx);
-        child_idxs.push(child_idx);
+        support_parent_idxs.sort_unstable();
+        support_parent_idxs.dedup();
+
+        for parent_idx in support_parent_idxs {
+            if seen_pairs.insert((parent_idx, child_idx)) {
+                parent_idxs.push(parent_idx);
+                child_idxs.push(child_idx);
+            }
+        }
     }
 
     (parent_idxs, child_idxs)
@@ -581,36 +694,34 @@ fn parse_group_recursive<T: FloatingPointNumber>(
         {
             meta_map.insert(body.id, meta);
 
+            let mut parsed_children = Vec::new();
             for child_group in &child_groups {
-                let children = parse_group_recursive(
+                parsed_children.extend(parse_group_recursive(
                     child_group,
                     z_index + 1,
                     Some(body_anchor.clone()),
                     meta_map,
                     settings,
-                );
+                ));
+            }
 
-                for child in children {
-                    let (parent_idxs, child_idxs) = nearest_parent_attachment_points(
-                        &body,
-                        &child,
-                        &settings.attachment_settings,
-                    );
-                    if !parent_idxs.is_empty() {
-                        body.children_constraints
-                            .push(ExtrinsicConstraintType::Local(Box::new(
-                                AttachmentConstraint::new(
-                                    child.id,
-                                    &body,
-                                    &child,
-                                    parent_idxs,
-                                    child_idxs,
-                                    settings.constraint_settings.attachment_stiffness,
-                                ),
-                            )));
-                    }
-                    body.children.push(child);
+            for child in parsed_children {
+                let (parent_idxs, child_idxs) =
+                    nearest_parent_attachment_points(&body, &child, &settings.attachment_settings);
+                if !parent_idxs.is_empty() {
+                    body.children_constraints
+                        .push(ExtrinsicConstraintType::Local(Box::new(
+                            AttachmentConstraint::new(
+                                child.id,
+                                &body,
+                                &child,
+                                parent_idxs,
+                                child_idxs,
+                                settings.constraint_settings.attachment_stiffness,
+                            ),
+                        )));
                 }
+                body.children.push(child);
             }
 
             bodies.push(body);

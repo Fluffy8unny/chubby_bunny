@@ -17,7 +17,7 @@ mod input;
 use input::{InputState, MouseButton};
 
 mod svg;
-use svg::{load_svg, AttachmentSettings, BodySettings};
+use svg::{load_svg, BodySettings};
 
 fn create_container(width: usize, height: usize) -> Body {
     let mut container_body = Body::empty();
@@ -94,13 +94,10 @@ impl Playground {
         container_body.children.push(third_quad);
         container_body.children.push(fourth_quad);
         container_body.children.push(ball);
-        let attachment_settings = AttachmentSettings {
-            child_sample_stride: 4,
-            max_total_attachments: 8,
-            max_distance_factor: 3.0,
-        };
-        let mut svg_settings = BodySettings::from_values(1.0, 0.01, false, 0.8, 0.8, 0.0, 0.9);
-        svg_settings.attachment_settings = attachment_settings;
+        let mut svg_settings = BodySettings::from_values(1.0, 0.02, false, 0.5, 0.5, 0.0, 0.5);
+        svg_settings
+            .attachment_settings
+            .parent_springs_per_child_anchor = 3;
         let (mut test_body, test_meta_data) =
             load_svg(include_str!("../../assets/t1.svg"), &svg_settings);
         for body in test_body.iter_mut() {

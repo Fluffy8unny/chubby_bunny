@@ -105,6 +105,7 @@ impl<T: FloatingPointNumber> AttachmentConstraint<T> {
             point_idxs_child.len(),
             "Parent and child point index lists must be of the same length"
         );
+
         let mut target_distances = vec![T::zero(); point_idxs_parent.len()];
         for (i, (parent_idx, child_idx)) in point_idxs_parent
             .iter()
@@ -113,7 +114,7 @@ impl<T: FloatingPointNumber> AttachmentConstraint<T> {
         {
             let parent_particle = &parent.particles[*parent_idx];
             let child_particle = &child.particles[*child_idx];
-            target_distances[i] = (parent_particle.position - child_particle.position).norm();
+            target_distances[i] = (child_particle.position - parent_particle.position).norm();
         }
         Self {
             id: body_id,
@@ -139,8 +140,8 @@ impl<T: FloatingPointNumber> LocalExtrinsicConstraint<T> for AttachmentConstrain
         &self,
         body: &mut Body<T>,
         parent_particles: &[Particle<T>],
-        _dt: T,
-        _solver_settings: &SolverSettings,
+        dt: T,
+        solver_settings: &SolverSettings,
     ) {
         for ((parent_idx, child_idx), target_distance) in self
             .point_idxs_parent
@@ -150,14 +151,13 @@ impl<T: FloatingPointNumber> LocalExtrinsicConstraint<T> for AttachmentConstrain
         {
             let parent_particle = &parent_particles[*parent_idx];
             let child_particle = &body.particles[*child_idx];
-
             let correction_vector = get_distance_correction_vector(
                 parent_particle,
                 child_particle,
                 self.stiffness,
                 *target_distance,
-                _dt,
-                _solver_settings,
+                dt,
+                solver_settings,
             );
             body.particles[*child_idx].apply_position_correction_to_particle(&correction_vector);
         }
