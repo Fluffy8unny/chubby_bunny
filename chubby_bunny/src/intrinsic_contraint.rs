@@ -164,7 +164,6 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for BendingConstraint<T> {
         let alpha = constraint_alpha_with_reference_dt(self.stiffness, dt, solver_settings);
         let c_scaled = c * alpha;
 
-        // Jacobian of angle constraint in 2D PBD form.
         let grad_prev = Vector2::new(e_prev.y, -e_prev.x) / prev_len_sq;
         let grad_next = Vector2::new(-e_next.y, e_next.x) / next_len_sq;
         let grad_center = -(grad_prev + grad_next);
