@@ -94,3 +94,92 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for AreaConstraint<T> {
         }
     }
 }
+
+#[derive(Clone)]
+pub struct BendingConstraint<T> {
+    pub idx_prev: usize,
+    pub idx_center: usize,
+    pub idx_next: usize,
+    pub rest_angle: T,
+    pub stiffness: T,
+}
+
+impl<T: FloatingPointNumber> BendingConstraint<T> {
+    pub fn new(
+        idx_prev: usize,
+        idx_center: usize,
+        idx_next: usize,
+        particles: &[Particle<T>],
+        stiffness: T,
+    ) -> Self {
+        let prev = particles[idx_prev].position;
+        let center = particles[idx_center].position;
+        let next = particles[idx_next].position;
+        let v_prev = prev - center;
+        let v_next = next - center;
+        let rest_angle = (v_prev.x * v_next.y - v_prev.y * v_next.x).atan2(v_prev.dot(&v_next));
+        Self {
+            idx_prev,
+            idx_center,
+            idx_next,
+            rest_angle,
+            stiffness,
+        }
+    }
+
+    fn wrap_angle_to_pi(mut angle: T) -> T {
+        let pi = T::pi();
+        let two_pi = pi * T::from(2.0);
+        while angle > pi {
+            angle -= two_pi;
+        }
+        while angle < -pi {
+            angle += two_pi;
+        }
+        angle
+    }
+
+}
+
+impl<T: FloatingPointNumber> IntrinsicConstraint<T> for BendingConstraint<T> {
+    fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings) {
+        let prev = particles[self.idx_prev].position;
+        let center = particles[self.idx_center].position;
+        let next = particles[self.idx_next].position;
+
+        let e_prev = prev - center;
+        let e_next = next - center;
+
+        let prev_len_sq = e_prev.norm_squared();
+        let next_len_sq = e_next.norm_squared();
+        if prev_len_sq <= T::from(1.0e-12_f32) || next_len_sq <= T::from(1.0e-12_f32) {
+            return;
+        }
+
+        let current_angle =
+            (e_prev.x * e_next.y - e_prev.y * e_next.x).atan2(e_prev.dot(&e_next));
+        let c = Self::wrap_angle_to_pi(current_angle - self.rest_angle);
+        if c.abs() <= T::from(1.0e-6_f32) {
+            return;
+        }
+
+        let alpha = constraint_alpha_with_reference_dt(self.stiffness, dt, solver_settings);
+        let c_scaled = c * alpha;
+
+        // Jacobian of angle constraint in 2D PBD form.
+        let grad_prev = Vector2::new(e_prev.y, -e_prev.x) / prev_len_sq;
+        let grad_next = Vector2::new(-e_next.y, e_next.x) / next_len_sq;
+        let grad_center = -(grad_prev + grad_next);
+
+        let denom = grad_prev.norm_squared() + grad_center.norm_squared() + grad_next.norm_squared();
+        if denom <= T::from(1.0e-12_f32) {
+            return;
+        }
+
+        let lambda = -c_scaled / denom;
+
+        particles[self.idx_prev].apply_position_correction_to_particle(&(grad_prev * lambda));
+        particles[self.idx_center].apply_position_correction_to_particle(&(grad_center * lambda));
+        particles[self.idx_next].apply_position_correction_to_particle(&(grad_next * lambda));
+    }
+}

@@ -1,6 +1,6 @@
 use super::js_types::{BodyMeta, Color};
 use chubby_bunny::{
-    AreaConstraint, AttachmentConstraint, Body, BodyId, DistanceConstraint,
+    AreaConstraint, AttachmentConstraint, BendingConstraint, Body, BodyId, DistanceConstraint,
     ExtrinsicConstraintType, FloatingPointNumber, Particle,
 };
 use nalgebra::Vector2;
@@ -359,48 +359,50 @@ fn add_shape_aware_shear_constraints<T: FloatingPointNumber>(body: &mut Body<T>,
         return;
     }
 
-    let mut seen_pairs: HashSet<(usize, usize)> = HashSet::new();
-    let mut add_pair = |a: usize, b: usize, body: &mut Body<T>| {
-        if a == b {
-            return;
+    // Baseline strategy: one deterministic long-span shear link per vertex.
+    let opposite_step = (n / 2).max(2);
+    for i in 0..n {
+        let j = (i + opposite_step) % n;
+        if i == j {
+            continue;
         }
 
-        let cw = (b + n - a) % n;
-        let ccw = (a + n - b) % n;
+        let cw = (j + n - i) % n;
+        let ccw = (i + n - j) % n;
         let ring_distance = cw.min(ccw);
-
-        // Skip edges and immediate neighbors; these are already covered.
         if ring_distance <= 1 {
-            return;
+            continue;
         }
 
-        let key = if a < b { (a, b) } else { (b, a) };
-        if seen_pairs.insert(key) {
-            body.constraints.push(Rc::new(DistanceConstraint::new(
-                a,
-                b,
-                &body.particles,
-                stiffness,
-            )));
+        body.constraints.push(Rc::new(DistanceConstraint::new(
+            i,
+            j,
+            &body.particles,
+            stiffness,
+        )));
+    }
+}
+
+fn add_boundary_bending_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffness: T) {
+    let n = body.particles.len();
+    if n < 3 || stiffness <= T::zero() {
+        return;
+    }
+
+    for i in 0..n {
+        let prev = (i + n - 1) % n;
+        let next = (i + 1) % n;
+        if prev == next {
+            continue;
         }
-    };
 
-    // Build deterministic long-span chords around the opposite side. This
-    // avoids clustering from farthest-point picks and supports the middle.
-    let anchor_count = (n / 5).clamp(4, 28);
-    for a in 0..anchor_count {
-        let anchor_idx = (a * n) / anchor_count;
-
-        let half = (n / 2) as isize;
-        let spread = ((n / 6).max(2)) as isize;
-        let quarter = (n / 4) as isize;
-
-        let offsets = [half, half - spread, half + spread, quarter, -quarter];
-
-        for offset in offsets {
-            let j = ((anchor_idx as isize + offset).rem_euclid(n as isize)) as usize;
-            add_pair(anchor_idx, j, body);
-        }
+        body.constraints.push(Rc::new(BendingConstraint::new(
+            prev,
+            i,
+            next,
+            &body.particles,
+            stiffness,
+        )));
     }
 }
 
@@ -445,6 +447,7 @@ fn parse_svg_path_to_body<T: FloatingPointNumber>(
         settings.constraint_settings.stiffness_area,
     )));
 
+    add_boundary_bending_constraints(&mut body, settings.constraint_settings.stiffness_shear);
     add_shape_aware_shear_constraints(&mut body, settings.constraint_settings.stiffness_shear);
 
     let style = path.style.as_deref().unwrap_or("");
@@ -630,11 +633,8 @@ fn nearest_parent_attachment_points<T: FloatingPointNumber>(
     for (base_parent_idx, child_idx, _) in candidates {
         let mut support_parent_idxs = Vec::new();
         if parent_len > 0 {
-            let start_offset = -((springs_per_child as isize) / 2);
             for i in 0..springs_per_child {
-                let offset = start_offset + i as isize;
-                let idx =
-                    (base_parent_idx as isize + offset).rem_euclid(parent_len as isize) as usize;
+                let idx = (base_parent_idx + (i * parent_len) / springs_per_child) % parent_len;
                 support_parent_idxs.push(idx);
             }
         }
