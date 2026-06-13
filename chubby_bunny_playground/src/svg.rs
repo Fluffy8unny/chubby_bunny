@@ -381,48 +381,34 @@ fn add_boundary_distance_constraints<T: FloatingPointNumber>(body: &mut Body<T>,
     }
 }
 
-fn add_opposite_shear_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffness: T) {
+fn add_skip_shear_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffness: T) {
     let n = body.particles.len();
     if n < 4 || stiffness <= T::zero() {
         return;
     }
 
-    // Deterministic long-span shear links with balanced opposite picks.
-    // For odd polygons, alternating floor/ceil opposite offsets avoids a
-    // directional bias that can push local points outward.
-    let opposite_step_lo = (n / 2).max(2);
-    let opposite_step_hi = ((n + 1) / 2).max(2);
+    // Two diagonal bands: n/3 (inner) and n/2 (cross-body).
+    // Bending handles local angles and area handles volume; these two
+    // bands provide medium and full cross-body bracing without
+    // over-constraining the solver.
     let mut seen_pairs: HashSet<(usize, usize)> = HashSet::new();
-
-    for i in 0..n {
-        let step = if n % 2 == 0 || i % 2 == 0 {
-            opposite_step_lo
-        } else {
-            opposite_step_hi
-        };
-        let j = (i + step) % n;
-        if i == j {
+    for step in [n / 3, n / 2] {
+        if step < 2 {
             continue;
         }
-
-        let cw = (j + n - i) % n;
-        let ccw = (i + n - j) % n;
-        let ring_distance = cw.min(ccw);
-        if ring_distance <= 1 {
-            continue;
+        for i in 0..n {
+            let j = (i + step) % n;
+            let key = if i < j { (i, j) } else { (j, i) };
+            if !seen_pairs.insert(key) {
+                continue;
+            }
+            body.constraints.push(Rc::new(DistanceConstraint::new(
+                i,
+                j,
+                &body.particles,
+                stiffness,
+            )));
         }
-
-        let key = if i < j { (i, j) } else { (j, i) };
-        if !seen_pairs.insert(key) {
-            continue;
-        }
-
-        body.constraints.push(Rc::new(DistanceConstraint::new(
-            i,
-            j,
-            &body.particles,
-            stiffness,
-        )));
     }
 }
 
@@ -480,7 +466,7 @@ fn parse_svg_path_to_body<T: FloatingPointNumber>(
     )));
 
     add_boundary_bending_constraints(&mut body, settings.constraint_settings.stiffness_bending);
-    add_opposite_shear_constraints(&mut body, settings.constraint_settings.stiffness_shear);
+    add_skip_shear_constraints(&mut body, settings.constraint_settings.stiffness_shear);
 
     let style = path.style.as_deref().unwrap_or("");
     let meta = parse_style_to_body_meta(style, body.id, z_index);
