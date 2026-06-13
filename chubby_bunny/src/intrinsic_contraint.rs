@@ -102,6 +102,10 @@ pub struct BendingConstraint<T> {
     pub idx_next: usize,
     pub rest_angle: T,
     pub stiffness: T,
+    /// Sign of the cross product (v_prev × v_next) at rest. Used to detect
+    /// winding inversion: if this flips at runtime, the vertex has crossed
+    /// through its neighbours and needs an unconditional snap-back.
+    rest_cross_positive: bool,
 }
 
 impl<T: FloatingPointNumber> BendingConstraint<T> {
@@ -117,13 +121,15 @@ impl<T: FloatingPointNumber> BendingConstraint<T> {
         let next = particles[idx_next].position;
         let v_prev = prev - center;
         let v_next = next - center;
-        let rest_angle = (v_prev.x * v_next.y - v_prev.y * v_next.x).atan2(v_prev.dot(&v_next));
+        let rest_cross = v_prev.x * v_next.y - v_prev.y * v_next.x;
+        let rest_angle = rest_cross.atan2(v_prev.dot(&v_next));
         Self {
             idx_prev,
             idx_center,
             idx_next,
             rest_angle,
             stiffness,
+            rest_cross_positive: rest_cross >= T::zero(),
         }
     }
 
@@ -155,13 +161,22 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for BendingConstraint<T> {
             return;
         }
 
-        let current_angle = (e_prev.x * e_next.y - e_prev.y * e_next.x).atan2(e_prev.dot(&e_next));
+        let current_cross = e_prev.x * e_next.y - e_prev.y * e_next.x;
+        let current_angle = current_cross.atan2(e_prev.dot(&e_next));
         let c = Self::wrap_angle_to_pi(current_angle - self.rest_angle);
         if c.abs() <= T::from(1.0e-6_f32) {
             return;
         }
 
-        let alpha = constraint_alpha_with_reference_dt(self.stiffness, dt, solver_settings);
+        // If the cross product sign has flipped the vertex has crossed through
+        // its neighbours (winding inversion). Apply the full correction
+        // unconditionally so the solver always snaps it back out.
+        let inverted = (current_cross >= T::zero()) != self.rest_cross_positive;
+        let alpha = if inverted {
+            T::one()
+        } else {
+            constraint_alpha_with_reference_dt(self.stiffness, dt, solver_settings)
+        };
         let c_scaled = c * alpha;
 
         // Jacobian of angle constraint in 2D PBD form.
