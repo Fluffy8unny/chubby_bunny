@@ -138,7 +138,6 @@ impl<T: FloatingPointNumber> BendingConstraint<T> {
         }
         angle
     }
-
 }
 
 impl<T: FloatingPointNumber> IntrinsicConstraint<T> for BendingConstraint<T> {
@@ -156,8 +155,7 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for BendingConstraint<T> {
             return;
         }
 
-        let current_angle =
-            (e_prev.x * e_next.y - e_prev.y * e_next.x).atan2(e_prev.dot(&e_next));
+        let current_angle = (e_prev.x * e_next.y - e_prev.y * e_next.x).atan2(e_prev.dot(&e_next));
         let c = Self::wrap_angle_to_pi(current_angle - self.rest_angle);
         if c.abs() <= T::from(1.0e-6_f32) {
             return;
@@ -171,7 +169,8 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for BendingConstraint<T> {
         let grad_next = Vector2::new(-e_next.y, e_next.x) / next_len_sq;
         let grad_center = -(grad_prev + grad_next);
 
-        let denom = grad_prev.norm_squared() + grad_center.norm_squared() + grad_next.norm_squared();
+        let denom =
+            grad_prev.norm_squared() + grad_center.norm_squared() + grad_next.norm_squared();
         if denom <= T::from(1.0e-12_f32) {
             return;
         }

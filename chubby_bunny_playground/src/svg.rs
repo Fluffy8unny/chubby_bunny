@@ -17,6 +17,7 @@ pub struct ParticleSettings<T: FloatingPointNumber> {
 pub struct ConstraintSettings<T: FloatingPointNumber> {
     pub stiffness_distance: T,
     pub stiffness_shear: T,
+    pub stiffness_bending: T,
     pub stiffness_area: T,
     pub attachment_stiffness: T,
 }
@@ -51,6 +52,7 @@ impl<T: FloatingPointNumber> BodySettings<T> {
         is_static: bool,
         stiffness_distance: T,
         stiffness_shear: T,
+        stiffness_bending: T,
         stiffness_area: T,
         attachment_stiffness: T,
     ) -> Self {
@@ -63,6 +65,7 @@ impl<T: FloatingPointNumber> BodySettings<T> {
             constraint_settings: ConstraintSettings {
                 stiffness_distance,
                 stiffness_shear,
+                stiffness_bending,
                 stiffness_area,
                 attachment_stiffness,
             },
@@ -464,7 +467,7 @@ fn parse_svg_path_to_body<T: FloatingPointNumber>(
         settings.constraint_settings.stiffness_area,
     )));
 
-    add_boundary_bending_constraints(&mut body, settings.constraint_settings.stiffness_shear);
+    add_boundary_bending_constraints(&mut body, settings.constraint_settings.stiffness_bending);
     add_shape_aware_shear_constraints(&mut body, settings.constraint_settings.stiffness_shear);
 
     let style = path.style.as_deref().unwrap_or("");
