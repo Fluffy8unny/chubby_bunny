@@ -19,6 +19,7 @@ pub struct BodyMeta {
     pub line_weight: f32,
     pub line_color: Color,
     pub fill_color: Color,
+    pub smooth_edges: bool,
 }
 
 #[derive(serde::Serialize)]
@@ -46,6 +47,7 @@ pub fn default_meta(id: BodyId, z_index: i32) -> BodyMeta {
             b: 199,
             a: 0.23,
         },
+        smooth_edges: true,
     }
 }
 pub fn default_meta_for_container(id: BodyId) -> BodyMeta {
@@ -65,6 +67,7 @@ pub fn default_meta_for_container(id: BodyId) -> BodyMeta {
             b: 33,
             a: 1.0,
         },
+        smooth_edges: false,
     }
 }
 pub fn selected_meta(id: BodyId, z_index: i32) -> BodyMeta {
@@ -84,6 +87,7 @@ pub fn selected_meta(id: BodyId, z_index: i32) -> BodyMeta {
             b: 0,
             a: 0.5,
         },
+        smooth_edges: true,
     }
 }
 pub fn body_to_polygon_array(

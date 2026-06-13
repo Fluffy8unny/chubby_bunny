@@ -72,6 +72,39 @@ const loop = (timestamp) => {
   requestAnimationFrame(loop);
 };
 
+const drawSmoothClosedPath = (ctx, vertices) => {
+  if (vertices.length === 0) {
+    return;
+  }
+  if (vertices.length < 3) {
+    ctx.beginPath();
+    ctx.moveTo(vertices[0][0], vertices[0][1]);
+    for (let i = 1; i < vertices.length; i++) {
+      ctx.lineTo(vertices[i][0], vertices[i][1]);
+    }
+    if (vertices.length > 2) {
+      ctx.closePath();
+    }
+    return;
+  }
+
+  const midpoint = (a, b) => [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5];
+  const last = vertices[vertices.length - 1];
+  const first = vertices[0];
+  const startMid = midpoint(last, first);
+
+  // Smooth closed curve by connecting edge midpoints with quadratic segments.
+  ctx.beginPath();
+  ctx.moveTo(startMid[0], startMid[1]);
+  for (let i = 0; i < vertices.length; i++) {
+    const current = vertices[i];
+    const next = vertices[(i + 1) % vertices.length];
+    const endMid = midpoint(current, next);
+    ctx.quadraticCurveTo(current[0], current[1], endMid[0], endMid[1]);
+  }
+  ctx.closePath();
+};
+
 const render_polygon_arrays = (polygon_arrays, ctx) => {
   ctx.strokeStyle = `rgba(${polygon_arrays.meta.line_color.r},
                      ${polygon_arrays.meta.line_color.g},
@@ -79,7 +112,11 @@ const render_polygon_arrays = (polygon_arrays, ctx) => {
                      ${polygon_arrays.meta.line_color.a})`;
   ctx.lineWidth = polygon_arrays.meta.line_weight;
   ctx.fillStyle = `rgba(${polygon_arrays.meta.fill_color.r}, ${polygon_arrays.meta.fill_color.g}, ${polygon_arrays.meta.fill_color.b}, ${polygon_arrays.meta.fill_color.a})`;
-  if (polygon_arrays.vertices.length >= 3) {
+  if (polygon_arrays.meta.smooth_edges) {
+    drawSmoothClosedPath(ctx, polygon_arrays.vertices);
+    ctx.fill();
+    ctx.stroke();
+  } else {
     ctx.beginPath();
     ctx.moveTo(polygon_arrays.vertices[0][0], polygon_arrays.vertices[0][1]);
     for (let i = 1; i < polygon_arrays.vertices.length; i++) {
@@ -89,13 +126,14 @@ const render_polygon_arrays = (polygon_arrays, ctx) => {
     ctx.fill();
     ctx.stroke();
   }
+  /*
   for (let p of polygon_arrays.vertices) {
     ctx.fillStyle = `rgba(${polygon_arrays.meta.line_color.r}, ${polygon_arrays.meta.line_color.g}, ${polygon_arrays.meta.line_color.b}, ${1.0})`;
-
     ctx.beginPath();
     ctx.arc(p[0], p[1], 4, 0, Math.PI * 2);
     ctx.fill();
   }
+  */
   for (let child of polygon_arrays.children) {
     render_polygon_arrays(child, ctx);
   }
