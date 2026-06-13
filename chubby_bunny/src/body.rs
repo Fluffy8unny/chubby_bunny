@@ -12,7 +12,6 @@ pub type BodyId = usize;
 pub fn next_id() -> BodyId {
     NEXT_ID.fetch_add(1, Ordering::Relaxed) as BodyId
 }
-
 pub struct Body<T = f32> {
     pub id: BodyId,
     pub particles: Vec<Particle<T>>,
@@ -118,6 +117,7 @@ impl<T> Body<T> {
             child.set_pinned(pinned);
         }
     }
+
     pub fn move_child_by_id(&mut self, id: BodyId, offset: Vector2<T>)
     where
         T: FloatingPointNumber,
@@ -130,6 +130,7 @@ impl<T> Body<T> {
             }
         }
     }
+
     pub fn move_uniform(&mut self, offset: Vector2<T>)
     where
         T: FloatingPointNumber,

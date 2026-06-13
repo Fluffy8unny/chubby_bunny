@@ -2,6 +2,7 @@ use chubby_bunny::{
     AttachmentConstraint, Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, Particle,
     SolverSettings, WallConstraint,
 };
+
 use nalgebra::Vector2;
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
@@ -9,11 +10,14 @@ use wasm_bindgen::prelude::*;
 mod primitives;
 use primitives::{create_polygon, create_quad};
 
-mod js_types;
+pub mod js_types;
 use js_types::{bodies_to_polygon_arrays, default_meta_for_container, BodyMeta, PolygonArray};
 
 mod input;
 use input::{InputState, MouseButton};
+
+mod svg;
+use svg::load_svg;
 
 fn create_container(width: usize, height: usize) -> Body {
     let mut container_body = Body::empty();
@@ -90,11 +94,16 @@ impl Playground {
         container_body.children.push(third_quad);
         container_body.children.push(fourth_quad);
         container_body.children.push(ball);
-        container_body.collision_constraint = Some(CollisionConstraint::new(0.99));
+        let (test_body, test_meta_data) = load_svg(include_str!("../../assets/t1.svg"));
+        for body in test_body {
+            container_body.children.push(body);
+        }
+        self.meta_data.extend(test_meta_data);
         self.meta_data.insert(
             container_body.id,
             default_meta_for_container(container_body.id),
         );
+        container_body.collision_constraint = Some(CollisionConstraint::new(0.99));
         self.bodies.push(container_body);
     }
 
@@ -158,15 +167,13 @@ impl Playground {
             }
         }
 
-        //calculate how user input would affect the physics step. For now we just log the average velocity of the mouse during each click and drag.
-        //update physics
         let dt = dt_ms / 1000.0;
         for body in self.bodies.iter_mut() {
             let constant_force =
                 chubby_bunny::force::constant_force(nalgebra::Vector2::new(0.0, 400.0));
             let settings = SolverSettings {
                 reference_dt: 1.0 / 60.0,
-                constraint_iterations: 10,
+                constraint_iterations: 5,
             };
             body.perform_step(&vec![constant_force], dt, &settings);
         }
