@@ -1,9 +1,9 @@
-use super::js_types::{BodyMeta, Color};
-use super::svg_constraints::{
+use crate::meta::{BodyMeta, Color};
+use crate::svg_constraints::{
     add_boundary_bending_constraints, add_boundary_distance_constraints,
     add_skip_shear_constraints, nearest_parent_attachment_points,
 };
-use chubby_bunny::{
+use chubby_bunny_core::{
     AreaConstraint, AttachmentConstraint, Body, BodyId, ExtrinsicConstraintType,
     FloatingPointNumber, Particle, Transformation,
 };
@@ -11,8 +11,6 @@ use nalgebra::Vector2;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::rc::Rc;
-
-// ===== Configuration =====
 
 pub struct ParticleSettings<T: FloatingPointNumber> {
     pub mass: T,
@@ -79,9 +77,6 @@ impl<T: FloatingPointNumber> BodySettings<T> {
     }
 }
 
-// ===== SVG document model (deserialized from XML) =====
-
-/// Root SVG element.
 #[derive(Debug, Deserialize)]
 #[serde(rename = "svg")]
 struct Svg {
@@ -111,9 +106,6 @@ struct SvgPath {
     #[serde(rename = "@style")]
     pub style: Option<String>,
 }
-
-// ===== Stage 1: style parsing =====
-
 fn parse_hex_color(input: &str) -> Option<(u8, u8, u8)> {
     let value = input.trim();
     if !value.starts_with('#') {
@@ -209,8 +201,6 @@ fn parse_style_to_body_meta(style: &str, id: BodyId, z_index: i32) -> BodyMeta {
         smooth_edges: true,
     }
 }
-
-// ===== Stage 2: path geometry parsing =====
 
 fn tokenize_path_data(d: &str) -> Vec<String> {
     let mut normalized = String::with_capacity(d.len() * 2);
@@ -452,8 +442,6 @@ pub fn instantiate_svg_bodies<T: FloatingPointNumber>(
     (instances, instance_meta)
 }
 
-// ===== Stage 3: body construction (particles + intrinsic constraints) =====
-
 fn parse_svg_path_to_body<T: FloatingPointNumber>(
     path: &SvgPath,
     z_index: i32,
@@ -497,10 +485,6 @@ fn parse_svg_path_to_body<T: FloatingPointNumber>(
     Some((body, meta, anchor))
 }
 
-// ===== Stage 5: hierarchy traversal =====
-
-/// Walk a flat list of nodes (the document root). Paths become standalone
-/// bodies; groups recurse and may build parent/child attachment hierarchies.
 fn parse_nodes_recursive<T: FloatingPointNumber>(
     nodes: &[SvgNode],
     z_index: i32,
@@ -534,8 +518,6 @@ fn parse_nodes_recursive<T: FloatingPointNumber>(
     bodies
 }
 
-/// Walk a group: build its direct path bodies, then recursively build and
-/// attach child group bodies to them.
 fn parse_group_recursive<T: FloatingPointNumber>(
     group: &Group,
     z_index: i32,
@@ -613,6 +595,7 @@ fn parse_group_recursive<T: FloatingPointNumber>(
 
     bodies
 }
+
 pub fn load_svg<T: FloatingPointNumber>(
     xml: &str,
     settings: &BodySettings<T>,

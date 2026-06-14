@@ -36,7 +36,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
-name = "chubby_bunny"
+name = "chubby_bunny_core"
 version = "0.1.0"
 dependencies = [
  "dyn-clone",
@@ -49,14 +49,24 @@ dependencies = [
 name = "chubby_bunny_playground"
 version = "0.1.0"
 dependencies = [
- "chubby_bunny",
+ "chubby_bunny_core",
+ "chubby_bunny_svg",
  "itertools",
  "nalgebra",
- "quick-xml",
  "serde",
  "serde-wasm-bindgen",
  "wasm-bindgen",
  "web-sys",
+]
+
+[[package]]
+name = "chubby_bunny_svg"
+version = "0.1.0"
+dependencies = [
+ "chubby_bunny_core",
+ "nalgebra",
+ "quick-xml",
+ "serde",
 ]
 
 [[package]]

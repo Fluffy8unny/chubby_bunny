@@ -1,7 +1,8 @@
-use chubby_bunny::{
+use chubby_bunny_core::{
     AttachmentConstraint, Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, Particle,
     SolverSettings, Transformation, WallConstraint,
 };
+use chubby_bunny_svg::{instantiate_svg_bodies, load_svg, BodyMeta, BodySettings};
 
 use nalgebra::Vector2;
 use std::collections::HashMap;
@@ -11,14 +12,10 @@ mod primitives;
 use primitives::{create_polygon, create_quad};
 
 pub mod js_types;
-use js_types::{bodies_to_polygon_arrays, default_meta_for_container, BodyMeta, PolygonArray};
+use js_types::{bodies_to_polygon_arrays, default_meta_for_container, PolygonArray};
 
 mod input;
 use input::{InputState, MouseButton};
-
-mod svg;
-mod svg_constraints;
-use svg::{instantiate_svg_bodies, load_svg, BodySettings};
 
 fn create_container(width: usize, height: usize) -> Body {
     let mut container_body = Body::empty();
@@ -249,7 +246,7 @@ impl Playground {
         let dt = dt_ms / 1000.0;
         for body in self.bodies.iter_mut() {
             let constant_force =
-                chubby_bunny::force::constant_force(nalgebra::Vector2::new(0.0, 400.0));
+                chubby_bunny_core::force::constant_force(nalgebra::Vector2::new(0.0, 400.0));
             let settings = SolverSettings {
                 reference_dt: 1.0 / 60.0,
                 constraint_iterations: 20,

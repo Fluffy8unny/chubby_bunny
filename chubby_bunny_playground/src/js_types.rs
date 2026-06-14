@@ -1,26 +1,6 @@
-use crate::{Body, BodyId};
+use chubby_bunny_core::{Body, BodyId};
+use chubby_bunny_svg::BodyMeta;
 use std::collections::HashMap;
-use wasm_bindgen::prelude::*;
-
-#[wasm_bindgen]
-#[derive(Debug, Clone, Copy, serde::Serialize)]
-pub struct Color {
-    pub r: u8,
-    pub g: u8,
-    pub b: u8,
-    pub a: f32,
-}
-
-#[wasm_bindgen]
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct BodyMeta {
-    pub id: BodyId,
-    pub z_index: i32,
-    pub line_weight: f32,
-    pub line_color: Color,
-    pub fill_color: Color,
-    pub smooth_edges: bool,
-}
 
 #[derive(serde::Serialize)]
 pub struct PolygonArray {
@@ -35,13 +15,13 @@ pub fn default_meta(id: BodyId, z_index: i32) -> BodyMeta {
         id,
         z_index,
         line_weight: 3.0,
-        line_color: Color {
+        line_color: chubby_bunny_svg::Color {
             r: 183,
             g: 215,
             b: 168,
             a: 1.0,
         },
-        fill_color: Color {
+        fill_color: chubby_bunny_svg::Color {
             r: 143,
             g: 216,
             b: 199,
@@ -56,13 +36,13 @@ pub fn default_meta_for_container(id: BodyId) -> BodyMeta {
         id,
         z_index: 0,
         line_weight: 0.0,
-        line_color: Color {
+        line_color: chubby_bunny_svg::Color {
             r: 250,
             g: 246,
             b: 240,
             a: 0.0,
         },
-        fill_color: Color {
+        fill_color: chubby_bunny_svg::Color {
             r: 250,
             g: 246,
             b: 240,
@@ -76,13 +56,13 @@ pub fn selected_meta(id: BodyId, z_index: i32) -> BodyMeta {
         id,
         z_index,
         line_weight: 3.0,
-        line_color: Color {
+        line_color: chubby_bunny_svg::Color {
             r: 255,
             g: 0,
             b: 0,
             a: 1.0,
         },
-        fill_color: Color {
+        fill_color: chubby_bunny_svg::Color {
             r: 255,
             g: 0,
             b: 0,

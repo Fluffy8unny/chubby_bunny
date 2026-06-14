@@ -7,11 +7,11 @@ edition = "2021"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
-chubby_bunny = { path = "../chubby_bunny" }
+chubby_bunny_core = { path = "../chubby_bunny_core" }
+chubby_bunny_svg = { path = "../chubby_bunny_svg" }
 nalgebra = "0.35"
 itertools = "0.14"
 wasm-bindgen = "0.2"
 serde = { version = "1", features = ["derive"] }
 serde-wasm-bindgen = "0.6"
 web-sys = { version = "0.3", features = ["Window", "Performance","console"] }
-quick-xml = { version = "0.37", features = ["serialize"] }

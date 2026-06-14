@@ -1,6 +1,6 @@
-use chubby_bunny::particle::Particle;
-use chubby_bunny::FloatingPointNumber;
-use chubby_bunny::{AreaConstraint, Body, DistanceConstraint};
+use chubby_bunny_core::particle::Particle;
+use chubby_bunny_core::FloatingPointNumber;
+use chubby_bunny_core::{AreaConstraint, Body, DistanceConstraint};
 use nalgebra::Vector2;
 use std::rc::Rc;
 
