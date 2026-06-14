@@ -50,21 +50,22 @@ pub fn default_meta(id: BodyId, z_index: i32) -> BodyMeta {
         smooth_edges: true,
     }
 }
+
 pub fn default_meta_for_container(id: BodyId) -> BodyMeta {
     BodyMeta {
         id,
         z_index: 0,
         line_weight: 0.0,
         line_color: Color {
-            r: 33,
-            g: 33,
-            b: 33,
+            r: 250,
+            g: 246,
+            b: 240,
             a: 0.0,
         },
         fill_color: Color {
-            r: 33,
-            g: 33,
-            b: 33,
+            r: 250,
+            g: 246,
+            b: 240,
             a: 1.0,
         },
         smooth_edges: false,

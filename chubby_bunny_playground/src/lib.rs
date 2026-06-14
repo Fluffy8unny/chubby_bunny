@@ -95,8 +95,7 @@ impl Playground {
         container_body.children.push(third_quad);
         container_body.children.push(fourth_quad);
         container_body.children.push(ball);
-        let mut svg_settings =
-            BodySettings::from_values(1.0, 0.02, false, 0.2, 0.2, 0.05, 0.5, 0.5);
+        let mut svg_settings = BodySettings::from_values(1.0, 0.02, false, 0.5, 0.5, 0.5, 0.2, 0.5);
         svg_settings.attachment_settings.child_sample_stride = 5;
         svg_settings.attachment_settings.max_total_attachments = 8;
         svg_settings
@@ -104,6 +103,12 @@ impl Playground {
             .parent_springs_per_child_anchor = 3;
         let (svg_template_bodies, svg_template_meta) =
             load_svg(include_str!("../../assets/t1.svg"), &svg_settings);
+        let (svg_template_bodies_2, svg_template_meta_2) =
+            load_svg(include_str!("../../assets/t2.svg"), &svg_settings);
+        let (svg_template_bodies_3, svg_template_meta_3) =
+            load_svg(include_str!("../../assets/t3.svg"), &svg_settings);
+        let (svg_template_bodies_4, svg_template_meta_4) =
+            load_svg(include_str!("../../assets/t4.svg"), &svg_settings);
 
         for i in 0..3 {
             let svg_instance_transform = Transformation {
@@ -116,7 +121,57 @@ impl Playground {
                 &svg_template_meta,
                 svg_instance_transform,
             );
+            for body in svg_instance_bodies {
+                container_body.children.push(body);
+            }
 
+            self.meta_data.extend(svg_instance_meta);
+        }
+        for i in 0..3 {
+            let svg_instance_transform = Transformation {
+                offset: Vector2::new(300.0 + (500.0 * i as f32), 600.0),
+                scale: 300.0 + (100.0 * i as f32),
+                rotation_radians: i as f32 * 0.5,
+            };
+            let (svg_instance_bodies, svg_instance_meta) = instantiate_svg_bodies(
+                &svg_template_bodies_2,
+                &svg_template_meta_2,
+                svg_instance_transform,
+            );
+            for body in svg_instance_bodies {
+                container_body.children.push(body);
+            }
+
+            self.meta_data.extend(svg_instance_meta);
+        }
+        for i in 0..3 {
+            let svg_instance_transform = Transformation {
+                offset: Vector2::new(300.0 + (500.0 * i as f32), 900.0),
+                scale: 300.0 + (100.0 * i as f32),
+                rotation_radians: i as f32 * 0.5,
+            };
+            let (svg_instance_bodies, svg_instance_meta) = instantiate_svg_bodies(
+                &svg_template_bodies_3,
+                &svg_template_meta_3,
+                svg_instance_transform,
+            );
+            for body in svg_instance_bodies {
+                container_body.children.push(body);
+            }
+
+            self.meta_data.extend(svg_instance_meta);
+        }
+        for i in 0..3 {
+            let svg_instance_transform = Transformation {
+                offset: Vector2::new(300.0 + (500.0 * i as f32), 1200.0),
+                scale: 300.0 + (100.0 * i as f32),
+                rotation_radians: i as f32 * 0.5,
+            };
+            let (svg_instance_bodies, svg_instance_meta) = instantiate_svg_bodies(
+                &svg_template_bodies_4,
+                &svg_template_meta_4,
+                svg_instance_transform,
+            );
             for body in svg_instance_bodies {
                 container_body.children.push(body);
             }
