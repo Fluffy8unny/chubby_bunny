@@ -8,6 +8,7 @@ use nalgebra::Vector2;
 pub trait IntrinsicConstraint<T = f32>: DynClone {
     fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings);
     fn scale(&mut self, _scale: T) {}
+    fn rotate(&mut self, _rotation_radians: T) {}
 }
 dyn_clone::clone_trait_object!(<T> IntrinsicConstraint<T>);
 #[derive(Clone)]
@@ -57,7 +58,7 @@ pub struct AreaConstraint<T> {
 
 impl<T: FloatingPointNumber> AreaConstraint<T> {
     pub fn new(idxs: Vec<usize>, particles: &[Particle<T>], stiffness: T) -> Self {
-        let rest_area = Self::calculate_area(&idxs, particles);
+        let rest_area = Self::calculate_signed_area(&idxs, particles);
         Self {
             idxs,
             rest_area,
@@ -65,7 +66,7 @@ impl<T: FloatingPointNumber> AreaConstraint<T> {
         }
     }
 
-    fn calculate_area(idxs: &[usize], particles: &[Particle<T>]) -> T {
+    fn calculate_signed_area(idxs: &[usize], particles: &[Particle<T>]) -> T {
         let mut area = T::zero();
         for i in 0..idxs.len() {
             let current = &particles[idxs[i]];
@@ -73,31 +74,49 @@ impl<T: FloatingPointNumber> AreaConstraint<T> {
             //det form of trapazoidal rule ad-bc
             area += current.position.x * next.position.y - next.position.x * current.position.y;
         }
-        area.abs() / T::from(2.0)
+        area / T::from(2.0)
     }
 }
 
 impl<T: FloatingPointNumber> IntrinsicConstraint<T> for AreaConstraint<T> {
     fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings) {
-        let current_area = Self::calculate_area(&self.idxs, particles);
-        if current_area <= T::zero() {
+        if self.idxs.len() < 3 {
             return;
         }
 
-        let n = T::from(self.idxs.len() as f32);
-        let centroid = self
-            .idxs
-            .iter()
-            .fold(Vector2::zeros(), |acc, &i| acc + particles[i].position)
-            / n;
+        let current_area = Self::calculate_signed_area(&self.idxs, particles);
+        let c = current_area - self.rest_area;
+        if c.abs() <= T::from(1.0e-8_f32) {
+            return;
+        }
 
-        let scale_correction = (self.rest_area / current_area).sqrt() - T::one();
         let alpha = constraint_alpha_with_reference_dt(self.stiffness, dt, solver_settings);
+        if alpha <= T::zero() {
+            return;
+        }
 
-        for idx in &self.idxs {
-            let offset = particles[*idx].position - centroid;
-            particles[*idx]
-                .apply_position_correction_to_particle(&(offset * scale_correction * alpha));
+        let n = self.idxs.len();
+        let half = T::from(0.5_f32);
+        let mut grads = Vec::with_capacity(n);
+        let mut gradient_sum = T::zero();
+
+        for i in 0..n {
+            let prev_idx = self.idxs[(i + n - 1) % n];
+            let next_idx = self.idxs[(i + 1) % n];
+            let prev = particles[prev_idx].position;
+            let next = particles[next_idx].position;
+            let grad = Vector2::new((next.y - prev.y) * half, (prev.x - next.x) * half); //normal
+            gradient_sum += grad.norm_squared();
+            grads.push(grad);
+        }
+
+        if gradient_sum <= T::from(1.0e-12_f32) {
+            return;
+        }
+
+        let lambda = -alpha * c / gradient_sum;
+        for (i, idx) in self.idxs.iter().enumerate() {
+            particles[*idx].apply_position_correction_to_particle(&(grads[i] * lambda));
         }
     }
 

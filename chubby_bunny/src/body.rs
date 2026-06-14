@@ -33,6 +33,7 @@ pub struct BoundingBox<T> {
 pub struct Transformation<T> {
     pub offset: Vector2<T>,
     pub scale: T,
+    pub rotation_radians: T,
 }
 
 impl<T: FloatingPointNumber> Transformation<T> {
@@ -40,6 +41,7 @@ impl<T: FloatingPointNumber> Transformation<T> {
         Self {
             offset: Vector2::zeros(),
             scale: T::one(),
+            rotation_radians: T::zero(),
         }
     }
 }
@@ -180,7 +182,7 @@ impl<T> Body<T> {
     {
         let mut copy = self.duplicate();
         copy.apply_transformation_recursive(transformation);
-        copy.scale_constraints_recursive(transformation.scale);
+        copy.transform_constraints_recursive(transformation);
         copy
     }
 
@@ -191,6 +193,7 @@ impl<T> Body<T> {
         self.duplicate_with_transformation(Transformation {
             offset,
             scale: T::one(),
+            rotation_radians: T::zero(),
         })
     }
 
@@ -198,10 +201,20 @@ impl<T> Body<T> {
     where
         T: FloatingPointNumber,
     {
+        let cos_theta = transformation.rotation_radians.cos();
+        let sin_theta = transformation.rotation_radians.sin();
+
+        let apply_to_vector = |v: Vector2<T>| {
+            let scaled = v * transformation.scale;
+            Vector2::new(
+                scaled.x * cos_theta - scaled.y * sin_theta,
+                scaled.x * sin_theta + scaled.y * cos_theta,
+            ) + transformation.offset
+        };
+
         for particle in self.particles.iter_mut() {
-            particle.position = particle.position * transformation.scale + transformation.offset;
-            particle.pre_integration_position =
-                particle.pre_integration_position * transformation.scale + transformation.offset;
+            particle.position = apply_to_vector(particle.position);
+            particle.pre_integration_position = apply_to_vector(particle.pre_integration_position);
         }
 
         for child in self.children.iter_mut() {
@@ -209,24 +222,26 @@ impl<T> Body<T> {
         }
     }
 
-    fn scale_constraints_recursive(&mut self, scale: T)
+    fn transform_constraints_recursive(&mut self, transformation: Transformation<T>)
     where
         T: FloatingPointNumber,
     {
         for constraint in self.constraints.iter_mut() {
             let mut cloned = clone_box(&**constraint);
-            cloned.scale(scale);
+            cloned.scale(transformation.scale);
+            cloned.rotate(transformation.rotation_radians);
             *constraint = Rc::from(cloned);
         }
 
         for child_constraint in self.children_constraints.iter_mut() {
             if let ExtrinsicConstraintType::Local(local) = child_constraint {
-                local.scale_params(scale);
+                local.scale_params(transformation.scale);
+                local.rotate_params(transformation.rotation_radians);
             }
         }
 
         for child in self.children.iter_mut() {
-            child.scale_constraints_recursive(scale);
+            child.transform_constraints_recursive(transformation);
         }
     }
 

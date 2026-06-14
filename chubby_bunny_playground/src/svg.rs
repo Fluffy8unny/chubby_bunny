@@ -410,6 +410,7 @@ fn normalized_template_transform<T: FloatingPointNumber>(bodies: &[Body<T>]) -> 
     Transformation {
         offset: Vector2::new(-min.x * scale, -min.y * scale),
         scale,
+        rotation_radians: T::zero(),
     }
 }
 

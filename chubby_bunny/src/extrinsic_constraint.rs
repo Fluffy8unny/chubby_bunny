@@ -31,6 +31,7 @@ pub trait LocalExtrinsicConstraint<T = f32>: DynClone {
     fn get_id(&self) -> BodyId;
     fn remap_body_ids(&mut self, _id_map: &HashMap<BodyId, BodyId>) {}
     fn scale_params(&mut self, _scale: T) {}
+    fn rotate_params(&mut self, _rotation_radians: T) {}
 }
 dyn_clone::clone_trait_object!(<T> LocalExtrinsicConstraint<T>);
 
