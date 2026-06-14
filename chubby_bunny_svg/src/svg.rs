@@ -58,6 +58,10 @@ impl<T: FloatingPointNumber> BodySettings<T> {
         stiffness_bending: T,
         stiffness_area: T,
         attachment_stiffness: T,
+        child_sample_stride: usize,
+        max_total_attachments: usize,
+        max_distance_factor: T,
+        parent_springs_per_child_anchor: usize,
     ) -> Self {
         Self {
             particle_settings: ParticleSettings {
@@ -72,7 +76,12 @@ impl<T: FloatingPointNumber> BodySettings<T> {
                 stiffness_area,
                 attachment_stiffness,
             },
-            attachment_settings: AttachmentSettings::default(),
+            attachment_settings: AttachmentSettings {
+                child_sample_stride,
+                max_total_attachments,
+                max_distance_factor,
+                parent_springs_per_child_anchor,
+            },
         }
     }
 }
