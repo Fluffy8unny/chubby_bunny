@@ -95,7 +95,7 @@ impl Playground {
         container_body.children.push(third_quad);
         container_body.children.push(fourth_quad);
         container_body.children.push(ball);
-        let mut svg_settings = BodySettings::from_values(1.0, 0.02, false, 0.5, 0.5, 0.5, 0.2, 0.5);
+        let mut svg_settings = BodySettings::from_values(1.0, 0.01, false, 0.5, 0.5, 0.5, 0.2, 0.5);
         svg_settings.attachment_settings.child_sample_stride = 5;
         svg_settings.attachment_settings.max_total_attachments = 8;
         svg_settings
