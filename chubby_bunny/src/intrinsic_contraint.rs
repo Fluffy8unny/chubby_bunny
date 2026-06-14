@@ -2,11 +2,14 @@ use crate::constraint_common::{
     constraint_alpha_with_reference_dt, get_distance_correction_vector,
 };
 use crate::{FloatingPointNumber, Particle, SolverSettings};
+use dyn_clone::DynClone;
 use nalgebra::Vector2;
 
-pub trait IntrinsicConstraint<T = f32> {
+pub trait IntrinsicConstraint<T = f32>: DynClone {
     fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings);
+    fn scale(&mut self, _scale: T) {}
 }
+dyn_clone::clone_trait_object!(<T> IntrinsicConstraint<T>);
 #[derive(Clone)]
 pub struct DistanceConstraint<T> {
     pub idx_left: usize,
@@ -39,6 +42,10 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for DistanceConstraint<T> {
         );
         particles[self.idx_left].apply_position_correction_to_particle(&(-correction_vector));
         particles[self.idx_right].apply_position_correction_to_particle(&correction_vector);
+    }
+
+    fn scale(&mut self, scale: T) {
+        self.target_distance *= scale;
     }
 }
 #[derive(Clone)]
@@ -92,6 +99,10 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for AreaConstraint<T> {
             particles[*idx]
                 .apply_position_correction_to_particle(&(offset * scale_correction * alpha));
         }
+    }
+
+    fn scale(&mut self, scale: T) {
+        self.rest_area *= scale * scale;
     }
 }
 

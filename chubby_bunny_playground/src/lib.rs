@@ -1,6 +1,6 @@
 use chubby_bunny::{
     AttachmentConstraint, Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, Particle,
-    SolverSettings, WallConstraint,
+    SolverSettings, Transformation, WallConstraint,
 };
 
 use nalgebra::Vector2;
@@ -17,7 +17,8 @@ mod input;
 use input::{InputState, MouseButton};
 
 mod svg;
-use svg::{load_svg, BodySettings};
+mod svg_constraints;
+use svg::{instantiate_svg_bodies, load_svg, BodySettings};
 
 fn create_container(width: usize, height: usize) -> Body {
     let mut container_body = Body::empty();
@@ -101,15 +102,26 @@ impl Playground {
         svg_settings
             .attachment_settings
             .parent_springs_per_child_anchor = 3;
-        let (mut test_body, test_meta_data) =
+        let (svg_template_bodies, svg_template_meta) =
             load_svg(include_str!("../../assets/t1.svg"), &svg_settings);
-        for body in test_body.iter_mut() {
-            body.move_uniform(Vector2::new(300.0, 300.0), Vector2::new(300.0, 300.0));
+
+        for i in 0..3 {
+            let svg_instance_transform = Transformation {
+                offset: Vector2::new(300.0 + (300.0 * i as f32), 300.0),
+                scale: 300.0 + (100.0 * i as f32),
+            };
+            let (svg_instance_bodies, svg_instance_meta) = instantiate_svg_bodies(
+                &svg_template_bodies,
+                &svg_template_meta,
+                svg_instance_transform,
+            );
+
+            for body in svg_instance_bodies {
+                container_body.children.push(body);
+            }
+
+            self.meta_data.extend(svg_instance_meta);
         }
-        for body in test_body {
-            container_body.children.push(body);
-        }
-        self.meta_data.extend(test_meta_data);
         self.meta_data.insert(
             container_body.id,
             default_meta_for_container(container_body.id),

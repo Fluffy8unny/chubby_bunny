@@ -30,6 +30,7 @@ pub trait LocalExtrinsicConstraint<T = f32>: DynClone {
     );
     fn get_id(&self) -> BodyId;
     fn remap_body_ids(&mut self, _id_map: &HashMap<BodyId, BodyId>) {}
+    fn scale_params(&mut self, _scale: T) {}
 }
 dyn_clone::clone_trait_object!(<T> LocalExtrinsicConstraint<T>);
 
@@ -121,6 +122,12 @@ impl<T: FloatingPointNumber> LocalExtrinsicConstraint<T> for AttachmentConstrain
     fn remap_body_ids(&mut self, id_map: &HashMap<BodyId, BodyId>) {
         if let Some(new_id) = id_map.get(&self.id) {
             self.id = *new_id;
+        }
+    }
+
+    fn scale_params(&mut self, scale: T) {
+        for target_distance in self.target_distances.iter_mut() {
+            *target_distance *= scale;
         }
     }
 

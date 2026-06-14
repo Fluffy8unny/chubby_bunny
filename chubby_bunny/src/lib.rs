@@ -4,7 +4,7 @@ pub use intrinsic_contraint::{
 };
 
 pub mod body;
-pub use body::{Body, BodyId, BoundingBox};
+pub use body::{Body, BodyId, BoundingBox, Transformation};
 
 pub mod particle;
 pub use particle::Particle;

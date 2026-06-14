@@ -1,12 +1,15 @@
 use super::js_types::{BodyMeta, Color};
+use super::svg_constraints::{
+    add_boundary_bending_constraints, add_boundary_distance_constraints,
+    add_skip_shear_constraints, nearest_parent_attachment_points,
+};
 use chubby_bunny::{
-    AreaConstraint, AttachmentConstraint, BendingConstraint, Body, BodyId, DistanceConstraint,
-    ExtrinsicConstraintType, FloatingPointNumber, Particle,
+    AreaConstraint, AttachmentConstraint, Body, BodyId, ExtrinsicConstraintType,
+    FloatingPointNumber, Particle, Transformation,
 };
 use nalgebra::Vector2;
 use serde::Deserialize;
-use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::rc::Rc;
 
 // ===== Configuration =====
@@ -363,73 +366,92 @@ fn normalize_points_to_anchor<T: FloatingPointNumber>(
         .collect()
 }
 
-// ===== Stage 3: body construction (particles + intrinsic constraints) =====
-
-fn add_boundary_distance_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffness: T) {
-    let n = body.particles.len();
-    if n < 2 || stiffness <= T::zero() {
-        return;
+fn accumulate_bbox_recursive<T: FloatingPointNumber>(
+    body: &Body<T>,
+    min: &mut Vector2<T>,
+    max: &mut Vector2<T>,
+) {
+    for particle in body.particles.iter() {
+        min.x = min.x.min(particle.position.x);
+        min.y = min.y.min(particle.position.y);
+        max.x = max.x.max(particle.position.x);
+        max.y = max.y.max(particle.position.y);
     }
 
-    for i in 0..n {
-        body.constraints.push(Rc::new(DistanceConstraint::new(
-            i,
-            (i + 1) % n,
-            &body.particles,
-            stiffness,
-        )));
+    for child in body.children.iter() {
+        accumulate_bbox_recursive(child, min, max);
     }
 }
 
-fn add_skip_shear_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffness: T) {
-    let n = body.particles.len();
-    if n < 4 || stiffness <= T::zero() {
-        return;
+fn normalized_template_transform<T: FloatingPointNumber>(bodies: &[Body<T>]) -> Transformation<T> {
+    let mut min = Vector2::new(T::max_value().unwrap(), T::max_value().unwrap());
+    let mut max = Vector2::new(T::min_value().unwrap(), T::min_value().unwrap());
+    let mut has_points = false;
+
+    for body in bodies.iter() {
+        if !body.particles.is_empty() {
+            has_points = true;
+        }
+        accumulate_bbox_recursive(body, &mut min, &mut max);
     }
 
-    // Two diagonal bands: n/3 (inner) and n/2 (cross-body).
-    // Bending handles local angles and area handles volume; these two
-    // bands provide medium and full cross-body bracing without
-    // over-constraining the solver.
-    let mut seen_pairs: HashSet<(usize, usize)> = HashSet::new();
-    for step in [n / 3, n / 2] {
-        if step < 2 {
-            continue;
-        }
-        for i in 0..n {
-            let j = (i + step) % n;
-            let key = if i < j { (i, j) } else { (j, i) };
-            if !seen_pairs.insert(key) {
-                continue;
+    if !has_points {
+        return Transformation::identity();
+    }
+
+    let size = max - min;
+    let max_extent = size.x.max(size.y);
+    let scale = if max_extent > T::zero() {
+        T::one() / max_extent
+    } else {
+        T::one()
+    };
+
+    Transformation {
+        offset: Vector2::new(-min.x * scale, -min.y * scale),
+        scale,
+    }
+}
+
+fn collect_id_pairs_recursive<T>(
+    template: &Body<T>,
+    instance: &Body<T>,
+    id_pairs: &mut Vec<(BodyId, BodyId)>,
+) {
+    id_pairs.push((template.id, instance.id));
+    for (template_child, instance_child) in template.children.iter().zip(instance.children.iter()) {
+        collect_id_pairs_recursive(template_child, instance_child, id_pairs);
+    }
+}
+
+pub fn instantiate_svg_bodies<T: FloatingPointNumber>(
+    templates: &[Body<T>],
+    template_meta: &HashMap<BodyId, BodyMeta>,
+    transformation: Transformation<T>,
+) -> (Vec<Body<T>>, HashMap<BodyId, BodyMeta>) {
+    let mut instances = Vec::with_capacity(templates.len());
+    let mut instance_meta = HashMap::new();
+
+    for template in templates.iter() {
+        let instance = template.duplicate_with_transformation(transformation);
+
+        let mut id_pairs = Vec::new();
+        collect_id_pairs_recursive(template, &instance, &mut id_pairs);
+        for (template_id, instance_id) in id_pairs {
+            if let Some(meta) = template_meta.get(&template_id) {
+                let mut copied_meta = meta.clone();
+                copied_meta.id = instance_id;
+                instance_meta.insert(instance_id, copied_meta);
             }
-            body.constraints.push(Rc::new(DistanceConstraint::new(
-                i,
-                j,
-                &body.particles,
-                stiffness,
-            )));
         }
-    }
-}
 
-fn add_boundary_bending_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffness: T) {
-    let n = body.particles.len();
-    if n < 3 || stiffness <= T::zero() {
-        return;
+        instances.push(instance);
     }
 
-    for i in 0..n {
-        let prev = (i + n - 1) % n;
-        let next = (i + 1) % n;
-        body.constraints.push(Rc::new(BendingConstraint::new(
-            prev,
-            i,
-            next,
-            &body.particles,
-            stiffness,
-        )));
-    }
+    (instances, instance_meta)
 }
+
+// ===== Stage 3: body construction (particles + intrinsic constraints) =====
 
 fn parse_svg_path_to_body<T: FloatingPointNumber>(
     path: &SvgPath,
@@ -472,218 +494,6 @@ fn parse_svg_path_to_body<T: FloatingPointNumber>(
     let meta = parse_style_to_body_meta(style, body.id, z_index);
 
     Some((body, meta, anchor))
-}
-
-// ===== Stage 4: attachment resolution (child anchors → parent anchors) =====
-
-/// A chosen parent anchor for a given child anchor, with their squared distance.
-#[derive(Clone, Copy)]
-struct AttachmentCandidate<T> {
-    parent_idx: usize,
-    child_idx: usize,
-    dist_sq: T,
-}
-
-/// Pick which child boundary indices to attach, honoring stride sampling and
-/// an optional cap on the total number of attachments.
-fn select_child_anchor_indices<T: FloatingPointNumber>(
-    child: &Body<T>,
-    settings: &AttachmentSettings<T>,
-) -> Vec<usize> {
-    let stride = settings.child_sample_stride.max(1);
-    let sampled: Vec<usize> = (0..child.particles.len()).step_by(stride).collect();
-
-    if settings.max_total_attachments == 0 || sampled.len() <= settings.max_total_attachments {
-        return sampled;
-    }
-
-    let mut out = Vec::with_capacity(settings.max_total_attachments);
-    for k in 0..settings.max_total_attachments {
-        let mapped = (k * sampled.len()) / settings.max_total_attachments;
-        let idx = sampled[mapped];
-        if out.last().copied() != Some(idx) {
-            out.push(idx);
-        }
-    }
-    out
-}
-
-/// Score a parent particle for a child anchor: nearer is better, with a penalty
-/// for poor directional alignment relative to the parent centroid.
-fn parent_attachment_score<T: FloatingPointNumber>(
-    parent_pos: Vector2<T>,
-    parent_centroid: Vector2<T>,
-    child_pos: Vector2<T>,
-    child_vec: Vector2<T>,
-    child_norm: T,
-) -> T {
-    let dist_sq = (parent_pos - child_pos).norm_squared();
-    if child_norm <= T::from(1.0e-6_f32) {
-        // Near centroid: direction is meaningless, use plain proximity.
-        return dist_sq;
-    }
-
-    let parent_vec = parent_pos - parent_centroid;
-    let parent_norm = parent_vec.norm();
-    if parent_norm <= T::from(1.0e-6_f32) {
-        return T::max_value().unwrap_or(T::from(1.0e12_f32));
-    }
-
-    let alignment = child_vec.dot(&parent_vec) / (child_norm * parent_norm);
-    let angle_term = T::one() - alignment;
-    dist_sq + angle_term * dist_sq * T::from(0.25_f32)
-}
-
-/// For each selected child anchor, find the single best parent anchor.
-fn best_parent_per_child<T: FloatingPointNumber>(
-    parent: &Body<T>,
-    child: &Body<T>,
-    child_indices: &[usize],
-    parent_centroid: Vector2<T>,
-) -> Vec<AttachmentCandidate<T>> {
-    let mut candidates = Vec::with_capacity(child_indices.len());
-
-    for &child_idx in child_indices {
-        let child_pos = child.particles[child_idx].position;
-        let child_vec = child_pos - parent_centroid;
-        let child_norm = child_vec.norm();
-
-        let mut best_parent_idx = 0usize;
-        let mut best_score = T::max_value().unwrap_or(T::from(1.0e12_f32));
-        let mut best_dist_sq = (parent.particles[0].position - child_pos).norm_squared();
-
-        for (parent_idx, parent_particle) in parent.particles.iter().enumerate() {
-            let parent_pos = parent_particle.position;
-            let score = parent_attachment_score(
-                parent_pos,
-                parent_centroid,
-                child_pos,
-                child_vec,
-                child_norm,
-            );
-
-            if score < best_score {
-                best_score = score;
-                best_parent_idx = parent_idx;
-                best_dist_sq = (parent_pos - child_pos).norm_squared();
-            }
-        }
-
-        candidates.push(AttachmentCandidate {
-            parent_idx: best_parent_idx,
-            child_idx,
-            dist_sq: best_dist_sq,
-        });
-    }
-
-    candidates
-}
-
-/// Drop distance outliers, but keep at least 3 anchors when available.
-fn prune_distance_outliers<T: FloatingPointNumber>(
-    mut candidates: Vec<AttachmentCandidate<T>>,
-    settings: &AttachmentSettings<T>,
-) -> Vec<AttachmentCandidate<T>> {
-    candidates.sort_by(|a, b| a.dist_sq.partial_cmp(&b.dist_sq).unwrap_or(Ordering::Equal));
-    let fallback = candidates.clone();
-
-    let len = candidates.len();
-    let median_distance_sq = if len % 2 == 0 {
-        (candidates[len / 2 - 1].dist_sq + candidates[len / 2].dist_sq) / T::from(2.0)
-    } else {
-        candidates[len / 2].dist_sq
-    };
-
-    if candidates.len() > 4 {
-        let max_distance_factor_sq = settings.max_distance_factor * settings.max_distance_factor;
-        let max_distance_sq = median_distance_sq * max_distance_factor_sq;
-        candidates.retain(|c| c.dist_sq <= max_distance_sq);
-    }
-
-    // Never strip below 3 anchors (when that many exist) to keep attachment stable.
-    let min_kept = fallback.len().min(3);
-    for candidate in fallback {
-        if candidates.len() >= min_kept {
-            break;
-        }
-        if !candidates
-            .iter()
-            .any(|c| c.child_idx == candidate.child_idx)
-        {
-            candidates.push(candidate);
-        }
-    }
-
-    candidates.sort_by(|a, b| a.dist_sq.partial_cmp(&b.dist_sq).unwrap_or(Ordering::Equal));
-    candidates
-}
-
-/// Expand each candidate into several parent support springs spread around the
-/// parent boundary, returning deduped parallel index lists.
-fn expand_candidates_to_springs<T: FloatingPointNumber>(
-    candidates: &[AttachmentCandidate<T>],
-    parent_len: usize,
-    settings: &AttachmentSettings<T>,
-) -> (Vec<usize>, Vec<usize>) {
-    let mut parent_idxs = Vec::new();
-    let mut child_idxs = Vec::new();
-    let mut seen_pairs: HashSet<(usize, usize)> = HashSet::new();
-    let springs_per_child = settings.parent_springs_per_child_anchor.max(1);
-
-    for candidate in candidates {
-        let mut support_parent_idxs = Vec::with_capacity(springs_per_child);
-        if parent_len > 0 {
-            for i in 0..springs_per_child {
-                let idx =
-                    (candidate.parent_idx + (i * parent_len) / springs_per_child) % parent_len;
-                support_parent_idxs.push(idx);
-            }
-        }
-
-        support_parent_idxs.sort_unstable();
-        support_parent_idxs.dedup();
-
-        for parent_idx in support_parent_idxs {
-            if seen_pairs.insert((parent_idx, candidate.child_idx)) {
-                parent_idxs.push(parent_idx);
-                child_idxs.push(candidate.child_idx);
-            }
-        }
-    }
-
-    (parent_idxs, child_idxs)
-}
-
-fn parent_centroid_of<T: FloatingPointNumber>(parent: &Body<T>) -> Vector2<T> {
-    parent
-        .particles
-        .iter()
-        .fold(Vector2::zeros(), |acc, p| acc + p.position)
-        / T::from(parent.particles.len() as f32)
-}
-
-fn nearest_parent_attachment_points<T: FloatingPointNumber>(
-    parent: &Body<T>,
-    child: &Body<T>,
-    settings: &AttachmentSettings<T>,
-) -> (Vec<usize>, Vec<usize>) {
-    if parent.particles.is_empty() || child.particles.is_empty() {
-        return (Vec::new(), Vec::new());
-    }
-
-    let child_indices = select_child_anchor_indices(child, settings);
-    if child_indices.is_empty() {
-        return (Vec::new(), Vec::new());
-    }
-
-    let parent_centroid = parent_centroid_of(parent);
-    let candidates = best_parent_per_child(parent, child, &child_indices, parent_centroid);
-    if candidates.is_empty() {
-        return (Vec::new(), Vec::new());
-    }
-
-    let candidates = prune_distance_outliers(candidates, settings);
-    expand_candidates_to_springs(&candidates, parent.particles.len(), settings)
 }
 
 // ===== Stage 5: hierarchy traversal =====
@@ -802,16 +612,14 @@ fn parse_group_recursive<T: FloatingPointNumber>(
 
     bodies
 }
-
-// ===== Public API =====
-
 pub fn load_svg<T: FloatingPointNumber>(
     xml: &str,
     settings: &BodySettings<T>,
 ) -> (Vec<Body<T>>, HashMap<BodyId, BodyMeta>) {
     let svg: Svg = quick_xml::de::from_str(xml)
         .expect("Failed to parse SVG XML. Ensure the input is a valid SVG string.");
-    let mut meta_map = HashMap::new();
-    let bodies = parse_nodes_recursive(&svg.children, 0, None, &mut meta_map, settings);
-    (bodies, meta_map)
+    let mut template_meta = HashMap::new();
+    let templates = parse_nodes_recursive(&svg.children, 0, None, &mut template_meta, settings);
+    let normalization = normalized_template_transform(&templates);
+    instantiate_svg_bodies(&templates, &template_meta, normalization)
 }

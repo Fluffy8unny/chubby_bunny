@@ -3,6 +3,7 @@ use crate::{
     ExtrinsicConstraintType, FloatingPointNumber, Force, IntrinsicConstraint, Particle,
     SolverSettings,
 };
+use dyn_clone::clone_box;
 use itertools::Itertools;
 use nalgebra::Vector2;
 use std::collections::HashMap;
@@ -26,6 +27,21 @@ pub struct Body<T = f32> {
 pub struct BoundingBox<T> {
     pub min: Vector2<T>,
     pub max: Vector2<T>,
+}
+
+#[derive(Clone, Copy)]
+pub struct Transformation<T> {
+    pub offset: Vector2<T>,
+    pub scale: T,
+}
+
+impl<T: FloatingPointNumber> Transformation<T> {
+    pub fn identity() -> Self {
+        Self {
+            offset: Vector2::zeros(),
+            scale: T::one(),
+        }
+    }
 }
 
 impl<T> Body<T> {
@@ -158,13 +174,60 @@ impl<T> Body<T> {
         copy
     }
 
-    pub fn duplicate_with_offset(&self, offset: Vector2<T>) -> Self
+    pub fn duplicate_with_transformation(&self, transformation: Transformation<T>) -> Self
     where
         T: FloatingPointNumber,
     {
         let mut copy = self.duplicate();
-        copy.move_uniform(offset, offset);
+        copy.apply_transformation_recursive(transformation);
+        copy.scale_constraints_recursive(transformation.scale);
         copy
+    }
+
+    pub fn duplicate_with_offset(&self, offset: Vector2<T>) -> Self
+    where
+        T: FloatingPointNumber,
+    {
+        self.duplicate_with_transformation(Transformation {
+            offset,
+            scale: T::one(),
+        })
+    }
+
+    fn apply_transformation_recursive(&mut self, transformation: Transformation<T>)
+    where
+        T: FloatingPointNumber,
+    {
+        for particle in self.particles.iter_mut() {
+            particle.position = particle.position * transformation.scale + transformation.offset;
+            particle.pre_integration_position =
+                particle.pre_integration_position * transformation.scale + transformation.offset;
+        }
+
+        for child in self.children.iter_mut() {
+            child.apply_transformation_recursive(transformation);
+        }
+    }
+
+    fn scale_constraints_recursive(&mut self, scale: T)
+    where
+        T: FloatingPointNumber,
+    {
+        for constraint in self.constraints.iter_mut() {
+            let mut cloned = clone_box(&**constraint);
+            cloned.scale(scale);
+            *constraint = Rc::from(cloned);
+        }
+
+        for child_constraint in self.children_constraints.iter_mut() {
+            if let ExtrinsicConstraintType::Local(local) = child_constraint {
+                local.scale_params(scale);
+            }
+        }
+
+        for child in self.children.iter_mut() {
+            child.scale_constraints_recursive(scale);
+        }
     }
 
     fn reassign_ids_recursive(&mut self, id_map: &mut HashMap<BodyId, BodyId>) {
