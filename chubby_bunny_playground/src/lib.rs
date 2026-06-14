@@ -1,10 +1,13 @@
 use chubby_bunny_core::{
-    AttachmentConstraint, Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, Particle,
-    SolverSettings, Transformation, WallConstraint,
+    AttachmentConstraint, Body, BodyId, CollisionConstraint, ExtrinsicConstraintType,
+    FloatingPointNumber, Particle, SolverSettings, Transformation, WallConstraint,
 };
-use chubby_bunny_svg::{instantiate_svg_bodies, load_svg, BodyMeta, BodySettings};
+use chubby_bunny_svg::{
+    instantiate_svg_bodies, instantiate_svg_body, load_svg, BodyMeta, BodySettings,
+};
 
-use nalgebra::Vector2;
+use nalgebra::{zero, Vector2};
+use rand::prelude::IndexedRandom;
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
@@ -17,6 +20,116 @@ use js_types::{bodies_to_polygon_arrays, default_meta_for_container, PolygonArra
 mod input;
 use input::{InputState, MouseButton};
 
+struct BunnySpawner<T = f32> {
+    number_of_bunnies: usize,
+    max_bunnies: usize,
+    spawn_timer: f32,
+    spawn_interval: f32,
+    bunny_bodies: Vec<Body<T>>,
+    bunny_meta: Vec<HashMap<BodyId, BodyMeta>>,
+    min_pos_x: T,
+    max_pos_x: T,
+    y_pos: T,
+    min_scale: T,
+    max_scale: T,
+    svg_settings: Option<BodySettings<T>>,
+}
+
+impl<T: FloatingPointNumber> BunnySpawner<T> {
+    pub fn new(
+        spawn_interval: f32,
+        max_bunnies: usize,
+        max_pos: T,
+        y_pos: T,
+        min_scale: T,
+        max_scale: T,
+    ) -> Self {
+        Self {
+            number_of_bunnies: 0,
+            max_bunnies,
+            spawn_timer: 0.0,
+            spawn_interval,
+            bunny_bodies: Vec::new(),
+            bunny_meta: Vec::new(),
+            min_pos_x: T::zero(),
+            max_pos_x: max_pos,
+            y_pos,
+            min_scale,
+            max_scale,
+            svg_settings: None,
+        }
+    }
+    fn spawn_bunny(&mut self) -> Option<(Body<T>, HashMap<BodyId, BodyMeta>)> {
+        let xpos =
+            T::from(rand::random::<f32>()) * (self.max_pos_x - self.min_pos_x) + self.min_pos_x;
+        let scale =
+            T::from(rand::random::<f32>()) * (self.max_scale - self.min_scale) + self.min_scale;
+        let svg_instance_transform = Transformation {
+            offset: Vector2::new(xpos, self.y_pos),
+            scale: scale,
+            rotation_radians: T::zero(),
+        };
+        let picked_bunny: usize = rand::random_range(0..self.bunny_bodies.len());
+        Some(instantiate_svg_body(
+            self.bunny_bodies.get(picked_bunny)?,
+            self.bunny_meta.get(picked_bunny)?,
+            svg_instance_transform,
+        ))
+    }
+
+    pub fn spawn_bubbles(
+        &mut self,
+        center_position: Vector2<T>,
+        count: usize,
+        scale: T,
+    ) -> Option<Vec<(Body<T>, HashMap<BodyId, BodyMeta>)>> {
+        (0..count)
+            .map(|_i| {
+                let random_offset = Vector2::new(T::zero(), T::zero()) - center_position;
+                let ball = create_polygon(
+                    center_position + random_offset,
+                    scale,
+                    20,
+                    T::from_f32(0.95).unwrap(),
+                    T::from_f32(0.6).unwrap(),
+                    T::from_f32(0.0).unwrap(),
+                    T::from_f32(0.01).unwrap(),
+                );
+
+                let meta = self.bunny_meta.choose(&mut rand::rng())?.clone();
+                Some((ball, meta))
+            })
+            .collect::<Option<Vec<_>>>()
+    }
+
+    pub fn update(&mut self, dt: f32) -> Option<(Body<T>, HashMap<BodyId, BodyMeta>)> {
+        if self.number_of_bunnies >= self.max_bunnies {
+            return None;
+        }
+        self.spawn_timer += dt;
+        if self.spawn_timer >= self.spawn_interval {
+            self.spawn_timer -= self.spawn_interval;
+            self.number_of_bunnies += 1;
+            Some(self.spawn_bunny()?)
+        } else {
+            None
+        }
+    }
+    pub fn update_settings(&mut self, width: usize, height: usize) {
+        self.max_scale = T::from_usize(width.min(height) / 5).unwrap();
+        self.min_scale = T::from_usize(width.min(height) / 20).unwrap();
+        self.min_pos_x = T::zero();
+        self.max_pos_x = T::from_usize(width).unwrap() - self.max_scale;
+    }
+    pub fn load_bunnies_from_svg(&mut self, svg_data: Vec<&str>, settings: BodySettings<T>) {
+        self.svg_settings = Some(settings);
+        for svg_path in svg_data.iter() {
+            let (mut bodies, meta) = load_svg(svg_path, self.svg_settings.as_ref().unwrap());
+            self.bunny_bodies.append(&mut bodies);
+            self.bunny_meta.push(meta);
+        }
+    }
+}
 fn create_container(width: usize, height: usize) -> Body {
     let mut container_body = Body::empty();
     let mut create_particle_helper = |x, y| {
@@ -52,6 +165,7 @@ pub struct Playground {
     meta_data: HashMap<BodyId, BodyMeta>,
     user_input: InputState,
     current_selected_body: Vec<BodyId>,
+    spawner: BunnySpawner<f32>,
 }
 #[wasm_bindgen]
 impl Playground {
@@ -63,118 +177,28 @@ impl Playground {
             meta_data: HashMap::new(),
             user_input: InputState::new(),
             current_selected_body: Vec::new(),
+            spawner: BunnySpawner::new(1000.0, 50, 1200.0, 50.0, 150.0, 350.0),
         }
     }
     pub fn init(&mut self, width: usize, height: usize) {
-        let mut simple_quad = create_quad(Vector2::new(0.0, 100.0), 100.0, 0.9, 0.3, 0.0, 0.01);
-        let third_quad = create_quad(Vector2::new(200.0, 200.0), 50.0, 0.9, 0.3, 0.0, 0.01);
-        let fourth_quad =
-            create_polygon(Vector2::new(300.0, 100.0), 75.0, 12, 0.6, 0.95, 0.0, 0.01);
-        let ball = create_polygon(Vector2::new(300.0, 200.0), 80.0, 20, 0.95, 0.6, 0.0, 0.01);
-        let small_quad = create_quad(Vector2::new(25.0, 125.0), 25.0, 0.5, 0.3, 0.0, 0.01);
-
-        simple_quad
-            .children_constraints
-            .push(ExtrinsicConstraintType::Local(Box::new(
-                AttachmentConstraint::new(
-                    small_quad.id,
-                    &simple_quad,
-                    &small_quad,
-                    vec![0, 1, 2, 3],
-                    vec![0, 1, 2, 3],
-                    0.5,
-                ),
-            )));
-
-        simple_quad.children.push(small_quad);
         let mut container_body = create_container(width, height);
-        container_body.children.push(simple_quad);
-        container_body.children.push(third_quad);
-        container_body.children.push(fourth_quad);
-        container_body.children.push(ball);
-        let mut svg_settings = BodySettings::from_values(1.0, 0.01, false, 0.5, 0.5, 0.5, 0.2, 0.5);
+        let mut svg_settings = BodySettings::from_values(1.0, 0.01, false, 0.5, 0.2, 0.5, 0.2, 0.5);
         svg_settings.attachment_settings.child_sample_stride = 5;
         svg_settings.attachment_settings.max_total_attachments = 8;
         svg_settings
             .attachment_settings
             .parent_springs_per_child_anchor = 3;
-        let (svg_template_bodies, svg_template_meta) =
-            load_svg(include_str!("../../assets/t1.svg"), &svg_settings);
-        let (svg_template_bodies_2, svg_template_meta_2) =
-            load_svg(include_str!("../../assets/t2.svg"), &svg_settings);
-        let (svg_template_bodies_3, svg_template_meta_3) =
-            load_svg(include_str!("../../assets/t3.svg"), &svg_settings);
-        let (svg_template_bodies_4, svg_template_meta_4) =
-            load_svg(include_str!("../../assets/t4.svg"), &svg_settings);
 
-        for i in 0..3 {
-            let svg_instance_transform = Transformation {
-                offset: Vector2::new(300.0 + (500.0 * i as f32), 300.0),
-                scale: 300.0 + (100.0 * i as f32),
-                rotation_radians: i as f32 * 0.5,
-            };
-            let (svg_instance_bodies, svg_instance_meta) = instantiate_svg_bodies(
-                &svg_template_bodies,
-                &svg_template_meta,
-                svg_instance_transform,
-            );
-            for body in svg_instance_bodies {
-                container_body.children.push(body);
-            }
-
-            self.meta_data.extend(svg_instance_meta);
-        }
-        for i in 0..3 {
-            let svg_instance_transform = Transformation {
-                offset: Vector2::new(300.0 + (500.0 * i as f32), 600.0),
-                scale: 300.0 + (100.0 * i as f32),
-                rotation_radians: i as f32 * 0.5,
-            };
-            let (svg_instance_bodies, svg_instance_meta) = instantiate_svg_bodies(
-                &svg_template_bodies_2,
-                &svg_template_meta_2,
-                svg_instance_transform,
-            );
-            for body in svg_instance_bodies {
-                container_body.children.push(body);
-            }
-
-            self.meta_data.extend(svg_instance_meta);
-        }
-        for i in 0..3 {
-            let svg_instance_transform = Transformation {
-                offset: Vector2::new(300.0 + (500.0 * i as f32), 900.0),
-                scale: 300.0 + (100.0 * i as f32),
-                rotation_radians: i as f32 * 0.5,
-            };
-            let (svg_instance_bodies, svg_instance_meta) = instantiate_svg_bodies(
-                &svg_template_bodies_3,
-                &svg_template_meta_3,
-                svg_instance_transform,
-            );
-            for body in svg_instance_bodies {
-                container_body.children.push(body);
-            }
-
-            self.meta_data.extend(svg_instance_meta);
-        }
-        for i in 0..3 {
-            let svg_instance_transform = Transformation {
-                offset: Vector2::new(300.0 + (500.0 * i as f32), 1200.0),
-                scale: 300.0 + (100.0 * i as f32),
-                rotation_radians: i as f32 * 0.5,
-            };
-            let (svg_instance_bodies, svg_instance_meta) = instantiate_svg_bodies(
-                &svg_template_bodies_4,
-                &svg_template_meta_4,
-                svg_instance_transform,
-            );
-            for body in svg_instance_bodies {
-                container_body.children.push(body);
-            }
-
-            self.meta_data.extend(svg_instance_meta);
-        }
+        self.spawner.load_bunnies_from_svg(
+            vec![
+                include_str!("../../assets/t1.svg"),
+                include_str!("../../assets/t2.svg"),
+                include_str!("../../assets/t3.svg"),
+                include_str!("../../assets/t4.svg"),
+            ],
+            svg_settings,
+        );
+        self.spawner.update_settings(width, height);
         self.meta_data.insert(
             container_body.id,
             default_meta_for_container(container_body.id),
@@ -242,14 +266,17 @@ impl Playground {
                 }
             }
         }
-
+        self.spawner.update(dt_ms).map(|(body, meta)| {
+            self.meta_data.extend(meta);
+            self.bodies[0].children.push(body);
+        });
         let dt = dt_ms / 1000.0;
         for body in self.bodies.iter_mut() {
             let constant_force =
-                chubby_bunny_core::force::constant_force(nalgebra::Vector2::new(0.0, 400.0));
+                chubby_bunny_core::force::constant_force(nalgebra::Vector2::new(0.0, 300.0));
             let settings = SolverSettings {
                 reference_dt: 1.0 / 60.0,
-                constraint_iterations: 20,
+                constraint_iterations: 5,
             };
             body.perform_step(&vec![constant_force], dt, &settings);
         }
