@@ -67,52 +67,53 @@ impl Playground {
             meta_data: HashMap::new(),
             user_input: InputState::new(),
             current_selected_body: Vec::new(),
-            spawner: BunnySpawner::new(1000.0, 50, 1200.0, 150.0, 350.0),
+            spawner: BunnySpawner::new(1000.0, 50, 1200.0, 150.0, 250.0),
         }
     }
+
+    fn load_svg_and_create_bodies(
+        &mut self,
+        svg_data: &str,
+        svg_instance_transform: Transformation<f32>,
+        settings: &BodySettings<f32>,
+    ) -> Vec<Body> {
+        let (template, meta) = load_svg(svg_data, settings);
+        let (svg_instance, svg_instance_meta) =
+            instantiate_svg_bodies(&template, &meta, svg_instance_transform);
+        self.meta_data.extend(svg_instance_meta);
+        svg_instance
+    }
+
     pub fn init(&mut self, width: usize, height: usize) {
         self.spawner.update_settings(width, height);
         let mut container_body = create_container(width, height, self.spawner.get_scale());
         let svg_settings =
             BodySettings::from_values(1.0, 0.01, false, 0.5, 0.35, 0.3, 0.4, 0.5, 5, 8, 2.0, 3);
 
-        let (mail_template, mail_meta) =
-            load_svg(include_str!("../../assets/mail.svg"), &svg_settings);
-        let svg_instance_transform = Transformation {
-            offset: Vector2::new(width as f32 / 2.0 - 600.0, height as f32 - 400.0),
-            scale: 400.0,
+        let button_scale = width.min(height) as f32 / 6.0;
+        let button_drop_off = height as f32 - button_scale * 2.0;
+        let get_transform = |offset_x| Transformation {
+            offset: Vector2::new(offset_x, button_drop_off),
+            scale: button_scale,
             rotation_radians: 0.0,
         };
-        let (mut svg_instance_mail, svg_instance_mail_meta) =
-            instantiate_svg_bodies(&mail_template, &mail_meta, svg_instance_transform);
-        svg_instance_mail.iter_mut().for_each(|body| {});
-        self.meta_data.extend(svg_instance_mail_meta);
+        let mut svg_instance_mail = self.load_svg_and_create_bodies(
+            include_str!("../../assets/mail.svg"),
+            get_transform(width as f32 / 2.0 - button_scale),
+            &svg_settings,
+        );
+        let mut svg_instance_git = self.load_svg_and_create_bodies(
+            include_str!("../../assets/git.svg"),
+            get_transform(width as f32 / 2.0),
+            &svg_settings,
+        );
+        let mut svg_instance_about = self.load_svg_and_create_bodies(
+            include_str!("../../assets/about.svg"),
+            get_transform(width as f32 / 2.0 + button_scale),
+            &svg_settings,
+        );
         container_body.children.append(&mut svg_instance_mail);
-
-        let (git_template, git_meta) =
-            load_svg(include_str!("../../assets/git.svg"), &svg_settings);
-        let svg_instance_transform = Transformation {
-            offset: Vector2::new(width as f32 / 2.0, height as f32 - 400.0),
-            scale: 400.0,
-            rotation_radians: 0.0,
-        };
-        let (mut svg_instance_git, svg_instance_git_meta) =
-            instantiate_svg_bodies(&git_template, &git_meta, svg_instance_transform);
-        svg_instance_git.iter_mut().for_each(|body| {});
-        self.meta_data.extend(svg_instance_git_meta);
         container_body.children.append(&mut svg_instance_git);
-
-        let (about_template, about_meta) =
-            load_svg(include_str!("../../assets/about.svg"), &svg_settings);
-        let svg_instance_transform = Transformation {
-            offset: Vector2::new(width as f32 / 2.0 + 600.0, height as f32 - 400.0),
-            scale: 400.0,
-            rotation_radians: 0.0,
-        };
-        let (mut svg_instance_about, svg_instance_about_meta) =
-            instantiate_svg_bodies(&about_template, &about_meta, svg_instance_transform);
-        svg_instance_about.iter_mut().for_each(|body| {});
-        self.meta_data.extend(svg_instance_about_meta);
         container_body.children.append(&mut svg_instance_about);
 
         self.spawner.load_bunnies_from_svg(
