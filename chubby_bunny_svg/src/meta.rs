@@ -8,6 +8,16 @@ pub struct Color {
     pub a: f32,
 }
 
+impl Color {
+    pub fn black() -> Self {
+        Self {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 1.0,
+        }
+    }
+}
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct BodyMeta {
     pub id: BodyId,

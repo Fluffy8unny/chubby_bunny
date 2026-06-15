@@ -140,12 +140,10 @@ fn parse_hex_color(input: &str) -> Option<(u8, u8, u8)> {
 }
 
 fn parse_style_to_body_meta(style: &str, id: BodyId, z_index: i32) -> BodyMeta {
-    let mut line_color = (0u8, 0u8, 0u8);
-    let mut fill_color = (0u8, 0u8, 0u8);
-    let mut line_alpha = 1.0f32;
-    let mut fill_alpha = 1.0f32;
-    let mut global_alpha = 1.0f32;
-    let mut line_weight = 1.0f32;
+    let mut line_color = Color::black();
+    let mut fill_color = Color::black();
+    let mut global_alpha = 1.0_f32;
+    let mut line_weight = 1.0_f32;
 
     for item in style.split(';') {
         let mut kv = item.splitn(2, ':');
@@ -155,26 +153,30 @@ fn parse_style_to_body_meta(style: &str, id: BodyId, z_index: i32) -> BodyMeta {
         match key {
             "stroke" => {
                 if value == "none" {
-                    line_alpha = 0.0;
+                    line_color.a = 0.0;
                 } else if let Some(rgb) = parse_hex_color(value) {
-                    line_color = rgb;
+                    line_color.r = rgb.0;
+                    line_color.g = rgb.1;
+                    line_color.b = rgb.2;
                 }
             }
             "fill" => {
                 if value == "none" {
-                    fill_alpha = 0.0;
+                    fill_color.a = 0.0;
                 } else if let Some(rgb) = parse_hex_color(value) {
-                    fill_color = rgb;
+                    fill_color.r = rgb.0;
+                    fill_color.g = rgb.1;
+                    fill_color.b = rgb.2;
                 }
             }
             "stroke-opacity" => {
                 if let Ok(v) = value.parse::<f32>() {
-                    line_alpha = v.clamp(0.0, 1.0);
+                    line_color.a = v.clamp(0.0, 1.0);
                 }
             }
             "fill-opacity" => {
                 if let Ok(v) = value.parse::<f32>() {
-                    fill_alpha = v.clamp(0.0, 1.0);
+                    fill_color.a = v.clamp(0.0, 1.0);
                 }
             }
             "opacity" => {
@@ -191,22 +193,15 @@ fn parse_style_to_body_meta(style: &str, id: BodyId, z_index: i32) -> BodyMeta {
         }
     }
 
+    line_color.a *= global_alpha;
+    fill_color.a *= global_alpha;
+
     BodyMeta {
         id,
         z_index,
         line_weight,
-        line_color: Color {
-            r: line_color.0,
-            g: line_color.1,
-            b: line_color.2,
-            a: line_alpha * global_alpha,
-        },
-        fill_color: Color {
-            r: fill_color.0,
-            g: fill_color.1,
-            b: fill_color.2,
-            a: fill_alpha * global_alpha,
-        },
+        line_color,
+        fill_color,
         smooth_edges: true,
     }
 }
@@ -544,22 +539,7 @@ fn parse_group_recursive<T: FloatingPointNumber>(
     meta_map: &mut HashMap<BodyId, BodyMeta>,
     settings: &BodySettings<T>,
 ) -> Vec<Body<T>> {
-    let direct_paths: Vec<&SvgPath> = group
-        .children
-        .iter()
-        .filter_map(|node| match node {
-            SvgNode::Path(path) => Some(path),
-            _ => None,
-        })
-        .collect();
-    let child_groups: Vec<&Group> = group
-        .children
-        .iter()
-        .filter_map(|node| match node {
-            SvgNode::G(child_group) => Some(child_group),
-            _ => None,
-        })
-        .collect();
+    let (direct_paths, child_groups) = split_group_children(group);
 
     // If a group has no direct path, bubble child group bodies up.
     if direct_paths.is_empty() {
@@ -613,6 +593,21 @@ fn parse_group_recursive<T: FloatingPointNumber>(
     }
 
     bodies
+}
+
+fn split_group_children(group: &Group) -> (Vec<&SvgPath>, Vec<&Group>) {
+    let mut direct_paths = Vec::new();
+    let mut child_groups = Vec::new();
+
+    for node in &group.children {
+        match node {
+            SvgNode::Path(path) => direct_paths.push(path),
+            SvgNode::G(child_group) => child_groups.push(child_group),
+            SvgNode::Unknown => {}
+        }
+    }
+
+    (direct_paths, child_groups)
 }
 
 pub fn load_svg<T: FloatingPointNumber>(
