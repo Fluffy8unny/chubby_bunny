@@ -1,8 +1,8 @@
 use chubby_bunny_core::{
     Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, Particle, SolverSettings,
-    WallConstraint,
+    Transformation, WallConstraint,
 };
-use chubby_bunny_svg::{BodyMeta, BodySettings};
+use chubby_bunny_svg::{instantiate_svg_bodies, load_svg, BodyMeta, BodySettings};
 
 use nalgebra::Vector2;
 use std::collections::HashMap;
@@ -32,7 +32,7 @@ fn create_container(width: usize, height: usize, max_scale: f32) -> Body {
         ));
     };
     create_particle_helper(0_f32, height as f32);
-    create_particle_helper(width as f32, height  as f32);
+    create_particle_helper(width as f32, height as f32);
     create_particle_helper(width as f32, -max_scale);
     create_particle_helper(0_f32, -max_scale);
 
@@ -67,7 +67,7 @@ impl Playground {
             meta_data: HashMap::new(),
             user_input: InputState::new(),
             current_selected_body: Vec::new(),
-            spawner: BunnySpawner::new(1000.0, 50, 1200.0, 150.0,  350.0),
+            spawner: BunnySpawner::new(1000.0, 50, 1200.0, 150.0, 350.0),
         }
     }
     pub fn init(&mut self, width: usize, height: usize) {
@@ -75,6 +75,45 @@ impl Playground {
         let mut container_body = create_container(width, height, self.spawner.get_scale());
         let svg_settings =
             BodySettings::from_values(1.0, 0.01, false, 0.5, 0.35, 0.3, 0.4, 0.5, 5, 8, 2.0, 3);
+
+        let (mail_template, mail_meta) =
+            load_svg(include_str!("../../assets/mail.svg"), &svg_settings);
+        let svg_instance_transform = Transformation {
+            offset: Vector2::new(width as f32 / 2.0 - 600.0, height as f32 - 400.0),
+            scale: 400.0,
+            rotation_radians: 0.0,
+        };
+        let (mut svg_instance_mail, svg_instance_mail_meta) =
+            instantiate_svg_bodies(&mail_template, &mail_meta, svg_instance_transform);
+        svg_instance_mail.iter_mut().for_each(|body| {});
+        self.meta_data.extend(svg_instance_mail_meta);
+        container_body.children.append(&mut svg_instance_mail);
+
+        let (git_template, git_meta) =
+            load_svg(include_str!("../../assets/git.svg"), &svg_settings);
+        let svg_instance_transform = Transformation {
+            offset: Vector2::new(width as f32 / 2.0, height as f32 - 400.0),
+            scale: 400.0,
+            rotation_radians: 0.0,
+        };
+        let (mut svg_instance_git, svg_instance_git_meta) =
+            instantiate_svg_bodies(&git_template, &git_meta, svg_instance_transform);
+        svg_instance_git.iter_mut().for_each(|body| {});
+        self.meta_data.extend(svg_instance_git_meta);
+        container_body.children.append(&mut svg_instance_git);
+
+        let (about_template, about_meta) =
+            load_svg(include_str!("../../assets/about.svg"), &svg_settings);
+        let svg_instance_transform = Transformation {
+            offset: Vector2::new(width as f32 / 2.0 + 600.0, height as f32 - 400.0),
+            scale: 400.0,
+            rotation_radians: 0.0,
+        };
+        let (mut svg_instance_about, svg_instance_about_meta) =
+            instantiate_svg_bodies(&about_template, &about_meta, svg_instance_transform);
+        svg_instance_about.iter_mut().for_each(|body| {});
+        self.meta_data.extend(svg_instance_about_meta);
+        container_body.children.append(&mut svg_instance_about);
 
         self.spawner.load_bunnies_from_svg(
             vec![
