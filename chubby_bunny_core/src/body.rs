@@ -236,8 +236,8 @@ impl<T> Body<T> {
     {
         for constraint in self.constraints.iter_mut() {
             let mut cloned = clone_box(&**constraint);
-            cloned.scale(transformation.scale);
-            cloned.rotate(transformation.rotation_radians);
+            cloned.scale_params(transformation.scale);
+            cloned.rotate_params(transformation.rotation_radians);
             *constraint = Rc::from(cloned);
         }
 

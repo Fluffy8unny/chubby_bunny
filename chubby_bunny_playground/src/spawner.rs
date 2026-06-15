@@ -45,7 +45,6 @@ pub struct BunnySpawner<T = f32> {
     bunny_meta: Vec<HashMap<BodyId, BodyMeta>>,
     min_pos_x: T,
     max_pos_x: T,
-    y_pos: T,
     min_scale: T,
     max_scale: T,
     svg_settings: Option<BodySettings<T>>,
@@ -57,7 +56,6 @@ impl<T: FloatingPointNumber> BunnySpawner<T> {
         spawn_interval: f32,
         max_bunnies: usize,
         max_pos: T,
-        y_pos: T,
         min_scale: T,
         max_scale: T,
     ) -> Self {
@@ -70,20 +68,24 @@ impl<T: FloatingPointNumber> BunnySpawner<T> {
             bunny_meta: Vec::new(),
             min_pos_x: T::zero(),
             max_pos_x: max_pos,
-            y_pos,
             min_scale,
             max_scale,
             svg_settings: None,
             random_picker: RandomPicker::new(Vec::new(), T::zero(), max_pos, max_scale),
         }
     }
+    
+    pub fn get_scale(&self) -> T {
+        self.max_scale
+    }
+
     fn spawn_bunny(&mut self) -> Option<(Body<T>, HashMap<BodyId, BodyMeta>)> {
         let xpos = self.random_picker.pick()?;
         let scale =
             T::from(rand::random::<f32>()) * (self.max_scale - self.min_scale) + self.min_scale;
         let rotation_radians = T::from(rand::random::<f32>()) * T::from(std::f32::consts::TAU);
         let svg_instance_transform = Transformation {
-            offset: Vector2::new(xpos, self.y_pos),
+            offset: Vector2::new(xpos, -self.max_scale),
             scale,
             rotation_radians,
         };

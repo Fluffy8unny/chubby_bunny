@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
 mod primitives;
-use primitives::{create_polygon, create_quad};
+pub use primitives::{create_polygon, create_quad, create_rect}; //keeping this pub to surpress warnings atm
 
 pub mod js_types;
 use js_types::{bodies_to_polygon_arrays, default_meta_for_container, PolygonArray};
@@ -20,7 +20,7 @@ use input::{InputState, MouseButton};
 mod spawner;
 use spawner::BunnySpawner;
 
-fn create_container(width: usize, height: usize) -> Body {
+fn create_container(width: usize, height: usize, max_scale: f32) -> Body {
     let mut container_body = Body::empty();
     let mut create_particle_helper = |x, y| {
         container_body.particles.push(Particle::new(
@@ -31,10 +31,10 @@ fn create_container(width: usize, height: usize) -> Body {
             true,
         ));
     };
-    create_particle_helper(0, height);
-    create_particle_helper(width, height);
-    create_particle_helper(width, 0);
-    create_particle_helper(0, 0);
+    create_particle_helper(0_f32, height as f32);
+    create_particle_helper(width as f32, height  as f32);
+    create_particle_helper(width as f32, -max_scale);
+    create_particle_helper(0_f32, -max_scale);
 
     for i in 0..4 {
         container_body
@@ -67,13 +67,14 @@ impl Playground {
             meta_data: HashMap::new(),
             user_input: InputState::new(),
             current_selected_body: Vec::new(),
-            spawner: BunnySpawner::new(1000.0, 50, 1200.0, 50.0, 150.0, 350.0),
+            spawner: BunnySpawner::new(1000.0, 50, 1200.0, 150.0,  350.0),
         }
     }
     pub fn init(&mut self, width: usize, height: usize) {
-        let mut container_body = create_container(width, height);
+        self.spawner.update_settings(width, height);
+        let mut container_body = create_container(width, height, self.spawner.get_scale());
         let svg_settings =
-            BodySettings::from_values(1.0, 0.01, false, 0.5, 0.2, 0.5, 0.2, 0.5, 5, 8, 2.0, 3);
+            BodySettings::from_values(1.0, 0.01, false, 0.5, 0.35, 0.3, 0.4, 0.5, 5, 8, 2.0, 3);
 
         self.spawner.load_bunnies_from_svg(
             vec![
@@ -84,7 +85,6 @@ impl Playground {
             ],
             svg_settings,
         );
-        self.spawner.update_settings(width, height);
         self.meta_data.insert(
             container_body.id,
             default_meta_for_container(container_body.id),
@@ -158,15 +158,16 @@ impl Playground {
             self.bodies[0].children.push(body);
         };
 
-        let dt = dt_ms / 1000.0;
+        let dt: f32 = dt_ms / 1000.0;
         for body in self.bodies.iter_mut() {
             let constant_force =
-                chubby_bunny_core::force::constant_force(nalgebra::Vector2::new(0.0, 300.0));
+                chubby_bunny_core::force::constant_force(nalgebra::Vector2::new(0.0, 250.0));
             let settings = SolverSettings {
                 reference_dt: 1.0 / 60.0,
                 constraint_iterations: 5,
             };
-            body.perform_step(&vec![constant_force], dt, &settings);
+            let capped_dt = dt.min(2.0 * settings.reference_dt);
+            body.perform_step(&vec![constant_force], capped_dt, &settings);
         }
         self.polygon_arrays = bodies_to_polygon_arrays(
             self.bodies.iter(),
