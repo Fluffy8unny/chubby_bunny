@@ -3,7 +3,38 @@ use chubby_bunny_svg::{instantiate_svg_body, load_svg, BodyMeta, BodySettings};
 
 use nalgebra::Vector2;
 use std::collections::HashMap;
+use rand::seq::SliceRandom;
+use rand::rngs::SmallRng;
+use rand::SeedableRng;
+struct RandomPicker<T>{
+    items: Vec<T>,
+    min_val : T,
+    max_val : T,
+    interval: T,
+}
 
+impl<T: FloatingPointNumber> RandomPicker<T> {
+    pub fn new(items: Vec<T>, min_val: T, max_val: T, interval: T) -> Self {
+        Self {
+            items,
+            min_val,
+            max_val,
+            interval,
+        }
+    }
+
+    pub fn pick(&mut self) -> Option<T> {
+        if self.items.is_empty() {
+            let mut val = self.min_val;
+            while val < self.max_val {
+                self.items.push(val);
+                val = val + self.interval;
+            }
+            self.items.shuffle(&mut SmallRng::seed_from_u64(42));
+        }
+        self.items.pop()
+    }
+}
 pub struct BunnySpawner<T = f32> {
     number_of_bunnies: usize,
     max_bunnies: usize,
@@ -17,6 +48,7 @@ pub struct BunnySpawner<T = f32> {
     min_scale: T,
     max_scale: T,
     svg_settings: Option<BodySettings<T>>,
+    random_picker: RandomPicker<T>,
 }
 
 impl<T: FloatingPointNumber> BunnySpawner<T> {
@@ -41,18 +73,21 @@ impl<T: FloatingPointNumber> BunnySpawner<T> {
             min_scale,
             max_scale,
             svg_settings: None,
+            random_picker: RandomPicker::new(Vec::new(), T::zero(), max_pos, max_scale),
+            
         }
     }
     fn spawn_bunny(&mut self) -> Option<(Body<T>, HashMap<BodyId, BodyMeta>)> {
-        let xpos =
-            T::from(rand::random::<f32>()) * (self.max_pos_x - self.min_pos_x) + self.min_pos_x;
+        let xpos = self.random_picker.pick()?;
         let scale =
             T::from(rand::random::<f32>()) * (self.max_scale - self.min_scale) + self.min_scale;
+        let rotation = T::from(rand::random::<f32>()) * T::from(std::f32::consts::TAU);
         let svg_instance_transform = Transformation {
             offset: Vector2::new(xpos, self.y_pos),
             scale: scale,
-            rotation_radians: T::zero(),
+            rotation_radians: rotation,
         };
+
         let picked_bunny: usize = rand::random_range(0..self.bunny_bodies.len());
         Some(instantiate_svg_body(
             self.bunny_bodies.get(picked_bunny)?,
@@ -74,12 +109,15 @@ impl<T: FloatingPointNumber> BunnySpawner<T> {
             None
         }
     }
+
     pub fn update_settings(&mut self, width: usize, height: usize) {
         self.max_scale = T::from_usize(width.min(height) / 5).unwrap();
         self.min_scale = T::from_usize(width.min(height) / 20).unwrap();
         self.min_pos_x = T::zero();
         self.max_pos_x = T::from_usize(width).unwrap() - self.max_scale;
+        self.random_picker = RandomPicker::new(Vec::new(), self.min_pos_x, self.max_pos_x,  self.max_scale * T::from(1.5));
     }
+
     pub fn load_bunnies_from_svg(&mut self, svg_data: Vec<&str>, settings: BodySettings<T>) {
         self.svg_settings = Some(settings);
         for svg_path in svg_data.iter() {

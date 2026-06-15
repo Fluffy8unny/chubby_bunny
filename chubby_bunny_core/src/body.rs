@@ -181,7 +181,7 @@ impl<T> Body<T> {
         T: FloatingPointNumber,
     {
         let mut copy = self.duplicate();
-        copy.apply_transformation_recursive(transformation);
+        copy.apply_transformation_recursive(transformation,None);
         copy.transform_constraints_recursive(transformation);
         copy
     }
@@ -197,19 +197,20 @@ impl<T> Body<T> {
         })
     }
 
-    fn apply_transformation_recursive(&mut self, transformation: Transformation<T>)
+    fn apply_transformation_recursive(&mut self, transformation: Transformation<T>, centroid: Option<Vector2<T>>)
     where
         T: FloatingPointNumber,
     {
         let cos_theta = transformation.rotation_radians.cos();
         let sin_theta = transformation.rotation_radians.sin();
+        let centroid = centroid.unwrap_or_else(|| self.centroid());
 
         let apply_to_vector = |v: Vector2<T>| {
-            let scaled = v * transformation.scale;
+            let scaled = (v - centroid) * transformation.scale;
             Vector2::new(
                 scaled.x * cos_theta - scaled.y * sin_theta,
                 scaled.x * sin_theta + scaled.y * cos_theta,
-            ) + transformation.offset
+            ) + centroid + transformation.offset
         };
 
         for particle in self.particles.iter_mut() {
@@ -218,7 +219,7 @@ impl<T> Body<T> {
         }
 
         for child in self.children.iter_mut() {
-            child.apply_transformation_recursive(transformation);
+            child.apply_transformation_recursive(transformation, Some(centroid));
         }
     }
 
