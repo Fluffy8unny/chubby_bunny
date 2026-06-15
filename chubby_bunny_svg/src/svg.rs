@@ -4,7 +4,7 @@ use crate::svg_constraints::{
     add_skip_shear_constraints, nearest_parent_attachment_points,
 };
 use chubby_bunny_core::{
-    body, AreaConstraint, AttachmentConstraint, Body, BodyId, ExtrinsicConstraintType,
+    AreaConstraint, AttachmentConstraint, Body, BodyId, ExtrinsicConstraintType,
     FloatingPointNumber, Particle, Transformation,
 };
 use nalgebra::Vector2;
@@ -516,7 +516,7 @@ fn parse_nodes_recursive<T: FloatingPointNumber>(
         match node {
             SvgNode::Path(path) => {
                 if let Some((body, meta, _anchor)) =
-                    parse_svg_path_to_body(path, z_index, anchor.clone(), settings)
+                    parse_svg_path_to_body(path, z_index, anchor, settings)
                 {
                     meta_map.insert(body.id, meta);
                     bodies.push(body);
@@ -526,7 +526,7 @@ fn parse_nodes_recursive<T: FloatingPointNumber>(
                 bodies.extend(parse_group_recursive(
                     group,
                     z_index + 1,
-                    anchor.clone(),
+                    anchor,
                     meta_map,
                     settings,
                 ));
@@ -566,7 +566,7 @@ fn parse_group_recursive<T: FloatingPointNumber>(
         return child_groups
             .into_iter()
             .flat_map(|child_group| {
-                parse_group_recursive(child_group, z_index + 1, anchor.clone(), meta_map, settings)
+                parse_group_recursive(child_group, z_index + 1, anchor, meta_map, settings)
             })
             .collect();
     }
@@ -574,7 +574,7 @@ fn parse_group_recursive<T: FloatingPointNumber>(
     let mut bodies = Vec::new();
     for path in direct_paths {
         if let Some((mut body, meta, body_anchor)) =
-            parse_svg_path_to_body(path, z_index, anchor.clone(), settings)
+            parse_svg_path_to_body(path, z_index, anchor, settings)
         {
             meta_map.insert(body.id, meta);
 
@@ -583,7 +583,7 @@ fn parse_group_recursive<T: FloatingPointNumber>(
                 parsed_children.extend(parse_group_recursive(
                     child_group,
                     z_index + 1,
-                    Some(body_anchor.clone()),
+                    Some(body_anchor),
                     meta_map,
                     settings,
                 ));

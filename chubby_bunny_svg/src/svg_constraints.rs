@@ -175,7 +175,7 @@ fn prune_distance_outliers<T: FloatingPointNumber>(
     let fallback = candidates.clone();
 
     let len = candidates.len();
-    let median_distance_sq = if len % 2 == 0 {
+    let median_distance_sq = if len.is_multiple_of(2) {
         (candidates[len / 2 - 1].dist_sq + candidates[len / 2].dist_sq) / T::from(2.0)
     } else {
         candidates[len / 2].dist_sq

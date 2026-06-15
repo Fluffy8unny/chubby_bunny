@@ -1,11 +1,10 @@
 use chubby_bunny_core::{
-    AttachmentConstraint, Body, BodyId, CollisionConstraint, ExtrinsicConstraintType,
-    FloatingPointNumber, Particle, SolverSettings, Transformation, WallConstraint,
+    Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, Particle, SolverSettings,
+    WallConstraint,
 };
 use chubby_bunny_svg::{BodyMeta, BodySettings};
 
-use nalgebra::{zero, Vector2};
-use rand::prelude::IndexedRandom;
+use nalgebra::Vector2;
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
@@ -153,10 +152,12 @@ impl Playground {
                 }
             }
         }
-        self.spawner.update(dt_ms).map(|(body, meta)| {
+
+        if let Some((body, meta)) = self.spawner.update(dt_ms) {
             self.meta_data.extend(meta);
             self.bodies[0].children.push(body);
-        });
+        };
+
         let dt = dt_ms / 1000.0;
         for body in self.bodies.iter_mut() {
             let constant_force =
