@@ -130,7 +130,7 @@ impl Playground {
         self.bodies.push(container_body);
     }
 
-    fn handle_selection(&mut self, position: Vector2<f32>)-> Vec<OutgoingEvent> {
+    fn handle_selection(&mut self, position: Vector2<f32>, time_stamp: f32)-> Vec<OutgoingEvent> {
         let mut interactive_body_selected = Vec::new();
         for container in self.bodies.iter_mut() {
             for body in container.children.iter_mut() {
@@ -142,6 +142,7 @@ impl Playground {
                             event_type: EventType::Selection,
                             body_id: body.id,
                             description: name.clone(),
+                            time_stamp,
                         });
                     }
                 }
@@ -150,7 +151,7 @@ impl Playground {
         interactive_body_selected
     }
 
-    fn handle_deselection(&mut self) -> Vec<OutgoingEvent> {
+    fn handle_deselection(&mut self, time_stamp: f32) -> Vec<OutgoingEvent> {
         let mut outgoing_events = Vec::new();
         while let Some(selected_body) = self.current_selected_body.pop() {
             for container in self.bodies.iter_mut() {
@@ -162,6 +163,7 @@ impl Playground {
                     event_type: EventType::Deselection,
                     body_id: selected_body,
                     description: name.clone(),
+                    time_stamp,
                 });
             }
         }
@@ -195,12 +197,15 @@ impl Playground {
             match event.event_type {
                 input::MouseEventType::Down => {
                     if event.button == MouseButton::Left {
-                        outgoing_events.extend(self.handle_selection(event.state.mouse_position));
+                        outgoing_events.extend(self.handle_selection(
+                            event.state.mouse_position,
+                            event.state.time_stamp,
+                        ));
                     }
                 }
                 input::MouseEventType::Up => {
                     if event.button == MouseButton::Left {
-                        outgoing_events.extend(self.handle_deselection());
+                        outgoing_events.extend(self.handle_deselection(event.state.time_stamp));
                     }
                 }
                 input::MouseEventType::Move => {

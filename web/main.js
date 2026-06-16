@@ -3,6 +3,41 @@ import init, { Playground } from "../pkg/chubby_bunny_playground.js";
 let playground = null;
 const canvas = document.getElementById("canvas");
 let pendingInputEvents = [];
+const CLICK_TIME_THRESHOLD_MS = 250;
+const lastSelectionByBody = new Map();
+
+const selectionKey = (event) => `${event.body_id}:${event.description}`;
+const handleOutgoingEvent = (event) => {
+  if (event.event_type === "Selection") {
+    lastSelectionByBody.set(selectionKey(event), event);
+    return;
+  }
+
+  if (event.event_type === "Deselection") {
+    const key = selectionKey(event);
+    const lastSelection = lastSelectionByBody.get(key);
+    if (!lastSelection) {
+      return;
+    }
+
+    const elapsed = event.time_stamp - lastSelection.time_stamp;
+    if (elapsed >= 0 && elapsed < CLICK_TIME_THRESHOLD_MS) {
+      switch (event.description) {
+        case "mail":
+          window.location = "mailto:Andreas@Weissenburger.info";
+          break;
+        case "git":
+          window.location = "https://github.com/Fluffy8unny";
+          break;
+        case "about":
+          event.description = alert("todo");
+          break;
+      }
+      console.log(`Click event: ${event.description}`, event);
+    }
+    lastSelectionByBody.delete(key);
+  }
+};
 
 const resizeCanvas = () => {
   canvas.width = window.innerWidth;
@@ -70,7 +105,7 @@ const loop = (timestamp) => {
   let outgoingEvents = playground.update(dt);
   if (Array.isArray(outgoingEvents) && outgoingEvents.length > 0) {
     for (const event of outgoingEvents) {
-      console.log("Outgoing event:", event);
+      handleOutgoingEvent(event);
     }
   }
   render();

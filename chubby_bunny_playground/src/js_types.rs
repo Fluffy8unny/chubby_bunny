@@ -7,9 +7,6 @@ use std::collections::HashMap;
 pub enum EventType {
     Selection,
     Deselection,
-    Collision,
-    Spawn,
-    Despawn,
 }
 
 #[derive(serde::Serialize)]
@@ -17,6 +14,7 @@ pub struct OutgoingEvent {
     pub event_type: EventType,
     pub body_id: BodyId,
     pub description: String,
+    pub time_stamp: f32,
 }
 
 #[derive(serde::Serialize)]
