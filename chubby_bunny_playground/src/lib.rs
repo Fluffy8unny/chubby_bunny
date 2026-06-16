@@ -12,7 +12,8 @@ mod primitives;
 pub use primitives::{create_polygon, create_quad, create_rect}; //keeping this pub to surpress warnings atm
 
 pub mod js_types;
-use js_types::{bodies_to_polygon_arrays, default_meta_for_container, PolygonArray};
+use js_types::{bodies_to_polygon_arrays, default_meta_for_container, PolygonArray,
+    OutgoingEvent, EventType};
 
 mod input;
 use input::{InputState, MouseButton};
@@ -56,6 +57,7 @@ pub struct Playground {
     user_input: InputState,
     current_selected_body: Vec<BodyId>,
     spawner: BunnySpawner<f32>,
+    interactive_bodies: HashMap<BodyId, String>,
 }
 #[wasm_bindgen]
 impl Playground {
@@ -68,6 +70,7 @@ impl Playground {
             user_input: InputState::new(),
             current_selected_body: Vec::new(),
             spawner: BunnySpawner::new(1000.0, 50, 1200.0, 150.0, 250.0),
+            interactive_bodies: HashMap::new(),
         }
     }
 
@@ -97,24 +100,18 @@ impl Playground {
             scale: button_scale,
             rotation_radians: 0.0,
         };
-        let mut svg_instance_mail = self.load_svg_and_create_bodies(
-            include_str!("../../assets/mail.svg"),
-            get_transform(width as f32 / 2.0 - button_scale),
-            &svg_settings,
-        );
-        let mut svg_instance_git = self.load_svg_and_create_bodies(
-            include_str!("../../assets/git.svg"),
-            get_transform(width as f32 / 2.0),
-            &svg_settings,
-        );
-        let mut svg_instance_about = self.load_svg_and_create_bodies(
-            include_str!("../../assets/about.svg"),
-            get_transform(width as f32 / 2.0 + button_scale),
-            &svg_settings,
-        );
-        container_body.children.append(&mut svg_instance_mail);
-        container_body.children.append(&mut svg_instance_git);
-        container_body.children.append(&mut svg_instance_about);
+
+        for (svg_data, transform, name) in [
+            (include_str!("../../assets/mail.svg"), get_transform(width as f32 / 2.0 - button_scale), "mail"),
+            (include_str!("../../assets/git.svg"), get_transform(width as f32 / 2.0), "git"),
+            (include_str!("../../assets/about.svg"), get_transform(width as f32 / 2.0 + button_scale), "about"),
+        ] {
+            let svg_instance = self.load_svg_and_create_bodies(svg_data, transform, &svg_settings);
+            for body in &svg_instance {
+                self.interactive_bodies.insert(body.id, name.to_string());
+            }
+            container_body.children.extend(svg_instance);
+        }   
 
         self.spawner.load_bunnies_from_svg(
             vec![
@@ -133,24 +130,42 @@ impl Playground {
         self.bodies.push(container_body);
     }
 
-    fn handle_selection(&mut self, position: Vector2<f32>) {
+    fn handle_selection(&mut self, position: Vector2<f32>)-> Vec<OutgoingEvent> {
+        let mut interactive_body_selected = Vec::new();
         for container in self.bodies.iter_mut() {
             for body in container.children.iter_mut() {
                 if body.point_in_polygon(position) {
                     self.current_selected_body.push(body.id);
                     body.pin_child_by_id(body.id, true);
+                    if let Some(name) = self.interactive_bodies.get(&body.id) {
+                        interactive_body_selected.push(OutgoingEvent {
+                            event_type: EventType::Selection,
+                            body_id: body.id,
+                            description: name.clone(),
+                        });
+                    }
                 }
             }
         }
+        interactive_body_selected
     }
 
-    fn handle_deselection(&mut self) {
+    fn handle_deselection(&mut self) -> Vec<OutgoingEvent> {
+        let mut outgoing_events = Vec::new();
         while let Some(selected_body) = self.current_selected_body.pop() {
             for container in self.bodies.iter_mut() {
                 container.pin_child_by_id(selected_body, false);
             }
             //todo add velocity to the body based on the average velocity of the mouse during the drag
+            if let Some(name) = self.interactive_bodies.get(&selected_body) {
+                outgoing_events.push(OutgoingEvent {
+                    event_type: EventType::Deselection,
+                    body_id: selected_body,
+                    description: name.clone(),
+                });
+            }
         }
+        outgoing_events
     }
 
     fn handle_drag(&mut self, button: MouseButton) {
@@ -173,18 +188,19 @@ impl Playground {
         }
     }
 
-    pub fn update(&mut self, dt_ms: f32) {
+    pub fn update(&mut self, dt_ms: f32) -> Result<JsValue, JsValue> {
         //handle user input
+        let mut outgoing_events = Vec::new();
         while let Some(event) = self.user_input.events.pop_front() {
             match event.event_type {
                 input::MouseEventType::Down => {
                     if event.button == MouseButton::Left {
-                        self.handle_selection(event.state.mouse_position);
+                        outgoing_events.extend(self.handle_selection(event.state.mouse_position));
                     }
                 }
                 input::MouseEventType::Up => {
                     if event.button == MouseButton::Left {
-                        self.handle_deselection();
+                        outgoing_events.extend(self.handle_deselection());
                     }
                 }
                 input::MouseEventType::Move => {
@@ -209,11 +225,14 @@ impl Playground {
             let capped_dt = dt.min(2.0 * settings.reference_dt);
             body.perform_step(&vec![constant_force], capped_dt, &settings);
         }
+
         self.polygon_arrays = bodies_to_polygon_arrays(
             self.bodies.iter(),
             &self.meta_data,
             &self.current_selected_body,
         );
+        serde_wasm_bindgen::to_value(&outgoing_events)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
     pub fn get_polygon_arrays(&self) -> Result<JsValue, JsValue> {

@@ -67,7 +67,12 @@ const loop = (timestamp) => {
   let dt = timestamp - (playground.last_timestamp || timestamp);
   playground.last_timestamp = timestamp;
   flushInputEvents();
-  playground.update(dt);
+  let outgoingEvents = playground.update(dt);
+  if (Array.isArray(outgoingEvents) && outgoingEvents.length > 0) {
+    for (const event of outgoingEvents) {
+      console.log("Outgoing event:", event);
+    }
+  }
   render();
   requestAnimationFrame(loop);
 };

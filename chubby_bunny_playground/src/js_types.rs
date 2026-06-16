@@ -2,12 +2,29 @@ use chubby_bunny_core::{Body, BodyId};
 use chubby_bunny_svg::BodyMeta;
 use std::collections::HashMap;
 
+
+#[derive(serde::Serialize)]
+pub enum EventType {
+    Selection,
+    Deselection,
+    Collision,
+    Spawn,
+    Despawn,
+}
+
+#[derive(serde::Serialize)]
+pub struct OutgoingEvent {
+    pub event_type: EventType,
+    pub body_id: BodyId,
+    pub description: String,
+}
+
 #[derive(serde::Serialize)]
 pub struct PolygonArray {
-    vertices: Vec<(f32, f32)>,
-    meta: BodyMeta,
-    z_index: i32,
-    children: Vec<PolygonArray>,
+    pub vertices: Vec<(f32, f32)>,
+    pub meta: BodyMeta,
+    pub z_index: i32,
+    pub children: Vec<PolygonArray>,
 }
 
 pub fn default_meta(id: BodyId, z_index: i32) -> BodyMeta {
