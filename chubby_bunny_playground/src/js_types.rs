@@ -2,7 +2,6 @@ use chubby_bunny_core::{Body, BodyId};
 use chubby_bunny_svg::BodyMeta;
 use std::collections::HashMap;
 
-
 #[derive(serde::Serialize)]
 pub enum EventType {
     Selection,
@@ -61,7 +60,7 @@ pub fn default_meta_for_container(id: BodyId) -> BodyMeta {
             r: 250,
             g: 246,
             b: 240,
-            a: 1.0,
+            a: 0.0,
         },
         smooth_edges: false,
     }

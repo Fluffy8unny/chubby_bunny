@@ -12,8 +12,9 @@ mod primitives;
 pub use primitives::{create_polygon, create_quad, create_rect}; //keeping this pub to surpress warnings atm
 
 pub mod js_types;
-use js_types::{bodies_to_polygon_arrays, default_meta_for_container, PolygonArray,
-    OutgoingEvent, EventType};
+use js_types::{
+    bodies_to_polygon_arrays, default_meta_for_container, EventType, OutgoingEvent, PolygonArray,
+};
 
 mod input;
 use input::{InputState, MouseButton};
@@ -102,17 +103,42 @@ impl Playground {
         };
 
         for (svg_data, transform, name) in [
-            (include_str!("../../assets/mail.svg"), get_transform(width as f32 / 2.0 - button_scale), "mail"),
-            (include_str!("../../assets/git.svg"), get_transform(width as f32 / 2.0), "git"),
-            (include_str!("../../assets/about.svg"), get_transform(width as f32 / 2.0 + button_scale), "about"),
+            (
+                include_str!("../../assets/mail.svg"),
+                get_transform(width as f32 / 2.0 - button_scale * 1.5),
+                "mail",
+            ),
+            (
+                include_str!("../../assets/git.svg"),
+                get_transform(width as f32 / 2.0 - button_scale * 0.5),
+                "git",
+            ),
+            (
+                include_str!("../../assets/about.svg"),
+                get_transform(width as f32 / 2.0 + button_scale * 0.5),
+                "about",
+            ),
         ] {
             let svg_instance = self.load_svg_and_create_bodies(svg_data, transform, &svg_settings);
             for body in &svg_instance {
                 self.interactive_bodies.insert(body.id, name.to_string());
             }
             container_body.children.extend(svg_instance);
-        }   
+        }
+        let cloud_settings =
+            BodySettings::from_values(1.0, 0.01, false, 1.0, 1.0, 0.6, 0.8, 0.5, 5, 8, 2.0, 3);
 
+        let mut svg_instance = self.load_svg_and_create_bodies(
+            include_str!("../../assets/clouds_foreground.svg"),
+            Transformation {
+                offset: Vector2::new(0.0, height as f32 - width as f32 / 18.0),
+                scale: width as f32,
+                rotation_radians: 0.0,
+            },
+            &cloud_settings,
+        );
+
+        container_body.children.append(&mut svg_instance);
         self.spawner.load_bunnies_from_svg(
             vec![
                 include_str!("../../assets/t1.svg"),
@@ -126,11 +152,12 @@ impl Playground {
             container_body.id,
             default_meta_for_container(container_body.id),
         );
+
         container_body.collision_constraint = Some(CollisionConstraint::new(0.99));
         self.bodies.push(container_body);
     }
 
-    fn handle_selection(&mut self, position: Vector2<f32>, time_stamp: f32)-> Vec<OutgoingEvent> {
+    fn handle_selection(&mut self, position: Vector2<f32>, time_stamp: f32) -> Vec<OutgoingEvent> {
         let mut interactive_body_selected = Vec::new();
         for container in self.bodies.iter_mut() {
             for body in container.children.iter_mut() {
@@ -197,10 +224,12 @@ impl Playground {
             match event.event_type {
                 input::MouseEventType::Down => {
                     if event.button == MouseButton::Left {
-                        outgoing_events.extend(self.handle_selection(
-                            event.state.mouse_position,
-                            event.state.time_stamp,
-                        ));
+                        outgoing_events.extend(
+                            self.handle_selection(
+                                event.state.mouse_position,
+                                event.state.time_stamp,
+                            ),
+                        );
                     }
                 }
                 input::MouseEventType::Up => {
