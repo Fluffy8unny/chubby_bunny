@@ -3,11 +3,27 @@
   <head>
     <meta charset="utf-8" />
     <title>Chubby Bunny Playground</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" type="text/css" href="./style.css">
   </head>
   <body>
+    <div class="site-banner site-banner-hidden" id="site-banner">
+      <p class="site-banner-text">
+        This is my personal site and a showcase for my Rust-based WASM soft-body library. <br/>
+        Check out the library on
+        <a class="site-banner-link" href="https://github.com/Fluffy8unny/chubby_bunny" target="_blank" rel="noopener noreferrer">GitHub</a>
+        or contact me at
+        <a class="site-banner-link" href="mailto:Andreas@Weissenburger.info">Andreas@Weissenburger.info</a>.
+      </p>
+      <button class="site-banner-close" id="site-banner-close" aria-label="Close banner">x</button>
+    </div>
     <div class="canvas-backdrop" aria-hidden="true">
       <div class="cloud-backdrop cloud-backdrop-left"></div>
+      <div class="logo-backdrop">
+        <img class="logo-backdrop-image" src="../assets/logo.svg" alt="" />
+      </div>
       <div class="cloud-backdrop cloud-backdrop-right"></div>
     </div>
     <canvas id="canvas" width="800" height="600"></canvas>

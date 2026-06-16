@@ -2,9 +2,33 @@ import init, { Playground } from "../pkg/chubby_bunny_playground.js";
 
 let playground = null;
 const canvas = document.getElementById("canvas");
+const siteBanner = document.getElementById("site-banner");
+const siteBannerClose = document.getElementById("site-banner-close");
 let pendingInputEvents = [];
 const CLICK_TIME_THRESHOLD_MS = 250;
 const lastSelectionByBody = new Map();
+
+const closeBanner = () => {
+  if (!siteBanner) {
+    return;
+  }
+  siteBanner.classList.add("site-banner-hidden");
+};
+
+const showBanner = () => {
+  if (!siteBanner) {
+    return;
+  }
+  siteBanner.classList.remove("site-banner-hidden");
+};
+
+if (siteBannerClose) {
+  siteBannerClose.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeBanner();
+  });
+}
 
 const selectionKey = (event) => `${event.body_id}:${event.description}`;
 const handleOutgoingEvent = (event) => {
@@ -30,7 +54,7 @@ const handleOutgoingEvent = (event) => {
           window.location = "https://github.com/Fluffy8unny";
           break;
         case "about":
-          event.description = alert("todo");
+          showBanner();
           break;
       }
       console.log(`Click event: ${event.description}`, event);
@@ -166,14 +190,7 @@ const render_polygon_arrays = (polygon_arrays, ctx) => {
     ctx.fill();
     ctx.stroke();
   }
-  /*
-  for (let p of polygon_arrays.vertices) {
-    ctx.fillStyle = `rgba(${polygon_arrays.meta.line_color.r}, ${polygon_arrays.meta.line_color.g}, ${polygon_arrays.meta.line_color.b}, ${1.0})`;
-    ctx.beginPath();
-    ctx.arc(p[0], p[1], 4, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  */
+
   for (let child of polygon_arrays.children) {
     render_polygon_arrays(child, ctx);
   }
