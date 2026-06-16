@@ -99,7 +99,21 @@ const getPrimaryTouch = (touchEvent) => {
   return null;
 };
 
+const isTouchInsideBanner = (touchEvent) => {
+  const targetElement = touchEvent.target;
+  if (!(targetElement instanceof Element) || !siteBanner) {
+    return false;
+  }
+  return siteBanner.contains(targetElement);
+};
+
 const enqueueTouchEvent = (eventName, touchEvent) => {
+  if (isTouchInsideBanner(touchEvent)) {
+    // Let links/buttons in the banner use native touch behavior.
+    lastTouchInputTimestamp = performance.now();
+    return;
+  }
+
   const touch = getPrimaryTouch(touchEvent);
   if (!touch) {
     return;
