@@ -113,8 +113,8 @@ impl<T: FloatingPointNumber> BunnySpawner<T> {
     }
 
     pub fn update_settings(&mut self, width: usize, height: usize) {
-        self.max_scale = T::from_usize(width.min(height) / 10).unwrap();
-        self.min_scale = T::from_usize(width.min(height) / 20).unwrap();
+        self.max_scale = T::from_usize(width.min(height) / 8).unwrap();
+        self.min_scale = T::from_usize(width.min(height) / 18).unwrap();
         self.min_pos_x = T::zero();
         self.max_pos_x = T::from_usize(width).unwrap() - self.max_scale;
         self.random_picker = RandomPicker::new(
