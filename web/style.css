@@ -157,4 +157,5 @@ canvas {
     height: 100%;
     border: none;
     background-color: transparent;
+    touch-action: none;
 }

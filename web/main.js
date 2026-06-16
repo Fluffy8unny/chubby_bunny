@@ -7,6 +7,8 @@ const siteBannerClose = document.getElementById("site-banner-close");
 let pendingInputEvents = [];
 const CLICK_TIME_THRESHOLD_MS = 250;
 const lastSelectionByBody = new Map();
+const TOUCH_MOUSE_SUPPRESSION_MS = 600;
+let lastTouchInputTimestamp = Number.NEGATIVE_INFINITY;
 
 const closeBanner = () => {
   if (!siteBanner) {
@@ -79,17 +81,93 @@ const getEvent = (eventName, event) => {
   };
 };
 
+const shouldIgnoreMouseEvent = () => {
+  return (
+    performance.now() - lastTouchInputTimestamp < TOUCH_MOUSE_SUPPRESSION_MS
+  );
+};
+
+const getPrimaryTouch = (touchEvent) => {
+  if (touchEvent.changedTouches && touchEvent.changedTouches.length > 0) {
+    return touchEvent.changedTouches[0];
+  }
+
+  if (touchEvent.touches && touchEvent.touches.length > 0) {
+    return touchEvent.touches[0];
+  }
+
+  return null;
+};
+
+const enqueueTouchEvent = (eventName, touchEvent) => {
+  const touch = getPrimaryTouch(touchEvent);
+  if (!touch) {
+    return;
+  }
+
+  touchEvent.preventDefault();
+  lastTouchInputTimestamp = performance.now();
+  pendingInputEvents.push({
+    kind: eventName,
+    x: touch.clientX,
+    y: touch.clientY,
+    button: 0,
+    time_stamp: performance.now(),
+  });
+};
+
 document.addEventListener("mousemove", (event) => {
+  if (shouldIgnoreMouseEvent()) {
+    return;
+  }
   pendingInputEvents.push(getEvent("move", event));
 });
 
 document.addEventListener("mousedown", (event) => {
+  if (shouldIgnoreMouseEvent()) {
+    return;
+  }
   pendingInputEvents.push(getEvent("down", event));
 });
 
 document.addEventListener("mouseup", (event) => {
+  if (shouldIgnoreMouseEvent()) {
+    return;
+  }
   pendingInputEvents.push(getEvent("up", event));
 });
+
+document.addEventListener(
+  "touchstart",
+  (event) => {
+    enqueueTouchEvent("down", event);
+  },
+  { passive: false },
+);
+
+document.addEventListener(
+  "touchmove",
+  (event) => {
+    enqueueTouchEvent("move", event);
+  },
+  { passive: false },
+);
+
+document.addEventListener(
+  "touchend",
+  (event) => {
+    enqueueTouchEvent("up", event);
+  },
+  { passive: false },
+);
+
+document.addEventListener(
+  "touchcancel",
+  (event) => {
+    enqueueTouchEvent("up", event);
+  },
+  { passive: false },
+);
 
 const flushInputEvents = () => {
   for (const event of pendingInputEvents) {
