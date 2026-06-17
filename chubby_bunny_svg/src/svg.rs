@@ -154,18 +154,14 @@ fn parse_style_to_body_meta(style: &str, id: BodyId, z_index: i32) -> BodyMeta {
                 if value == "none" {
                     line_color.a = 0.0;
                 } else if let Some(rgb) = parse_hex_color(value) {
-                    line_color.r = rgb.0;
-                    line_color.g = rgb.1;
-                    line_color.b = rgb.2;
+                    line_color.set_rgb(rgb);
                 }
             }
             "fill" => {
                 if value == "none" {
                     fill_color.a = 0.0;
                 } else if let Some(rgb) = parse_hex_color(value) {
-                    fill_color.r = rgb.0;
-                    fill_color.g = rgb.1;
-                    fill_color.b = rgb.2;
+                    fill_color.set_rgb(rgb);
                 }
             }
             "stroke-opacity" => {
@@ -359,20 +355,18 @@ fn normalize_points_to_anchor<T: FloatingPointNumber>(
         .collect()
 }
 
-fn accumulate_bbox_recursive<T: FloatingPointNumber>(
+fn bbox_union_recursive<T: FloatingPointNumber>(
     body: &Body<T>,
     min: &mut Vector2<T>,
     max: &mut Vector2<T>,
 ) {
     for particle in body.particles.iter() {
-        min.x = min.x.min(particle.position.x);
-        min.y = min.y.min(particle.position.y);
-        max.x = max.x.max(particle.position.x);
-        max.y = max.y.max(particle.position.y);
+        *min = min.inf(&particle.position);
+        *max = max.sup(&particle.position);
     }
 
     for child in body.children.iter() {
-        accumulate_bbox_recursive(child, min, max);
+        bbox_union_recursive(child, min, max);
     }
 }
 
@@ -382,10 +376,8 @@ fn normalized_template_transform<T: FloatingPointNumber>(bodies: &[Body<T>]) -> 
     let mut has_points = false;
 
     for body in bodies.iter() {
-        if !body.particles.is_empty() {
-            has_points = true;
-        }
-        accumulate_bbox_recursive(body, &mut min, &mut max);
+        has_points |= !body.particles.is_empty();
+        bbox_union_recursive(body, &mut min, &mut max);
     }
 
     if !has_points {

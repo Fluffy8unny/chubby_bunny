@@ -9,6 +9,12 @@ pub struct Color {
 }
 
 impl Color {
+    pub fn set_rgb(&mut self, (r, g, b): (u8, u8, u8)) {
+        self.r = r;
+        self.g = g;
+        self.b = b;
+    }
+
     pub fn black() -> Self {
         Self {
             r: 0,
