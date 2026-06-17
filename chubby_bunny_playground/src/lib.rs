@@ -59,6 +59,7 @@ pub struct Playground {
     current_selected_body: Vec<BodyId>,
     spawner: BunnySpawner<f32>,
     interactive_bodies: HashMap<BodyId, String>,
+    gravity: Vector2<f32>,
 }
 #[wasm_bindgen]
 impl Playground {
@@ -72,6 +73,7 @@ impl Playground {
             current_selected_body: Vec::new(),
             spawner: BunnySpawner::new(1000.0, 50, 1200.0, 150.0, 250.0),
             interactive_bodies: HashMap::new(),
+            gravity: Vector2::new(0.0, 250.0),
         }
     }
 
@@ -155,6 +157,7 @@ impl Playground {
 
         container_body.collision_constraint = Some(CollisionConstraint::new(0.99));
         self.bodies.push(container_body);
+        self.gravity = Vector2::new(0.0, height as f32 / 10.0);
     }
 
     fn handle_selection(&mut self, position: Vector2<f32>, time_stamp: f32) -> Vec<OutgoingEvent> {
@@ -250,8 +253,7 @@ impl Playground {
 
         let dt: f32 = dt_ms / 1000.0;
         for body in self.bodies.iter_mut() {
-            let constant_force =
-                chubby_bunny_core::force::constant_force(nalgebra::Vector2::new(0.0, 250.0));
+            let constant_force = chubby_bunny_core::force::constant_force(self.gravity);
             let settings = SolverSettings {
                 reference_dt: 1.0 / 60.0,
                 constraint_iterations: 5,
