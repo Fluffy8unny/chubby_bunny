@@ -1,14 +1,13 @@
 use crate::constraint_common::{
     constraint_alpha_with_reference_dt, get_distance_correction_vector,
 };
-use crate::{FloatingPointNumber, Particle, SolverSettings};
+use crate::{FloatingPointNumber, Particle, SolverSettings, Transformation};
 use dyn_clone::DynClone;
 use nalgebra::Vector2;
 
 pub trait IntrinsicConstraint<T = f32>: DynClone {
     fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings);
-    fn scale_params(&mut self, _scale: T) {}
-    fn rotate_params(&mut self, _rotation_radians: T) {}
+    fn transform_params(&mut self, _transformation: Transformation<T>) {}
 }
 dyn_clone::clone_trait_object!(<T> IntrinsicConstraint<T>);
 #[derive(Clone)]
@@ -45,8 +44,8 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for DistanceConstraint<T> {
         particles[self.idx_right].apply_position_correction_to_particle(&correction_vector);
     }
 
-    fn scale_params(&mut self, scale: T) {
-        self.target_distance *= scale;
+    fn transform_params(&mut self, transformation: Transformation<T>) {
+        self.target_distance *= transformation.scale;
     }
 }
 #[derive(Clone)]
@@ -120,8 +119,8 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for AreaConstraint<T> {
         }
     }
 
-    fn scale_params(&mut self, scale: T) {
-        self.rest_area *= scale * scale;
+    fn transform_params(&mut self, transformation: Transformation<T>) {
+        self.rest_area *= transformation.scale * transformation.scale;
     }
 }
 

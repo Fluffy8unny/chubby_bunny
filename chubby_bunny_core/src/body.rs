@@ -245,15 +245,13 @@ impl<T> Body<T> {
     {
         for constraint in self.constraints.iter_mut() {
             let mut cloned = clone_box(&**constraint);
-            cloned.scale_params(transformation.scale);
-            cloned.rotate_params(transformation.rotation_radians);
+            cloned.transform_params(transformation);
             *constraint = Rc::from(cloned);
         }
 
         for child_constraint in self.children_constraints.iter_mut() {
             if let ExtrinsicConstraintType::Local(local) = child_constraint {
-                local.scale_params(transformation.scale);
-                local.rotate_params(transformation.rotation_radians);
+                local.transform_params(transformation);
             }
         }
 

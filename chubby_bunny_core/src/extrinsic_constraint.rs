@@ -1,5 +1,5 @@
 use crate::constraint_common::get_distance_correction_vector;
-use crate::{Body, BodyId, FloatingPointNumber, Particle, SolverSettings};
+use crate::{Body, BodyId, FloatingPointNumber, Particle, SolverSettings, Transformation};
 use dyn_clone::DynClone;
 use nalgebra::Vector2;
 use std::collections::HashMap;
@@ -30,8 +30,7 @@ pub trait LocalExtrinsicConstraint<T = f32>: DynClone {
     );
     fn get_id(&self) -> BodyId;
     fn remap_body_ids(&mut self, _id_map: &HashMap<BodyId, BodyId>) {}
-    fn scale_params(&mut self, _scale: T) {}
-    fn rotate_params(&mut self, _rotation_radians: T) {}
+    fn transform_params(&mut self, _transformation: Transformation<T>) {}
 }
 dyn_clone::clone_trait_object!(<T> LocalExtrinsicConstraint<T>);
 
@@ -126,9 +125,9 @@ impl<T: FloatingPointNumber> LocalExtrinsicConstraint<T> for AttachmentConstrain
         }
     }
 
-    fn scale_params(&mut self, scale: T) {
+    fn transform_params(&mut self, transformation: Transformation<T>) {
         for target_distance in self.target_distances.iter_mut() {
-            *target_distance *= scale;
+            *target_distance *= transformation.scale;
         }
     }
 
