@@ -35,6 +35,13 @@ impl<T: FloatingPointNumber> BoundingBox<T> {
             && self.max.y >= other.min.y
     }
 
+    pub fn zeros() -> Self {
+        Self {
+            min: Vector2::zeros(),
+            max: Vector2::zeros(),
+        }
+    }
+
     pub fn center(&self) -> Vector2<T> {
             (self.min + self.max) / T::from(2.0)
     }
@@ -91,10 +98,7 @@ impl<T> Body<T> {
         });
         BoundingBox { min, max }
          } else {
-        BoundingBox {
-            min: Vector2::zeros(),
-            max: Vector2::zeros(),
-        }
+        BoundingBox::zeros()
         }
     }
 
@@ -198,21 +202,19 @@ impl<T> Body<T> {
     fn apply_transformation_recursive(
         &mut self,
         transformation: Transformation<T>,
-        centroid: Option<Vector2<T>>,
+        rotation_center: Option<Vector2<T>>,
     ) where
         T: FloatingPointNumber,
     {
         let cos_theta = transformation.rotation_radians.cos();
         let sin_theta = transformation.rotation_radians.sin();
-        let centroid = centroid.unwrap_or_else(|| {self.get_bounding_box().center()
+        let rot_mat = nalgebra::Matrix2::new(cos_theta, -sin_theta, sin_theta, cos_theta);
+        let centroid = rotation_center.unwrap_or_else(|| {self.get_bounding_box().center()
 });
 
         let apply_to_vector = |v: Vector2<T>| {
             let cenrtered = v - centroid;
-            let rotated = Vector2::new(
-                cenrtered.x * cos_theta - cenrtered.y * sin_theta,
-                cenrtered.x * sin_theta + cenrtered.y * cos_theta,
-            ) + centroid;
+            let rotated = rot_mat * cenrtered + centroid;
             rotated * transformation.scale + transformation.offset
         };
 
