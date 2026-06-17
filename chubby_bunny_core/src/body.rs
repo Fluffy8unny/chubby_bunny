@@ -29,6 +29,15 @@ pub struct BoundingBox<T> {
     pub max: Vector2<T>,
 }
 
+impl<T: FloatingPointNumber> BoundingBox<T> {
+    pub fn intersects(&self, other: &BoundingBox<T>) -> bool {
+        self.min.x <= other.max.x
+            && self.max.x >= other.min.x
+            && self.min.y <= other.max.y
+            && self.max.y >= other.min.y
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct Transformation<T> {
     pub offset: Vector2<T>,

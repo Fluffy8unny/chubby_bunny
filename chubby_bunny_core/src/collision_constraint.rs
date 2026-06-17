@@ -1,4 +1,4 @@
-use crate::{Body, BoundingBox, FloatingPointNumber, SolverSettings};
+use crate::{Body, FloatingPointNumber, SolverSettings};
 use itertools::Itertools;
 use nalgebra::Vector2;
 
@@ -18,13 +18,6 @@ impl<T> CollisionConstraint<T> {
     pub fn new(stiffness: T) -> Self {
         Self { stiffness }
     }
-}
-
-fn boxes_intersect<T: FloatingPointNumber>(box_a: &BoundingBox<T>, box_b: &BoundingBox<T>) -> bool {
-    box_a.min.x <= box_b.max.x
-        && box_a.max.x >= box_b.min.x
-        && box_a.min.y <= box_b.max.y
-        && box_a.max.y >= box_b.min.y
 }
 
 struct Edge<T> {
@@ -261,7 +254,7 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
         dt: T,
         solver_settings: &SolverSettings,
     ) {
-        if !boxes_intersect(&body_a.get_bounding_box(), &body_b.get_bounding_box()) {
+        if !body_a.get_bounding_box().intersects(&body_b.get_bounding_box()) {
             return;
         }
 
