@@ -95,16 +95,15 @@ impl<T: FloatingPointNumber> AttachmentConstraint<T> {
             "Parent and child point index lists must be of the same length"
         );
 
-        let mut target_distances = vec![T::zero(); point_idxs_parent.len()];
-        for (i, (parent_idx, child_idx)) in point_idxs_parent
+        let target_distances = point_idxs_parent
             .iter()
             .zip(point_idxs_child.iter())
-            .enumerate()
-        {
-            let parent_particle = &parent.particles[*parent_idx];
-            let child_particle = &child.particles[*child_idx];
-            target_distances[i] = (child_particle.position - parent_particle.position).norm();
-        }
+            .map(|(parent_idx, child_idx)| {
+                let parent_particle = &parent.particles[*parent_idx];
+                let child_particle = &child.particles[*child_idx];
+                (child_particle.position - parent_particle.position).norm()
+            })
+            .collect();
         Self {
             id: body_id,
             point_idxs_parent,
