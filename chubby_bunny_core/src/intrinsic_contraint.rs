@@ -144,9 +144,8 @@ impl<T: FloatingPointNumber> BendingConstraint<T> {
         let prev = particles[idx_prev].position;
         let center = particles[idx_center].position;
         let next = particles[idx_next].position;
-        let v_prev = prev - center;
-        let v_next = next - center;
-        let rest_angle = (v_prev.x * v_next.y - v_prev.y * v_next.x).atan2(v_prev.dot(&v_next));
+        let (v_prev, v_next) = Self::get_edges(prev, center, next);
+        let rest_angle = Self::calculate_angle(v_prev, v_next);
         Self {
             idx_prev,
             idx_center,
@@ -154,6 +153,14 @@ impl<T: FloatingPointNumber> BendingConstraint<T> {
             rest_angle,
             stiffness,
         }
+    }
+
+    fn calculate_angle(v_prev: Vector2<T>, v_next: Vector2<T>) -> T {
+        (v_prev.x * v_next.y - v_prev.y * v_next.x).atan2(v_prev.dot(&v_next))
+    }
+
+    fn get_edges(prev: Vector2<T>, center: Vector2<T>, next: Vector2<T>) -> (Vector2<T>, Vector2<T>) {
+        (prev - center, next - center)
     }
 
     fn wrap_angle_to_pi(mut angle: T) -> T {
@@ -175,16 +182,15 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for BendingConstraint<T> {
         let center = particles[self.idx_center].position;
         let next = particles[self.idx_next].position;
 
-        let e_prev = prev - center;
-        let e_next = next - center;
+        let (v_prev, v_next) = Self::get_edges(prev, center, next);
 
-        let prev_len_sq = e_prev.norm_squared();
-        let next_len_sq = e_next.norm_squared();
+        let prev_len_sq = v_prev.norm_squared();
+        let next_len_sq = v_next.norm_squared();
         if prev_len_sq <= T::from(1.0e-12_f32) || next_len_sq <= T::from(1.0e-12_f32) {
             return;
         }
 
-        let current_angle = (e_prev.x * e_next.y - e_prev.y * e_next.x).atan2(e_prev.dot(&e_next));
+        let current_angle = Self::calculate_angle(v_prev, v_next);
         let c = Self::wrap_angle_to_pi(current_angle - self.rest_angle);
         if c.abs() <= T::from(1.0e-6_f32) {
             return;
@@ -193,8 +199,8 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for BendingConstraint<T> {
         let alpha = constraint_alpha_with_reference_dt(self.stiffness, dt, solver_settings);
         let c_scaled = c * alpha;
 
-        let grad_prev = Vector2::new(e_prev.y, -e_prev.x) / prev_len_sq;
-        let grad_next = Vector2::new(-e_next.y, e_next.x) / next_len_sq;
+        let grad_prev = Vector2::new(v_prev.y, -v_prev.x) / prev_len_sq;
+        let grad_next = Vector2::new(-v_next.y, v_next.x) / next_len_sq;
         let grad_center = -(grad_prev + grad_next);
 
         let denom =
