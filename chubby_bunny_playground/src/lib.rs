@@ -91,6 +91,14 @@ impl Playground {
     }
 
     pub fn init(&mut self, width: usize, height: usize) {
+        self.bodies.clear();
+        self.polygon_arrays.clear();
+        self.meta_data.clear();
+        self.current_selected_body.clear();
+        self.interactive_bodies.clear();
+        self.user_input = InputState::new();
+        self.spawner.reset_runtime_state();
+
         self.spawner.update_settings(width, height);
         let mut container_body = create_container(width, height, self.spawner.get_scale());
         let svg_settings =
@@ -158,6 +166,10 @@ impl Playground {
         container_body.collision_constraint = Some(CollisionConstraint::new(0.99));
         self.bodies.push(container_body);
         self.gravity = Vector2::new(0.0, height as f32 / 10.0);
+    }
+
+    pub fn reset(&mut self, width: f32, height: f32) {
+        self.init(width as usize, height as usize);
     }
 
     fn handle_selection(&mut self, position: Vector2<f32>, time_stamp: f32) -> Vec<OutgoingEvent> {
@@ -256,7 +268,7 @@ impl Playground {
             let constant_force = chubby_bunny_core::force::constant_force(self.gravity);
             let settings = SolverSettings {
                 reference_dt: 1.0 / 60.0,
-                constraint_iterations: 5,
+                constraint_iterations: 8,
             };
             let capped_dt = dt.min(2.0 * settings.reference_dt);
             body.perform_step(&vec![constant_force], capped_dt, &settings);

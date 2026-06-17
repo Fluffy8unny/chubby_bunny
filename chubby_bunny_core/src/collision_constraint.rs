@@ -127,12 +127,12 @@ fn find_containment_contacts<T: FloatingPointNumber>(
             continue;
         };
 
-        let point_to_projection = best_projection - point;
         let Some(mut normal) = edge_outward_normal(best_edge) else {
             continue;
         };
 
         // Keep normals oriented toward the nearest boundary point to avoid inward pushes in concave regions.
+        let point_to_projection = best_projection - point;
         if point_to_projection.norm_squared() > eps * eps
             && point_to_projection.dot(&normal) < T::zero()
         {

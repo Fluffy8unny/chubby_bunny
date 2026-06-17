@@ -125,7 +125,20 @@ impl<T: FloatingPointNumber> BunnySpawner<T> {
         );
     }
 
+    pub fn reset_runtime_state(&mut self) {
+        self.number_of_bunnies = 0;
+        self.spawn_timer = 0.0;
+        self.random_picker = RandomPicker::new(
+            Vec::new(),
+            self.min_pos_x,
+            self.max_pos_x,
+            self.max_scale * T::from(1.5),
+        );
+    }
+
     pub fn load_bunnies_from_svg(&mut self, svg_data: Vec<&str>, settings: BodySettings<T>) {
+        self.bunny_bodies.clear();
+        self.bunny_meta.clear();
         self.svg_settings = Some(settings);
         for svg_path in svg_data.iter() {
             let (mut bodies, meta) = load_svg(svg_path, self.svg_settings.as_ref().unwrap());
