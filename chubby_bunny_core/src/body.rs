@@ -34,6 +34,10 @@ impl<T: FloatingPointNumber> BoundingBox<T> {
             && self.min.y <= other.max.y
             && self.max.y >= other.min.y
     }
+
+    pub fn center(&self) -> Vector2<T> {
+            (self.min + self.max) / T::from(2.0)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -81,19 +85,17 @@ impl<T> Body<T> {
     where
         T: FloatingPointNumber,
     {
-        self.particles.iter().fold(
-            BoundingBox {
-                min: Vector2::new(T::max_value().unwrap(), T::max_value().unwrap()),
-                max: Vector2::new(T::min_value().unwrap(), T::min_value().unwrap()),
-            },
-            |mut bbox, particle| {
-                bbox.min.x = bbox.min.x.min(particle.position.x);
-                bbox.min.y = bbox.min.y.min(particle.position.y);
-                bbox.max.x = bbox.max.x.max(particle.position.x);
-                bbox.max.y = bbox.max.y.max(particle.position.y);
-                bbox
-            },
-        )
+        if let Some((first, rest)) = self.particles.split_first() {
+        let (min, max) = rest.iter().fold((first.position, first.position), |(min_acc, max_acc), p| {
+            (min_acc.inf(&p.position), max_acc.sup(&p.position))
+        });
+        BoundingBox { min, max }
+         } else {
+        BoundingBox {
+            min: Vector2::zeros(),
+            max: Vector2::zeros(),
+        }
+        }
     }
 
     pub fn point_in_polygon(&self, point: Vector2<T>) -> bool
@@ -109,8 +111,8 @@ impl<T> Body<T> {
             let a = a.position;
             let b = b.position;
 
-            let intersects = (a.y > point.y) != (b.y > point.y);
-            if !intersects {
+            let y_intersection = (a.y > point.y) != (b.y > point.y);
+            if !y_intersection {
                 continue;
             }
 
@@ -193,17 +195,6 @@ impl<T> Body<T> {
         copy
     }
 
-    pub fn duplicate_with_offset(&self, offset: Vector2<T>) -> Self
-    where
-        T: FloatingPointNumber,
-    {
-        self.duplicate_with_transformation(Transformation {
-            offset,
-            scale: T::one(),
-            rotation_radians: T::zero(),
-        })
-    }
-
     fn apply_transformation_recursive(
         &mut self,
         transformation: Transformation<T>,
@@ -213,10 +204,8 @@ impl<T> Body<T> {
     {
         let cos_theta = transformation.rotation_radians.cos();
         let sin_theta = transformation.rotation_radians.sin();
-        let centroid = centroid.unwrap_or_else(|| {
-            let bbox = self.get_bounding_box();
-            (bbox.min + bbox.max) / T::from(2.0)
-        });
+        let centroid = centroid.unwrap_or_else(|| {self.get_bounding_box().center()
+});
 
         let apply_to_vector = |v: Vector2<T>| {
             let cenrtered = v - centroid;

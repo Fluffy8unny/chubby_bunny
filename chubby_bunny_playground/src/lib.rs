@@ -26,7 +26,7 @@ fn create_container(width: usize, height: usize, max_scale: f32) -> Body {
     let mut container_body = Body::empty();
     let mut create_particle_helper = |x, y| {
         container_body.particles.push(Particle::new(
-            nalgebra::Vector2::new(x as f32, y as f32),
+            nalgebra::Vector2::new(x, y),
             nalgebra::Vector2::new(0.0, 0.0),
             1.0,
             0.01,
