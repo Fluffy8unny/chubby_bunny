@@ -52,7 +52,7 @@ struct Intersection<T> {
     penetration_depth: T,
 }
 
-struct ContainmentContact<T> {
+struct Contermination<T> {
     contained_point_idx: usize,
     edge: Edge<T>,
     rel_edge_position: T,
@@ -82,20 +82,20 @@ fn edge_outward_normal<T: FloatingPointNumber>(
     polygon_centroid: Vector2<T>,
 ) -> Vector2<T> {
     let edge_vector = edge.pt_b - edge.pt_a;
-    let mut normal = Vector2::new(-edge_vector.y, edge_vector.x).normalize();
+    let normal = Vector2::new(-edge_vector.y, edge_vector.x).normalize();
 
     let edge_mid = (edge.pt_a + edge.pt_b) / T::from(2.0);
-    let to_mid = edge_mid - polygon_centroid;
-    if normal.dot(&to_mid) < T::zero() {
-        normal = -normal;
+    if normal.dot(&(edge_mid - polygon_centroid)) < T::zero() {
+         -normal
+    }else{
+        normal
     }
-    normal
 }
 
 fn find_containment_contacts<T: FloatingPointNumber>(
     contained_body: &Body<T>,
     container_body: &Body<T>,
-) -> Vec<ContainmentContact<T>> {
+) -> Vec<Contermination<T>> {
     let container_centroid = container_body.centroid();
     let container_edges = body_to_edge_list(container_body);
     let mut contacts = Vec::new();
@@ -133,7 +133,7 @@ fn find_containment_contacts<T: FloatingPointNumber>(
         }
 
         let penetration_depth = best_distance_sq.sqrt();
-        contacts.push(ContainmentContact {
+        contacts.push(Contermination {
             contained_point_idx: contained_idx,
             edge: Edge {
                 idx_a: best_edge.idx_a,
@@ -177,6 +177,8 @@ fn get_line_segment_intersection<T: FloatingPointNumber>(
 
     let t = (q - p).perp(&s) / r_cross_s;
     let u = (q - p).perp(&r) / r_cross_s;
+
+    //outside of segment
     if t < T::zero() || t > T::one() || u < T::zero() || u > T::one() {
         return None;
     }
@@ -213,14 +215,12 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
         correction_vector: &Vector2<T>,
         point_weight: T,
     ) {
-        let idx_a = edge.idx_a;
-        let idx_b = edge.idx_b;
         let weight_a = T::one() - point_weight;
         let weight_b = point_weight;
 
-        body.particles[idx_a]
+        body.particles[edge.idx_a]
             .apply_position_correction_to_particle(&(correction_vector * weight_a));
-        body.particles[idx_b]
+        body.particles[edge.idx_b]
             .apply_position_correction_to_particle(&(correction_vector * weight_b));
     }
 
@@ -228,7 +228,7 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
         &self,
         contained_body: &mut Body<T>,
         container_body: &mut Body<T>,
-        contacts: Vec<ContainmentContact<T>>,
+        contacts: Vec<Contermination<T>>,
         time_correction_factor: T,
     ) {
         //tood replace 0.5 with weight based
