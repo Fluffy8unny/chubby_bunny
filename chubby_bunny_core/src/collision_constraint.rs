@@ -1,4 +1,4 @@
-use crate::{constraint_common::get_normal, Body, FloatingPointNumber, SolverSettings};
+use crate::{Body, FloatingPointNumber, SolverSettings};
 use itertools::Itertools;
 use nalgebra::Vector2;
 
@@ -62,6 +62,14 @@ struct Contermination<T> {
     penetration_depth: T,
 }
 
+fn collision_epsilon<T: FloatingPointNumber>() -> T {
+    T::from(1.0e-6_f32)
+}
+
+fn min_penetration_depth<T: FloatingPointNumber>() -> T {
+    T::from(1.0e-5_f32)
+}
+
 fn point_segment_distance_squared<T: FloatingPointNumber>(
     point: Vector2<T>,
     segment_a: Vector2<T>,
@@ -80,29 +88,25 @@ fn point_segment_distance_squared<T: FloatingPointNumber>(
     (diff.norm_squared(), t, projection)
 }
 
-fn edge_outward_normal<T: FloatingPointNumber>(
-    edge: &Edge<T>,
-    polygon_centroid: Vector2<T>,
-) -> Option<Vector2<T>> {
-    if let Some(normal) = get_normal(edge.pt_a, edge.pt_b) {
-        let edge_mid = (edge.pt_a + edge.pt_b) / T::from(2.0);
-        if normal.dot(&(edge_mid - polygon_centroid)) < T::zero() {
-            Some(-normal)
-        } else {
-            Some(normal)
-        }
-    } else {
-        None
+fn edge_outward_normal<T: FloatingPointNumber>(edge: &Edge<T>) -> Option<Vector2<T>> {
+    let edge_vector = edge.pt_b - edge.pt_a;
+    if edge_vector.norm_squared() <= collision_epsilon::<T>() {
+        return None;
     }
+
+    // All polygons are defined CCW, so the outward normal is the negative left normal.
+    let left_normal = Vector2::new(-edge_vector.y, edge_vector.x).normalize();
+    Some(-left_normal)
 }
 
 fn find_containment_contacts<T: FloatingPointNumber>(
     contained_body: &Body<T>,
     container_body: &Body<T>,
 ) -> Vec<Contermination<T>> {
-    let container_centroid = container_body.centroid();
     let container_edges = body_to_edge_list(container_body);
     let mut contacts = Vec::new();
+
+    let eps = collision_epsilon::<T>();
 
     for (contained_idx, contained_particle) in contained_body.particles.iter().enumerate() {
         let point = contained_particle.position;
@@ -110,47 +114,60 @@ fn find_containment_contacts<T: FloatingPointNumber>(
             continue;
         }
 
-            let best = container_edges
-                .iter()
-                .map(|edge| {
-                    let (distance_sq, t, projection) =
-                        point_segment_distance_squared(point, edge.pt_a, edge.pt_b);
-                    (edge, distance_sq, t, projection)
-                })
-                .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        let best = container_edges
+            .iter()
+            .map(|edge| {
+                let (distance_sq, t, projection) =
+                    point_segment_distance_squared(point, edge.pt_a, edge.pt_b);
+                (edge, distance_sq, t, projection)
+            })
+            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
 
-            let Some((best_edge, best_distance_sq, best_t, best_projection)) = best else {
-                continue;
-            };
+        let Some((best_edge, best_distance_sq, best_t, best_projection)) = best else {
+            continue;
+        };
 
-            if let Some(mut normal) = edge_outward_normal(best_edge, container_centroid) {
-                // top might fail for concave shapes...
-                if (point - best_projection).dot(&normal) > T::zero() {
-                    normal = -normal;
-                }
+        let point_to_projection = best_projection - point;
+        let Some(mut normal) = edge_outward_normal(best_edge) else {
+            continue;
+        };
 
-                let penetration_depth = best_distance_sq.sqrt();
-                contacts.push(Contermination {
-                    contained_point_idx: contained_idx,
-                    edge: best_edge.clone(),
-                    rel_edge_position: best_t,
-                    normal,
-                    penetration_depth,
-                });
-            }
-        }
+        // Keep normals oriented toward the nearest boundary point to avoid inward pushes in concave regions.
+        if point_to_projection.norm_squared() > eps * eps
+            && point_to_projection.dot(&normal) < T::zero()
+        {
+            normal = -normal;
+        };
+
+        // Add a small slop so points cross the boundary instead of settling exactly on it.
+        let penetration_depth = best_distance_sq.sqrt() + min_penetration_depth::<T>();
+        contacts.push(Contermination {
+            contained_point_idx: contained_idx,
+            edge: best_edge.clone(),
+            rel_edge_position: best_t,
+            normal,
+            penetration_depth,
+        });
+    }
     contacts
 }
 
-fn penetration_depth_along_normal<T: FloatingPointNumber>(
+fn overlap_depth_on_axis<T: FloatingPointNumber>(
     edge_a: &Edge<T>,
     edge_b: &Edge<T>,
-    normal: &Vector2<T>,
+    axis: &Vector2<T>,
 ) -> T {
-    let d0 = (edge_b.pt_a - edge_a.pt_a).dot(normal);
-    let d1 = (edge_b.pt_b - edge_a.pt_a).dot(normal);
+    let a0 = edge_a.pt_a.dot(axis);
+    let a1 = edge_a.pt_b.dot(axis);
+    let b0 = edge_b.pt_a.dot(axis);
+    let b1 = edge_b.pt_b.dot(axis);
 
-    d0.max(d1).max(T::zero())
+    let a_min = a0.min(a1);
+    let a_max = a0.max(a1);
+    let b_min = b0.min(b1);
+    let b_max = b0.max(b1);
+
+    (a_max.min(b_max) - a_min.max(b_min)).max(T::zero())
 }
 
 fn get_line_segment_intersection<T: FloatingPointNumber>(
@@ -162,29 +179,36 @@ fn get_line_segment_intersection<T: FloatingPointNumber>(
     let q = edge_b.pt_a;
     let s = edge_b.pt_b - edge_b.pt_a;
 
+    let eps = collision_epsilon::<T>();
     let r_cross_s = r.perp(&s);
-    if r_cross_s.abs() <= T::zero() {
+    if r_cross_s.abs() <= eps {
         return None; // Lines are parallel
     }
 
-    let t = (q - p).perp(&s) / r_cross_s;
-    let u = (q - p).perp(&r) / r_cross_s;
+    let t_raw = (q - p).perp(&s) / r_cross_s;
+    let u_raw = (q - p).perp(&r) / r_cross_s;
 
     //outside of segment
-    if t < T::zero() || t > T::one() || u < T::zero() || u > T::one() {
+    if t_raw < -eps || t_raw > T::one() + eps || u_raw < -eps || u_raw > T::one() + eps {
         return None;
     }
+
+    let t = t_raw.clamp(T::zero(), T::one());
+    let u = u_raw.clamp(T::zero(), T::one());
+
     let normal_a = Vector2::new(-r.y, r.x).normalize();
     let normal_b = Vector2::new(-s.y, s.x).normalize();
 
-    let penetration_depth_a = penetration_depth_along_normal(edge_a, edge_b, &normal_a);
-    let penetration_depth_b = penetration_depth_along_normal(edge_b, edge_a, &normal_b);
+    let penetration_depth_a = overlap_depth_on_axis(edge_a, edge_b, &normal_a);
+    let penetration_depth_b = overlap_depth_on_axis(edge_a, edge_b, &normal_b);
 
     let (mut normal, penetration_depth) = if penetration_depth_a < penetration_depth_b {
         (normal_a, penetration_depth_a)
     } else {
         (normal_b, penetration_depth_b)
     };
+
+    let penetration_depth = penetration_depth.max(min_penetration_depth::<T>());
 
     let centroid_diff = edge_a.center() - edge_b.center();
     if centroid_diff.dot(&normal) < T::zero() {

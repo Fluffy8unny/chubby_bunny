@@ -210,7 +210,7 @@ impl Playground {
         {
             for container in self.bodies.iter_mut() {
                 for selected_body in &self.current_selected_body {
-                    container.move_child_by_id(*selected_body, avg_displacement);
+                    container.set_movement_of_child_by_id(*selected_body, avg_displacement);
                 }
             }
         } else {

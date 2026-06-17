@@ -43,7 +43,7 @@ impl<T: FloatingPointNumber> BoundingBox<T> {
     }
 
     pub fn center(&self) -> Vector2<T> {
-            (self.min + self.max) / T::from(2.0)
+        (self.min + self.max) / T::from(2.0)
     }
 }
 
@@ -93,12 +93,14 @@ impl<T> Body<T> {
         T: FloatingPointNumber,
     {
         if let Some((first, rest)) = self.particles.split_first() {
-        let (min, max) = rest.iter().fold((first.position, first.position), |(min_acc, max_acc), p| {
-            (min_acc.inf(&p.position), max_acc.sup(&p.position))
-        });
-        BoundingBox { min, max }
-         } else {
-        BoundingBox::zeros()
+            let (min, max) = rest
+                .iter()
+                .fold((first.position, first.position), |(min_acc, max_acc), p| {
+                    (min_acc.inf(&p.position), max_acc.sup(&p.position))
+                });
+            BoundingBox { min, max }
+        } else {
+            BoundingBox::zeros()
         }
     }
 
@@ -152,20 +154,20 @@ impl<T> Body<T> {
         }
     }
 
-    pub fn move_child_by_id(&mut self, id: BodyId, offset: Vector2<T>)
+    pub fn set_movement_of_child_by_id(&mut self, id: BodyId, offset: Vector2<T>)
     where
         T: FloatingPointNumber,
     {
         if self.id == id {
-            self.move_uniform(offset, Vector2::zeros());
+            self.set_uniform_movement(offset, Vector2::zeros());
         } else {
             for child in self.children.iter_mut() {
-                child.move_child_by_id(id, offset);
+                child.set_movement_of_child_by_id(id, offset);
             }
         }
     }
 
-    pub fn move_uniform(&mut self, offset_now: Vector2<T>, offset_last_frame: Vector2<T>)
+    pub fn set_uniform_movement(&mut self, offset_now: Vector2<T>, offset_last_frame: Vector2<T>)
     where
         T: FloatingPointNumber,
     {
@@ -174,7 +176,7 @@ impl<T> Body<T> {
             particle.position += offset_now;
         }
         for child in self.children.iter_mut() {
-            child.move_uniform(offset_now, offset_last_frame);
+            child.set_uniform_movement(offset_now, offset_last_frame);
         }
     }
 
@@ -209,12 +211,11 @@ impl<T> Body<T> {
         let cos_theta = transformation.rotation_radians.cos();
         let sin_theta = transformation.rotation_radians.sin();
         let rot_mat = nalgebra::Matrix2::new(cos_theta, -sin_theta, sin_theta, cos_theta);
-        let centroid = rotation_center.unwrap_or_else(|| {self.get_bounding_box().center()
-});
+        let centroid = rotation_center.unwrap_or_else(|| self.get_bounding_box().center());
 
         let apply_to_vector = |v: Vector2<T>| {
-            let cenrtered = v - centroid;
-            let rotated = rot_mat * cenrtered + centroid;
+            let centered = v - centroid;
+            let rotated = rot_mat * centered + centroid;
             rotated * transformation.scale + transformation.offset
         };
 
