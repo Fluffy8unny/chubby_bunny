@@ -1,17 +1,10 @@
-use crate::{Body, FloatingPointNumber, SolverSettings};
+use crate::{constraint_common::get_normal, Body, FloatingPointNumber, SolverSettings};
 use itertools::Itertools;
 use nalgebra::Vector2;
 
+#[derive(Clone)]
 pub struct CollisionConstraint<T> {
     stiffness: T,
-}
-
-impl<T: Clone> Clone for CollisionConstraint<T> {
-    fn clone(&self) -> Self {
-        Self {
-            stiffness: self.stiffness.clone(),
-        }
-    }
 }
 
 impl<T> CollisionConstraint<T> {
@@ -32,8 +25,29 @@ impl<T: FloatingPointNumber> Edge<T> {
         (self.pt_a + self.pt_b) / T::from(2.0)
     }
 }
+struct Intersection<T> {
+    normal: Vector2<T>,
+    edge_a_t: T,
+    edge_b_t: T,
+    penetration_depth: T,
+}
 
-fn body_to_edge_list<T: FloatingPointNumber>(body: &Body<T>) -> Vec<Edge<T>> {
+#[derive(Clone)]
+struct ContainmentContact<T> {
+    contained_point_idx: usize,
+    edge: Edge<T>,
+    rel_edge_position: T,
+    normal: Vector2<T>,
+    penetration_depth: T,
+}
+
+struct PointSegmentDistance<T> {
+    distance_squared: T,
+    t: T,
+    projection: Vector2<T>,
+}
+
+fn edges_of<T: FloatingPointNumber>(body: &Body<T>) -> Vec<Edge<T>> {
     body.particles
         .iter()
         .enumerate()
@@ -46,21 +60,6 @@ fn body_to_edge_list<T: FloatingPointNumber>(body: &Body<T>) -> Vec<Edge<T>> {
         })
         .collect()
 }
-struct Intersection<T> {
-    normal: Vector2<T>,
-    rel_line_position_a: T,
-    rel_line_position_b: T,
-    penetration_depth: T,
-}
-
-#[derive(Clone)]
-struct Contermination<T> {
-    contained_point_idx: usize,
-    edge: Edge<T>,
-    rel_edge_position: T,
-    normal: Vector2<T>,
-    penetration_depth: T,
-}
 
 fn collision_epsilon<T: FloatingPointNumber>() -> T {
     T::from(1.0e-6_f32)
@@ -70,40 +69,56 @@ fn min_penetration_depth<T: FloatingPointNumber>() -> T {
     T::from(1.0e-5_f32)
 }
 
+fn nearest_edge_to_point<'a, T: FloatingPointNumber>(
+    point: Vector2<T>,
+    edges: &'a [Edge<T>],
+) -> Option<(&'a Edge<T>, PointSegmentDistance<T>)> {
+    edges
+        .iter()
+        .map(|edge| {
+            (
+                edge,
+                point_segment_distance_squared(point, edge.pt_a, edge.pt_b),
+            )
+        })
+        .min_by(|a, b| {
+            a.1.distance_squared
+                .partial_cmp(&b.1.distance_squared)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+}
+
 fn point_segment_distance_squared<T: FloatingPointNumber>(
     point: Vector2<T>,
     segment_a: Vector2<T>,
     segment_b: Vector2<T>,
-) -> (T, T, Vector2<T>) {
+) -> PointSegmentDistance<T> {
     let segment = segment_b - segment_a;
     let segment_len2 = segment.dot(&segment);
     if segment_len2 <= T::zero() {
         let diff = point - segment_a;
-        return (diff.norm_squared(), T::zero(), segment_a);
+        return PointSegmentDistance {
+            distance_squared: diff.norm_squared(),
+            t: T::zero(),
+            projection: segment_a,
+        };
     }
 
     let t = ((point - segment_a).dot(&segment) / segment_len2).clamp(T::zero(), T::one());
     let projection = segment_a + segment * t;
     let diff = point - projection;
-    (diff.norm_squared(), t, projection)
-}
-
-fn edge_outward_normal<T: FloatingPointNumber>(edge: &Edge<T>) -> Option<Vector2<T>> {
-    let edge_vector = edge.pt_b - edge.pt_a;
-    if edge_vector.norm_squared() <= collision_epsilon::<T>() {
-        return None;
+    PointSegmentDistance {
+        distance_squared: diff.norm_squared(),
+        t,
+        projection,
     }
-
-    // All polygons are defined CCW, so the outward normal is the negative left normal.
-    let left_normal = Vector2::new(-edge_vector.y, edge_vector.x).normalize();
-    Some(-left_normal)
 }
 
 fn find_containment_contacts<T: FloatingPointNumber>(
     contained_body: &Body<T>,
     container_body: &Body<T>,
-) -> Vec<Contermination<T>> {
-    let container_edges = body_to_edge_list(container_body);
+) -> Vec<ContainmentContact<T>> {
+    let container_edges = edges_of(container_body);
     let mut contacts = Vec::new();
 
     let eps = collision_epsilon::<T>();
@@ -114,37 +129,31 @@ fn find_containment_contacts<T: FloatingPointNumber>(
             continue;
         }
 
-        let best = container_edges
-            .iter()
-            .map(|edge| {
-                let (distance_sq, t, projection) =
-                    point_segment_distance_squared(point, edge.pt_a, edge.pt_b);
-                (edge, distance_sq, t, projection)
-            })
-            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
-
-        let Some((best_edge, best_distance_sq, best_t, best_projection)) = best else {
+        let Some((best_edge, nearest)) = nearest_edge_to_point(point, &container_edges) else {
             continue;
         };
 
-        let Some(mut normal) = edge_outward_normal(best_edge) else {
+        let best_edge_vec = best_edge.pt_b - best_edge.pt_a;
+        if best_edge_vec.norm_squared() <= eps {
+            continue;
+        }
+
+        let Some(mut normal) = get_normal(best_edge.pt_a, best_edge.pt_b).map(|left| -left) else {
             continue;
         };
 
-        // Keep normals oriented toward the nearest boundary point to avoid inward pushes in concave regions.
-        let point_to_projection = best_projection - point;
+        let point_to_projection = nearest.projection - point;
         if point_to_projection.norm_squared() > eps * eps
             && point_to_projection.dot(&normal) < T::zero()
         {
             normal = -normal;
-        };
+        }
 
-        // Add a small slop so points cross the boundary instead of settling exactly on it.
-        let penetration_depth = best_distance_sq.sqrt() + min_penetration_depth::<T>();
-        contacts.push(Contermination {
+        let penetration_depth = nearest.distance_squared.sqrt() + min_penetration_depth::<T>();
+        contacts.push(ContainmentContact {
             contained_point_idx: contained_idx,
             edge: best_edge.clone(),
-            rel_edge_position: best_t,
+            rel_edge_position: nearest.t,
             normal,
             penetration_depth,
         });
@@ -170,7 +179,7 @@ fn overlap_depth_on_axis<T: FloatingPointNumber>(
     (a_max.min(b_max) - a_min.max(b_min)).max(T::zero())
 }
 
-fn get_line_segment_intersection<T: FloatingPointNumber>(
+fn segment_intersection<T: FloatingPointNumber>(
     edge_a: &Edge<T>,
     edge_b: &Edge<T>,
 ) -> Option<Intersection<T>> {
@@ -196,8 +205,14 @@ fn get_line_segment_intersection<T: FloatingPointNumber>(
     let t = t_raw.clamp(T::zero(), T::one());
     let u = u_raw.clamp(T::zero(), T::one());
 
-    let normal_a = Vector2::new(-r.y, r.x).normalize();
-    let normal_b = Vector2::new(-s.y, s.x).normalize();
+    let edge_a_vec = edge_a.pt_b - edge_a.pt_a;
+    let edge_b_vec = edge_b.pt_b - edge_b.pt_a;
+    if edge_a_vec.norm_squared() <= eps || edge_b_vec.norm_squared() <= eps {
+        return None;
+    }
+
+    let normal_a = get_normal(edge_a.pt_a, edge_a.pt_b).map(|left| -left)?;
+    let normal_b = get_normal(edge_b.pt_a, edge_b.pt_b).map(|left| -left)?;
 
     let penetration_depth_a = overlap_depth_on_axis(edge_a, edge_b, &normal_a);
     let penetration_depth_b = overlap_depth_on_axis(edge_a, edge_b, &normal_b);
@@ -217,8 +232,8 @@ fn get_line_segment_intersection<T: FloatingPointNumber>(
 
     Some(Intersection {
         normal,
-        rel_line_position_a: t,
-        rel_line_position_b: u,
+        edge_a_t: t,
+        edge_b_t: u,
         penetration_depth,
     })
 }
@@ -244,14 +259,14 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
         &self,
         contained_body: &mut Body<T>,
         container_body: &mut Body<T>,
-        contacts: Vec<Contermination<T>>,
+        contacts: Vec<ContainmentContact<T>>,
         time_correction_factor: T,
     ) {
         //tood replace 0.5 with weight based
-        let push_factor = self.stiffness * time_correction_factor;
+        let correction_scale = self.stiffness * time_correction_factor;
 
         for contact in contacts {
-            let correction_vector = contact.normal * push_factor * contact.penetration_depth;
+            let correction_vector = contact.normal * correction_scale * contact.penetration_depth;
             contained_body.particles[contact.contained_point_idx]
                 .apply_position_correction_to_particle(&(correction_vector));
             self.apply_position_correction_to_edge(
@@ -279,11 +294,11 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
 
         let time_correction_factor = dt
             / T::from(solver_settings.reference_dt * solver_settings.constraint_iterations as f32);
-        for (edge_a, edge_b) in body_to_edge_list(body_a)
-            .iter()
-            .cartesian_product(body_to_edge_list(body_b).iter())
-        {
-            if let Some(intersection) = get_line_segment_intersection(edge_a, edge_b) {
+        let edges_a = edges_of(body_a);
+        let edges_b = edges_of(body_b);
+
+        for (edge_a, edge_b) in edges_a.iter().cartesian_product(edges_b.iter()) {
+            if let Some(intersection) = segment_intersection(edge_a, edge_b) {
                 let correction_vector = intersection.normal
                     * self.stiffness
                     * time_correction_factor
@@ -292,13 +307,13 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
                     body_a,
                     edge_a,
                     &correction_vector,
-                    intersection.rel_line_position_a,
+                    intersection.edge_a_t,
                 );
                 self.apply_position_correction_to_edge(
                     body_b,
                     edge_b,
                     &(-correction_vector),
-                    intersection.rel_line_position_b,
+                    intersection.edge_b_t,
                 );
             }
         }

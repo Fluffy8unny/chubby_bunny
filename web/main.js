@@ -1,85 +1,19 @@
 import init, { Playground } from "../pkg/chubby_bunny_playground.js";
+import { initProfiler, measure, updateProfiler } from "./profiling.js";
+import { createRenderer } from "./rendering.js";
 
 let playground = null;
 const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
+const renderer = createRenderer(canvas);
 const siteBanner = document.getElementById("site-banner");
 const siteBannerClose = document.getElementById("site-banner-close");
 let pendingInputEvents = [];
-const CLICK_TIME_THRESHOLD_MS = 250;
+const CLICK_TIME_THRESHOLD_MS = 125;
 const lastSelectionByBody = new Map();
-const TOUCH_MOUSE_SUPPRESSION_MS = 600;
-const MAX_RENDER_DPR = 1.5;
+const TOUCH_MOUSE_SUPPRESSION_MS = 768;
 const ENABLE_PROFILER = true;
+
 let lastTouchInputTimestamp = Number.NEGATIVE_INFINITY;
-let viewportWidth = 0;
-let viewportHeight = 0;
-let currentDpr = 1;
-
-const profiler = {
-  overlay: null,
-  frameMs: 0,
-  updateMs: 0,
-  renderMs: 0,
-  fps: 0,
-  lastOverlayUpdate: 0,
-};
-
-const smoothSample = (previous, sample, alpha = 0.2) => {
-  if (previous <= 0) {
-    return sample;
-  }
-  return previous * (1 - alpha) + sample * alpha;
-};
-
-const initProfiler = () => {
-  if (!ENABLE_PROFILER || profiler.overlay) {
-    return;
-  }
-
-  const overlay = document.createElement("div");
-  overlay.setAttribute("aria-hidden", "true");
-  overlay.style.position = "fixed";
-  overlay.style.right = "12px";
-  overlay.style.bottom = "12px";
-  overlay.style.zIndex = "20";
-  overlay.style.padding = "8px 10px";
-  overlay.style.borderRadius = "8px";
-  overlay.style.background = "rgba(20, 20, 20, 0.72)";
-  overlay.style.color = "#f6f4ee";
-  overlay.style.font =
-    "12px/1.35 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-  overlay.style.whiteSpace = "pre";
-  overlay.style.pointerEvents = "none";
-  overlay.textContent =
-    "fps: --\nframe: -- ms\nupdate: -- ms\nrender: -- ms\ndpr: --";
-  document.body.appendChild(overlay);
-  profiler.overlay = overlay;
-};
-
-const updateProfiler = (frameMs, updateMs, renderMs, nowMs) => {
-  if (!ENABLE_PROFILER) {
-    return;
-  }
-
-  profiler.frameMs = smoothSample(profiler.frameMs, frameMs);
-  profiler.updateMs = smoothSample(profiler.updateMs, updateMs);
-  profiler.renderMs = smoothSample(profiler.renderMs, renderMs);
-  profiler.fps = profiler.frameMs > 0 ? 1000 / profiler.frameMs : 0;
-
-  // Throttle text updates to reduce profiler overhead.
-  if (!profiler.overlay || nowMs - profiler.lastOverlayUpdate < 100) {
-    return;
-  }
-
-  profiler.overlay.textContent =
-    `fps: ${profiler.fps.toFixed(1)}\n` +
-    `frame: ${profiler.frameMs.toFixed(2)} ms\n` +
-    `update: ${profiler.updateMs.toFixed(2)} ms\n` +
-    `render: ${profiler.renderMs.toFixed(2)} ms\n` +
-    `dpr: ${currentDpr.toFixed(2)}`;
-  profiler.lastOverlayUpdate = nowMs;
-};
 
 const closeBanner = () => {
   if (!siteBanner) {
@@ -137,23 +71,12 @@ const handleOutgoingEvent = (event) => {
 };
 
 const resizeCanvas = () => {
-  viewportWidth = window.innerWidth;
-  viewportHeight = window.innerHeight;
-  const dpr = Math.min(window.devicePixelRatio || 1, MAX_RENDER_DPR);
-  currentDpr = dpr;
-
-  canvas.width = Math.floor(viewportWidth * dpr);
-  canvas.height = Math.floor(viewportHeight * dpr);
-  canvas.style.width = `${viewportWidth}px`;
-  canvas.style.height = `${viewportHeight}px`;
-
-  // Keep draw code in CSS pixels while still using a high-resolution backing store.
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const { width, height } = renderer.resize();
 
   if (playground) {
     pendingInputEvents = [];
     lastSelectionByBody.clear();
-    playground.reset(viewportWidth, viewportHeight);
+    playground.reset(width, height);
     playground.last_timestamp = performance.now();
   }
 };
@@ -314,7 +237,7 @@ const start = async () => {
   const height = window.innerHeight;
   await init();
 
-  initProfiler();
+  initProfiler(ENABLE_PROFILER);
 
   playground = new Playground();
   playground.init(width, height);
@@ -323,14 +246,20 @@ const start = async () => {
 };
 
 const loop = (timestamp) => {
-  const frameStart = performance.now();
   let dt = timestamp - (playground.last_timestamp || timestamp);
   playground.last_timestamp = timestamp;
   flushInputEvents();
 
-  const updateStart = performance.now();
-  let outgoingEvents = playground.update(dt);
-  const updateEnd = performance.now();
+  const [frameResult, frameMs] = measure(() => {
+    const [outgoingEvents, updateMs] = measure(() => playground.update(dt));
+    const [, renderMs] = measure(() => {
+      const polygonArrays = playground.get_polygon_arrays();
+      renderer.render(polygonArrays);
+    });
+    return { outgoingEvents, updateMs, renderMs };
+  });
+
+  let outgoingEvents = frameResult.outgoingEvents;
 
   if (Array.isArray(outgoingEvents) && outgoingEvents.length > 0) {
     for (const event of outgoingEvents) {
@@ -338,87 +267,16 @@ const loop = (timestamp) => {
     }
   }
 
-  const renderStart = performance.now();
-  render();
-  const frameEnd = performance.now();
+  const nowMs = performance.now();
   updateProfiler(
-    frameEnd - frameStart,
-    updateEnd - updateStart,
-    frameEnd - renderStart,
-    frameEnd,
+    frameMs,
+    frameResult.updateMs,
+    frameResult.renderMs,
+    nowMs,
+    renderer.getCurrentDpr(),
   );
 
   requestAnimationFrame(loop);
-};
-
-const drawSmoothClosedPath = (ctx, vertices) => {
-  if (vertices.length === 0) {
-    return;
-  }
-  if (vertices.length < 3) {
-    ctx.beginPath();
-    ctx.moveTo(vertices[0][0], vertices[0][1]);
-    for (let i = 1; i < vertices.length; i++) {
-      ctx.lineTo(vertices[i][0], vertices[i][1]);
-    }
-    if (vertices.length > 2) {
-      ctx.closePath();
-    }
-    return;
-  }
-
-  const midpoint = (a, b) => [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5];
-  const last = vertices[vertices.length - 1];
-  const first = vertices[0];
-  const startMid = midpoint(last, first);
-
-  // Smooth closed curve by connecting edge midpoints with quadratic segments.
-  ctx.beginPath();
-  ctx.moveTo(startMid[0], startMid[1]);
-  for (let i = 0; i < vertices.length; i++) {
-    const current = vertices[i];
-    const next = vertices[(i + 1) % vertices.length];
-    const endMid = midpoint(current, next);
-    ctx.quadraticCurveTo(current[0], current[1], endMid[0], endMid[1]);
-  }
-  ctx.closePath();
-};
-
-const render_polygon_arrays = (polygon_arrays, ctx) => {
-  ctx.strokeStyle = `rgba(${polygon_arrays.meta.line_color.r},
-                     ${polygon_arrays.meta.line_color.g},
-                     ${polygon_arrays.meta.line_color.b},
-                     ${polygon_arrays.meta.line_color.a})`;
-  ctx.lineWidth = polygon_arrays.meta.line_weight / currentDpr;
-  ctx.fillStyle = `rgba(${polygon_arrays.meta.fill_color.r}, ${polygon_arrays.meta.fill_color.g}, ${polygon_arrays.meta.fill_color.b}, ${polygon_arrays.meta.fill_color.a})`;
-  if (polygon_arrays.meta.smooth_edges) {
-    drawSmoothClosedPath(ctx, polygon_arrays.vertices);
-    ctx.fill();
-    ctx.stroke();
-  } else {
-    ctx.beginPath();
-    ctx.moveTo(polygon_arrays.vertices[0][0], polygon_arrays.vertices[0][1]);
-    for (let i = 1; i < polygon_arrays.vertices.length; i++) {
-      ctx.lineTo(polygon_arrays.vertices[i][0], polygon_arrays.vertices[i][1]);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-  }
-
-  for (let child of polygon_arrays.children) {
-    render_polygon_arrays(child, ctx);
-  }
-};
-const render = () => {
-  const polygon_arrays = playground.get_polygon_arrays();
-
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.setTransform(currentDpr, 0, 0, currentDpr, 0, 0);
-  for (let p of polygon_arrays) {
-    render_polygon_arrays(p, ctx);
-  }
 };
 
 start();

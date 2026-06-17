@@ -141,7 +141,7 @@ impl Playground {
         let mut svg_instance = self.load_svg_and_create_bodies(
             include_str!("../../assets/clouds_foreground.svg"),
             Transformation {
-                offset: Vector2::new(0.0, height as f32 - width as f32 / 18.0),
+                offset: Vector2::new(0.0, height as f32 - width as f32 / 16.0),
                 scale: width as f32,
                 rotation_radians: 0.0,
             },
