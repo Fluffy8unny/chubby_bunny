@@ -2,7 +2,6 @@ use chubby_bunny_core::particle::Particle;
 use chubby_bunny_core::FloatingPointNumber;
 use chubby_bunny_core::{AreaConstraint, Body, DistanceConstraint};
 use nalgebra::Vector2;
-use std::rc::Rc;
 
 pub fn create_polygon<T: FloatingPointNumber>(
     center: Vector2<T>,
@@ -27,7 +26,7 @@ pub fn create_polygon<T: FloatingPointNumber>(
     }
 
     for i in 0..num_sides {
-        polygon.constraints.push(Rc::new(DistanceConstraint::new(
+        polygon.constraints.push(Box::new(DistanceConstraint::new(
             i,
             (i + 1) % num_sides,
             &polygon.particles,
@@ -36,7 +35,7 @@ pub fn create_polygon<T: FloatingPointNumber>(
     }
 
     for i in 0..num_sides {
-        polygon.constraints.push(Rc::new(DistanceConstraint::new(
+        polygon.constraints.push(Box::new(DistanceConstraint::new(
             i,
             (i + (num_sides / 2)) % num_sides,
             &polygon.particles,
@@ -45,7 +44,7 @@ pub fn create_polygon<T: FloatingPointNumber>(
     }
 
     let idxs: Vec<usize> = (0..num_sides).collect();
-    polygon.constraints.push(Rc::new(AreaConstraint::new(
+    polygon.constraints.push(Box::new(AreaConstraint::new(
         idxs,
         &polygon.particles,
         stiffness_area,
@@ -79,7 +78,7 @@ pub fn create_rect<T: FloatingPointNumber>(
     create_particle_helper(Vector2::new(T::zero(), height));
 
     let mut create_distance_constraint_helper = |idx_a, idx_b, stiffness| {
-        rect.constraints.push(Rc::new(DistanceConstraint::new(
+        rect.constraints.push(Box::new(DistanceConstraint::new(
             idx_a,
             idx_b,
             &rect.particles,
@@ -94,7 +93,7 @@ pub fn create_rect<T: FloatingPointNumber>(
         create_distance_constraint_helper(i, (i + 2) % 4, stiffness_shear);
     }
 
-    rect.constraints.push(Rc::new(AreaConstraint::new(
+    rect.constraints.push(Box::new(AreaConstraint::new(
         vec![0, 1, 2, 3],
         &rect.particles,
         stiffness_area,

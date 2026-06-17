@@ -3,7 +3,6 @@ use chubby_bunny_core::{BendingConstraint, Body, DistanceConstraint, FloatingPoi
 use nalgebra::Vector2;
 use std::cmp::Ordering;
 use std::collections::HashSet;
-use std::rc::Rc;
 
 pub fn add_boundary_distance_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffness: T) {
     let n = body.particles.len();
@@ -12,7 +11,7 @@ pub fn add_boundary_distance_constraints<T: FloatingPointNumber>(body: &mut Body
     }
 
     for i in 0..n {
-        body.constraints.push(Rc::new(DistanceConstraint::new(
+        body.constraints.push(Box::new(DistanceConstraint::new(
             i,
             (i + 1) % n,
             &body.particles,
@@ -42,7 +41,7 @@ pub fn add_skip_shear_constraints<T: FloatingPointNumber>(body: &mut Body<T>, st
             if !seen_pairs.insert(key) {
                 continue;
             }
-            body.constraints.push(Rc::new(DistanceConstraint::new(
+            body.constraints.push(Box::new(DistanceConstraint::new(
                 i,
                 j,
                 &body.particles,
@@ -61,7 +60,7 @@ pub fn add_boundary_bending_constraints<T: FloatingPointNumber>(body: &mut Body<
     for i in 0..n {
         let prev = (i + n - 1) % n;
         let next = (i + 1) % n;
-        body.constraints.push(Rc::new(BendingConstraint::new(
+        body.constraints.push(Box::new(BendingConstraint::new(
             prev,
             i,
             next,

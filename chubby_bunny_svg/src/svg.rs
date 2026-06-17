@@ -10,7 +10,6 @@ use chubby_bunny_core::{
 use nalgebra::Vector2;
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 pub struct ParticleSettings<T> {
     pub mass: T,
@@ -484,7 +483,7 @@ fn parse_svg_path_to_body<T: FloatingPointNumber>(
     add_boundary_distance_constraints(&mut body, settings.constraint_settings.stiffness_distance);
 
     let idxs: Vec<usize> = (0..body.particles.len()).collect();
-    body.constraints.push(Rc::new(AreaConstraint::new(
+    body.constraints.push(Box::new(AreaConstraint::new(
         idxs,
         &body.particles,
         settings.constraint_settings.stiffness_area,

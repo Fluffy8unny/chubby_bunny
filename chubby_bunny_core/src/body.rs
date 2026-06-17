@@ -3,11 +3,9 @@ use crate::{
     ExtrinsicConstraintType, FloatingPointNumber, Force, IntrinsicConstraint, Particle,
     SolverSettings,
 };
-use dyn_clone::clone_box;
 use itertools::Itertools;
 use nalgebra::Vector2;
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(0);
@@ -19,7 +17,7 @@ pub fn next_id() -> BodyId {
 pub struct Body<T = f32> {
     pub id: BodyId,
     pub particles: Vec<Particle<T>>,
-    pub constraints: Vec<Rc<dyn IntrinsicConstraint<T>>>,
+    pub constraints: Vec<Box<dyn IntrinsicConstraint<T>>>,
     pub children: Vec<Body<T>>,
     pub children_constraints: Vec<ExtrinsicConstraintType<T>>,
     pub collision_constraint: Option<CollisionConstraint<T>>,
@@ -244,9 +242,7 @@ impl<T> Body<T> {
         T: FloatingPointNumber,
     {
         for constraint in self.constraints.iter_mut() {
-            let mut cloned = clone_box(&**constraint);
-            cloned.transform_params(transformation);
-            *constraint = Rc::from(cloned);
+            constraint.transform_params(transformation);
         }
 
         for child_constraint in self.children_constraints.iter_mut() {
