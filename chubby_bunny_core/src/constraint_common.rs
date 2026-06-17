@@ -34,3 +34,11 @@ pub fn get_distance_correction_vector<T: FloatingPointNumber>(
     let correction_magnitude = alpha * (target_distance - point_distance) / T::from(2.0);
     move_direction * correction_magnitude
 }
+
+pub fn get_normal<T: FloatingPointNumber>(start: Vector2<T>, end: Vector2<T>) -> Option<Vector2<T>> {
+    let edge_vector = end - start;
+    if edge_vector.norm_squared() <= T::zero() {
+        return None;
+    }
+    Some(Vector2::new(-edge_vector.y, edge_vector.x).normalize())
+}

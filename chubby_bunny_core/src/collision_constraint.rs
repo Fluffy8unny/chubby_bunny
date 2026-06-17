@@ -1,4 +1,4 @@
-use crate::{Body, FloatingPointNumber, SolverSettings};
+use crate::{constraint_common::get_normal, Body, FloatingPointNumber, SolverSettings};
 use itertools::Itertools;
 use nalgebra::Vector2;
 
@@ -20,6 +20,7 @@ impl<T> CollisionConstraint<T> {
     }
 }
 
+#[derive(Clone)]
 struct Edge<T> {
     idx_a: usize,
     idx_b: usize,
@@ -52,6 +53,7 @@ struct Intersection<T> {
     penetration_depth: T,
 }
 
+#[derive(Clone)]
 struct Contermination<T> {
     contained_point_idx: usize,
     edge: Edge<T>,
@@ -77,18 +79,20 @@ fn point_segment_distance_squared<T: FloatingPointNumber>(
     let diff = point - projection;
     (diff.norm_squared(), t, projection)
 }
+
 fn edge_outward_normal<T: FloatingPointNumber>(
     edge: &Edge<T>,
     polygon_centroid: Vector2<T>,
-) -> Vector2<T> {
-    let edge_vector = edge.pt_b - edge.pt_a;
-    let normal = Vector2::new(-edge_vector.y, edge_vector.x).normalize();
-
-    let edge_mid = (edge.pt_a + edge.pt_b) / T::from(2.0);
-    if normal.dot(&(edge_mid - polygon_centroid)) < T::zero() {
-         -normal
-    }else{
-        normal
+) -> Option<Vector2<T>> {
+    if let Some(normal) = get_normal(edge.pt_a, edge.pt_b) {
+        let edge_mid = (edge.pt_a + edge.pt_b) / T::from(2.0);
+        if normal.dot(&(edge_mid - polygon_centroid)) < T::zero() {
+            Some(-normal)
+        } else {
+            Some(normal)
+        }
+    } else {
+        None
     }
 }
 
@@ -106,47 +110,35 @@ fn find_containment_contacts<T: FloatingPointNumber>(
             continue;
         }
 
-        let mut best_distance_sq = T::max_value().unwrap();
-        let mut best_edge: Option<&Edge<T>> = None;
-        let mut best_t = T::zero();
-        let mut best_projection = Vector2::zeros();
+            let best = container_edges
+                .iter()
+                .map(|edge| {
+                    let (distance_sq, t, projection) =
+                        point_segment_distance_squared(point, edge.pt_a, edge.pt_b);
+                    (edge, distance_sq, t, projection)
+                })
+                .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
 
-        for edge in &container_edges {
-            let (distance_sq, t, projection) =
-                point_segment_distance_squared(point, edge.pt_a, edge.pt_b);
-            if distance_sq < best_distance_sq {
-                best_distance_sq = distance_sq;
-                best_edge = Some(edge);
-                best_t = t;
-                best_projection = projection;
+            let Some((best_edge, best_distance_sq, best_t, best_projection)) = best else {
+                continue;
+            };
+
+            if let Some(mut normal) = edge_outward_normal(best_edge, container_centroid) {
+                // top might fail for concave shapes...
+                if (point - best_projection).dot(&normal) > T::zero() {
+                    normal = -normal;
+                }
+
+                let penetration_depth = best_distance_sq.sqrt();
+                contacts.push(Contermination {
+                    contained_point_idx: contained_idx,
+                    edge: best_edge.clone(),
+                    rel_edge_position: best_t,
+                    normal,
+                    penetration_depth,
+                });
             }
         }
-
-        let Some(best_edge) = best_edge else {
-            continue;
-        };
-
-        let mut normal = edge_outward_normal(best_edge, container_centroid);
-        // top might fail for concave shapes...
-        if (point - best_projection).dot(&normal) > T::zero() {
-            normal = -normal;
-        }
-
-        let penetration_depth = best_distance_sq.sqrt();
-        contacts.push(Contermination {
-            contained_point_idx: contained_idx,
-            edge: Edge {
-                idx_a: best_edge.idx_a,
-                idx_b: best_edge.idx_b,
-                pt_a: best_edge.pt_a,
-                pt_b: best_edge.pt_b,
-            },
-            rel_edge_position: best_t,
-            normal,
-            penetration_depth,
-        });
-    }
-
     contacts
 }
 
@@ -254,7 +246,10 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
         dt: T,
         solver_settings: &SolverSettings,
     ) {
-        if !body_a.get_bounding_box().intersects(&body_b.get_bounding_box()) {
+        if !body_a
+            .get_bounding_box()
+            .intersects(&body_b.get_bounding_box())
+        {
             return;
         }
 

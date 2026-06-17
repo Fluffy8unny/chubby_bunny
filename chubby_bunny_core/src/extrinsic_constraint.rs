@@ -1,8 +1,9 @@
-use crate::constraint_common::get_distance_correction_vector;
+use crate::constraint_common::{get_normal,get_distance_correction_vector};
 use crate::{Body, BodyId, FloatingPointNumber, Particle, SolverSettings, Transformation};
 use dyn_clone::DynClone;
-use nalgebra::Vector2;
 use std::collections::HashMap;
+
+static WALL_EPS: f32 = 1.0e-4_f32;
 
 #[derive(Clone)]
 pub enum ExtrinsicConstraintType<T> {
@@ -40,7 +41,6 @@ pub struct WallConstraint<T> {
     pub parent_point_idx_end: usize,
     pub stiffness: T,
 }
-
 impl<T: FloatingPointNumber> GlobalExtrinsicConstraint<T> for WallConstraint<T> {
     fn solve(
         &self,
@@ -53,21 +53,17 @@ impl<T: FloatingPointNumber> GlobalExtrinsicConstraint<T> for WallConstraint<T> 
             //calculate line based on parent points
             let line_origin = parent_particles[self.parent_point_idx_origin].position;
             let line_end = parent_particles[self.parent_point_idx_end].position;
-            let line_direction = line_end - line_origin;
-            if line_direction.norm_squared() <= T::zero() {
-                return;
-            }
 
-            let line_normal = Vector2::new(-line_direction.y, line_direction.x).normalize();
-            let eps = T::from(1.0e-4_f32);
-            for particle in body.particles.iter_mut().filter(|p| !p.pinned) {
-                let to_particle = particle.position - line_origin;
-                let distance = to_particle.dot(&line_normal);
-                if distance < T::zero() {
-                    let correction_vector = line_normal * (-distance + eps);
-                    particle.apply_position_correction_to_particle(&correction_vector);
+            if let Some(line_normal) = get_normal(line_origin, line_end) {
+                for particle in body.particles.iter_mut().filter(|p| !p.pinned) {
+                    let to_particle = particle.position - line_origin;
+                    let distance = to_particle.dot(&line_normal);
+                    if distance < T::zero() {
+                        let correction_vector = line_normal * (-distance + T::from(WALL_EPS));
+                        particle.apply_position_correction_to_particle(&correction_vector);
+                    }
                 }
-            }
+            }                    
         }
     }
 }
