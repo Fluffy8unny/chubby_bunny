@@ -1,7 +1,7 @@
 use crate::meta::{BodyMeta, Color};
 use crate::svg_constraints::{
-    add_boundary_bending_constraints, add_boundary_distance_constraints,
-    add_shear_constraints  , nearest_parent_attachment_points,
+    add_boundary_bending_constraints, add_boundary_distance_constraints, add_shear_constraints,
+    nearest_parent_attachment_points,
 };
 use chubby_bunny_core::{
     AreaConstraint, AttachmentConstraint, Body, BodyId, ExtrinsicConstraintType,
@@ -10,6 +10,7 @@ use chubby_bunny_core::{
 use nalgebra::Vector2;
 use serde::Deserialize;
 use std::collections::HashMap;
+use svgtypes::{Length, PathParser, PathSegment};
 
 pub struct ParticleSettings<T> {
     pub mass: T,
@@ -28,17 +29,6 @@ pub struct AttachmentSettings<T> {
     pub max_total_attachments: usize,
     pub max_distance_factor: T,
     pub parent_springs_per_child_anchor: usize,
-}
-
-impl<T: FloatingPointNumber> Default for AttachmentSettings<T> {
-    fn default() -> Self {
-        Self {
-            child_sample_stride: 4,
-            max_total_attachments: 12,
-            max_distance_factor: T::from(2.0),
-            parent_springs_per_child_anchor: 3,
-        }
-    }
 }
 
 pub struct BodySettings<T> {
@@ -114,29 +104,6 @@ struct SvgPath {
     #[serde(rename = "@style")]
     pub style: Option<String>,
 }
-fn parse_hex_color(input: &str) -> Option<(u8, u8, u8)> {
-    let value = input.trim();
-    if !value.starts_with('#') {
-        return None;
-    }
-
-    let hex = &value[1..];
-    match hex.len() {
-        3 => {
-            let r = u8::from_str_radix(&hex[0..1].repeat(2), 16).ok()?;
-            let g = u8::from_str_radix(&hex[1..2].repeat(2), 16).ok()?;
-            let b = u8::from_str_radix(&hex[2..3].repeat(2), 16).ok()?;
-            Some((r, g, b))
-        }
-        6 => {
-            let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
-            let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
-            let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-            Some((r, g, b))
-        }
-        _ => None,
-    }
-}
 
 fn parse_style_to_body_meta(style: &str, id: BodyId, z_index: i32) -> BodyMeta {
     let mut line_color = Color::black();
@@ -151,17 +118,13 @@ fn parse_style_to_body_meta(style: &str, id: BodyId, z_index: i32) -> BodyMeta {
 
         match key {
             "stroke" => {
-                if value == "none" {
-                    line_color.a = 0.0;
-                } else if let Some(rgb) = parse_hex_color(value) {
-                    line_color.set_rgb(rgb);
+                if let Some(color) = Color::from_paint(value) {
+                    line_color = color;
                 }
             }
             "fill" => {
-                if value == "none" {
-                    fill_color.a = 0.0;
-                } else if let Some(rgb) = parse_hex_color(value) {
-                    fill_color.set_rgb(rgb);
+                if let Some(color) = Color::from_paint(value) {
+                    fill_color = color;
                 }
             }
             "stroke-opacity" => {
@@ -180,8 +143,8 @@ fn parse_style_to_body_meta(style: &str, id: BodyId, z_index: i32) -> BodyMeta {
                 }
             }
             "stroke-width" => {
-                if let Ok(v) = value.parse::<f32>() {
-                    line_weight = v.max(0.0);
+                if let Ok(length) = value.parse::<Length>() {
+                    line_weight = (length.number as f32).max(0.0);
                 }
             }
             _ => {}
@@ -201,137 +164,62 @@ fn parse_style_to_body_meta(style: &str, id: BodyId, z_index: i32) -> BodyMeta {
     }
 }
 
-fn tokenize_path_data(d: &str) -> Vec<String> {
-    let mut normalized = String::with_capacity(d.len() * 2);
-    for ch in d.chars() {
-        if ch.is_ascii_alphabetic() {
-            normalized.push(' ');
-            normalized.push(ch);
-            normalized.push(' ');
-        } else if ch == ',' {
-            normalized.push(' ');
-        } else {
-            normalized.push(ch);
-        }
+fn parse_simple_polygon_path<T: FloatingPointNumber>(d: &str) -> Vec<Vector2<T>> {
+    fn to_t<T: FloatingPointNumber>(v: f64) -> T {
+        T::from(v as f32)
     }
 
-    normalized
-        .split_whitespace()
-        .map(|s| s.to_string())
-        .collect()
-}
-
-fn parse_single<T: FloatingPointNumber>(tokens: &[String], i: usize) -> Option<(T, usize)> {
-    let v = T::from(tokens.get(i)?.parse::<f32>().ok()?);
-    Some((v, i + 1))
-}
-
-fn parse_xy_pair<T: FloatingPointNumber>(
-    tokens: &[String],
-    i: usize,
-) -> Option<(Vector2<T>, usize)> {
-    let x = T::from(tokens.get(i)?.parse::<f32>().ok()?);
-    let y = T::from(tokens.get(i + 1)?.parse::<f32>().ok()?);
-    Some((Vector2::new(x, y), i + 2))
-}
-
-fn parse_simple_polygon_path<T: FloatingPointNumber>(d: &str) -> Vec<Vector2<T>> {
-    let tokens = tokenize_path_data(d);
-    let mut i = 0usize;
-    let mut command = 'M';
     let mut current = Vector2::new(T::zero(), T::zero());
     let mut points: Vec<Vector2<T>> = Vec::new();
 
-    while i < tokens.len() {
-        match tokens[i].as_str() {
-            "M" | "m" | "L" | "l" | "H" | "h" | "V" | "v" | "Z" | "z" => {
-                command = tokens[i].chars().next().unwrap_or('M');
-                i += 1;
-                if command == 'Z' || command == 'z' {
-                    break;
-                }
-                continue;
-            }
-            _ => {}
-        }
+    for segment in PathParser::from(d) {
+        let segment = match segment {
+            Ok(segment) => segment,
+            Err(_) => return Vec::new(),
+        };
 
-        match command {
-            'M' => {
-                if let Some((p, next_i)) = parse_xy_pair::<T>(&tokens, i) {
-                    current = p;
-                    points.push(current);
-                    i = next_i;
-                    command = 'L';
+        match segment {
+            PathSegment::MoveTo { abs, x, y } => {
+                current = if abs {
+                    Vector2::new(to_t::<T>(x), to_t::<T>(y))
                 } else {
-                    break;
-                }
+                    Vector2::new(current.x + to_t::<T>(x), current.y + to_t::<T>(y))
+                };
+                points.push(current);
             }
-            'm' => {
-                if let Some((p, next_i)) = parse_xy_pair::<T>(&tokens, i) {
-                    current = Vector2::new(current.x + p.x, current.y + p.y);
-                    points.push(current);
-                    i = next_i;
-                    command = 'l';
+            PathSegment::LineTo { abs, x, y } => {
+                current = if abs {
+                    Vector2::new(to_t::<T>(x), to_t::<T>(y))
                 } else {
-                    break;
-                }
+                    Vector2::new(current.x + to_t::<T>(x), current.y + to_t::<T>(y))
+                };
+                points.push(current);
             }
-            'L' => {
-                if let Some((p, next_i)) = parse_xy_pair::<T>(&tokens, i) {
-                    current = p;
-                    points.push(current);
-                    i = next_i;
+            PathSegment::HorizontalLineTo { abs, x } => {
+                current = if abs {
+                    Vector2::new(to_t::<T>(x), current.y)
                 } else {
-                    break;
-                }
+                    Vector2::new(current.x + to_t::<T>(x), current.y)
+                };
+                points.push(current);
             }
-            'l' => {
-                if let Some((p, next_i)) = parse_xy_pair::<T>(&tokens, i) {
-                    current = Vector2::new(current.x + p.x, current.y + p.y);
-                    points.push(current);
-                    i = next_i;
+            PathSegment::VerticalLineTo { abs, y } => {
+                current = if abs {
+                    Vector2::new(current.x, to_t::<T>(y))
                 } else {
-                    break;
-                }
+                    Vector2::new(current.x, current.y + to_t::<T>(y))
+                };
+                points.push(current);
             }
-            'H' => {
-                if let Some((x, next_i)) = parse_single::<T>(&tokens, i) {
-                    current = Vector2::new(x, current.y);
-                    points.push(current);
-                    i = next_i;
-                } else {
-                    break;
-                }
+            PathSegment::ClosePath { .. } => {
+                break;
             }
-            'h' => {
-                if let Some((x, next_i)) = parse_single::<T>(&tokens, i) {
-                    current = Vector2::new(current.x + x, current.y);
-                    points.push(current);
-                    i = next_i;
-                } else {
-                    break;
-                }
-            }
-            'V' => {
-                if let Some((y, next_i)) = parse_single::<T>(&tokens, i) {
-                    current = Vector2::new(current.x, y);
-                    points.push(current);
-                    i = next_i;
-                } else {
-                    break;
-                }
-            }
-            'v' => {
-                if let Some((y, next_i)) = parse_single::<T>(&tokens, i) {
-                    current = Vector2::new(current.x, current.y + y);
-                    points.push(current);
-                    i = next_i;
-                } else {
-                    break;
-                }
-            }
-            _ => {
-                i += 1;
+            PathSegment::CurveTo { .. }
+            | PathSegment::SmoothCurveTo { .. }
+            | PathSegment::Quadratic { .. }
+            | PathSegment::SmoothQuadratic { .. }
+            | PathSegment::EllipticalArc { .. } => {
+                return Vec::new();
             }
         }
     }

@@ -7,4 +7,5 @@ edition = "2021"
 chubby_bunny_core = { path = "../chubby_bunny_core" }
 nalgebra = "0.35"
 serde = { version = "1", features = ["derive"] }
-quick-xml = { version = "0.37", features = ["serialize"] }
+quick-xml = { version = "0.40.1", features = ["serialize"] }
+svgtypes = "0.16.1"

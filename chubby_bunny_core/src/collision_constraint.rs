@@ -63,10 +63,10 @@ fn edges_of<T: FloatingPointNumber>(body: &Body<T>) -> Vec<Edge<T>> {
 
 
 
-fn nearest_edge_to_point<'a, T: FloatingPointNumber>(
+fn nearest_edge_to_point< T: FloatingPointNumber>(
     point: Vector2<T>,
-    edges: &'a [Edge<T>],
-) -> Option<(&'a Edge<T>, PointSegmentDistance<T>)> {
+    edges: & [Edge<T>],
+) -> Option<(&Edge<T>, PointSegmentDistance<T>)> {
     edges
         .iter()
         .map(|edge| {
