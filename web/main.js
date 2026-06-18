@@ -246,6 +246,12 @@ const start = async () => {
 };
 
 const loop = (timestamp) => {
+  if (!document.hasFocus()) {
+    playground.last_timestamp = timestamp;
+    requestAnimationFrame(loop);
+    return;
+  }
+
   let dt = timestamp - (playground.last_timestamp || timestamp);
   playground.last_timestamp = timestamp;
   flushInputEvents();
