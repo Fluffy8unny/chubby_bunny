@@ -84,7 +84,9 @@ impl Playground {
         settings: &BodySettings<f32>,
     ) -> Vec<Body> {
         let (mut template, meta) = load_svg(svg_data, settings);
-        template.iter_mut().for_each(|template| template.transform(svg_instance_transform));
+        template
+            .iter_mut()
+            .for_each(|template| template.transform(svg_instance_transform));
         self.meta_data.extend(meta);
         template
     }
@@ -196,9 +198,9 @@ impl Playground {
         let mut outgoing_events = Vec::new();
         while let Some(selected_body) = self.current_selected_body.pop() {
             for container in self.bodies.iter_mut() {
-                if let Some(body) = container.find_child_by_id_mut(selected_body) {
-                    body.set_pinned(false);
-                }
+                container
+                    .find_child_by_id_mut(selected_body)
+                    .map(|child| child.set_pinned(false));
             }
             //todo add velocity to the body based on the average velocity of the mouse during the drag
             if let Some(name) = self.interactive_bodies.get(&selected_body) {
@@ -223,9 +225,9 @@ impl Playground {
         {
             for container in self.bodies.iter_mut() {
                 for selected_body in &self.current_selected_body {
-                    if let Some(body) = container.find_child_by_id_mut(*selected_body) {
-                        body.set_uniform_movement(avg_displacement, Vector2::zeros());
-                    }
+                    container.find_child_by_id_mut(*selected_body).map(|child| {
+                        child.set_uniform_movement(avg_displacement, Vector2::zeros())
+                    });
                 }
             }
         } else {

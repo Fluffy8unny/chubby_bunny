@@ -13,15 +13,7 @@ pub type BodyId = usize;
 pub fn next_id() -> BodyId {
     NEXT_ID.fetch_add(1, Ordering::Relaxed) as BodyId
 }
-#[derive(Clone)]
-pub struct Body<T = f32> {
-    pub id: BodyId,
-    pub particles: Vec<Particle<T>>,
-    pub constraints: Vec<Box<dyn IntrinsicConstraint<T>>>,
-    pub children: Vec<Body<T>>,
-    pub children_constraints: Vec<ExtrinsicConstraintType<T>>,
-    pub collision_constraint: Option<CollisionConstraint<T>>,
-}
+
 pub struct BoundingBox<T> {
     pub min: Vector2<T>,
     pub max: Vector2<T>,
@@ -64,34 +56,63 @@ impl<T: FloatingPointNumber> Transformation<T> {
     }
 }
 
-impl<T> Body<T> {
-    pub fn empty() -> Self {
-        let id = next_id();
+pub struct Body<T = f32> {
+    pub id: BodyId,
+    pub particles: Vec<Particle<T>>,
+    pub constraints: Vec<Box<dyn IntrinsicConstraint<T>>>,
+    pub children: Vec<Body<T>>,
+    pub children_constraints: Vec<ExtrinsicConstraintType<T>>,
+    pub collision_constraint: Option<CollisionConstraint<T>>,
+}
+
+impl<T: Clone> Clone for Body<T> {
+    fn clone(&self) -> Self {
+        let children: Vec<Body<T>> = self.children.iter().map(Clone::clone).collect();
+        let child_id_map: HashMap<BodyId, BodyId> = self
+            .children
+            .iter()
+            .zip(children.iter())
+            .map(|(old_child, new_child)| (old_child.id, new_child.id))
+            .collect();
+
+        let mut children_constraints = self.children_constraints.clone();
+        for constraint in children_constraints.iter_mut() {
+            if let ExtrinsicConstraintType::Local(local) = constraint {
+                local.remap_body_ids(&child_id_map);
+            }
+        }
+
         Self {
-            id,
-            particles: Vec::new(),
-            constraints: Vec::new(),
-            children: Vec::new(),
-            children_constraints: Vec::new(),
-            collision_constraint: None,
+            id: next_id(),
+            particles: self.particles.clone(),
+            constraints: self.constraints.clone(),
+            children,
+            children_constraints,
+            collision_constraint: self.collision_constraint.clone(),
         }
     }
+}
 
-    pub fn centroid(&self) -> Vector2<T>
-    where
-        T: FloatingPointNumber,
-    {
+impl<T: FloatingPointNumber> Body<T> {
+    pub fn centroid(&self) -> Vector2<T> {
         let n = T::from(self.particles.len() as f32);
         self.particles
             .iter()
             .fold(Vector2::zeros(), |acc, p| acc + p.position)
             / n
     }
+    
+    pub fn set_uniform_movement(&mut self, offset_now: Vector2<T>, offset_last_frame: Vector2<T>) {
+        for particle in self.particles.iter_mut() {
+            particle.pre_integration_position = particle.position + offset_last_frame;
+            particle.position += offset_now;
+        }
+        for child in self.children.iter_mut() {
+            child.set_uniform_movement(offset_now, offset_last_frame);
+        }
+    }
 
-    pub fn get_bounding_box(&self) -> BoundingBox<T>
-    where
-        T: FloatingPointNumber,
-    {
+    pub fn get_bounding_box(&self) -> BoundingBox<T> {
         if let Some((first, rest)) = self.particles.split_first() {
             let (min, max) = rest
                 .iter()
@@ -104,18 +125,13 @@ impl<T> Body<T> {
         }
     }
 
-    pub fn point_in_polygon(&self, point: Vector2<T>) -> bool
-    where
-        T: FloatingPointNumber,
-    {
+    pub fn point_in_polygon(&self, point: Vector2<T>) -> bool {
         if self.particles.len() < 3 {
             return false;
         }
 
         let mut inside = false;
-        for (a, b) in self.particles.iter().circular_tuple_windows() {
-            let a = a.position;
-            let b = b.position;
+        for (&Particle{ position: a,.. }, &Particle{ position: b,.. }) in self.particles.iter().circular_tuple_windows() {
 
             let y_intersection = (a.y > point.y) != (b.y > point.y);
             if !y_intersection {
@@ -135,71 +151,7 @@ impl<T> Body<T> {
         inside
     }
 
-    pub fn find_child_by_id(&self, id: BodyId) -> Option<&Body<T>> {
-        if self.id == id {
-            return Some(self);
-        }
-
-        for child in &self.children {
-            if let Some(found) = child.find_child_by_id(id) {
-                return Some(found);
-            }
-        }
-
-        None
-    }
-
-    pub fn find_child_by_id_mut(&mut self, id: BodyId) -> Option<&mut Body<T>> {
-        if self.id == id {
-            return Some(self);
-        }
-
-        for child in &mut self.children {
-            if let Some(found) = child.find_child_by_id_mut(id) {
-                return Some(found);
-            }
-        }
-
-        None
-    }
-
-    pub fn set_pinned(&mut self, pinned: bool) {
-        for particle in self.particles.iter_mut() {
-            particle.pinned = pinned;
-        }
-        for child in self.children.iter_mut() {
-            child.set_pinned(pinned);
-        }
-    }
-
-    pub fn set_uniform_movement(&mut self, offset_now: Vector2<T>, offset_last_frame: Vector2<T>)
-    where
-        T: FloatingPointNumber,
-    {
-        for particle in self.particles.iter_mut() {
-            particle.pre_integration_position = particle.position + offset_last_frame;
-            particle.position += offset_now;
-        }
-        for child in self.children.iter_mut() {
-            child.set_uniform_movement(offset_now, offset_last_frame);
-        }
-    }
-
-    pub fn duplicate(&self) -> Self
-    where
-        T: FloatingPointNumber,
-    {
-        let mut copy = self.clone();
-        let mut id_map = HashMap::new();
-        copy.reassign_ids_recursive(&mut id_map);
-        copy.remap_local_constraints_recursive(&id_map);
-        copy
-    }
-
-    pub fn transform(&mut self, transformation: Transformation<T>) 
-    where
-        T: FloatingPointNumber,
-    {
+    pub fn transform(&mut self, transformation: Transformation<T>) {
         self.apply_transformation_recursive(transformation, None);
         self.transform_constraints_recursive(transformation);
     }
@@ -208,9 +160,7 @@ impl<T> Body<T> {
         &mut self,
         transformation: Transformation<T>,
         rotation_center: Option<Vector2<T>>,
-    ) where
-        T: FloatingPointNumber,
-    {
+    ) {
         let cos_theta = transformation.rotation_radians.cos();
         let sin_theta = transformation.rotation_radians.sin();
         let rot_mat = nalgebra::Matrix2::new(cos_theta, -sin_theta, sin_theta, cos_theta);
@@ -232,10 +182,7 @@ impl<T> Body<T> {
         }
     }
 
-    fn transform_constraints_recursive(&mut self, transformation: Transformation<T>)
-    where
-        T: FloatingPointNumber,
-    {
+    fn transform_constraints_recursive(&mut self, transformation: Transformation<T>) {
         for constraint in self.constraints.iter_mut() {
             constraint.transform_params(transformation);
         }
@@ -250,32 +197,7 @@ impl<T> Body<T> {
             child.transform_constraints_recursive(transformation);
         }
     }
-
-    fn reassign_ids_recursive(&mut self, id_map: &mut HashMap<BodyId, BodyId>) {
-        let old_id = self.id;
-        self.id = next_id();
-        id_map.insert(old_id, self.id);
-        for child in self.children.iter_mut() {
-            child.reassign_ids_recursive(id_map);
-        }
-    }
-
-    fn remap_local_constraints_recursive(&mut self, id_map: &HashMap<BodyId, BodyId>) {
-        for constraint in self.children_constraints.iter_mut() {
-            if let ExtrinsicConstraintType::Local(local) = constraint {
-                local.remap_body_ids(id_map);
-            }
-        }
-
-        for child in self.children.iter_mut() {
-            child.remap_local_constraints_recursive(id_map);
-        }
-    }
-
-    fn update_positions_recursively(&mut self, dt: T, solver_settings: &SolverSettings)
-    where
-        T: FloatingPointNumber,
-    {
+    fn update_positions_recursively(&mut self, dt: T, solver_settings: &SolverSettings) {
         for particle in self.particles.iter_mut() {
             particle.post_integration_update(dt, solver_settings);
         }
@@ -288,7 +210,6 @@ impl<T> Body<T> {
     fn apply_forces_recursively<F>(&mut self, forces: &Vec<F>, dt: T)
     where
         F: Force<T>,
-        T: FloatingPointNumber,
     {
         for particle in self.particles.iter_mut().filter(|p| !p.pinned) {
             let force = forces
@@ -303,10 +224,7 @@ impl<T> Body<T> {
         }
     }
 
-    fn solve_constraints_recursivly(&mut self, dt: T, solver_settings: &SolverSettings)
-    where
-        T: FloatingPointNumber,
-    {
+    fn solve_constraints_recursivly(&mut self, dt: T, solver_settings: &SolverSettings) {
         // Solve constraints to maintain this body's internal structure.
         for constraint in &self.constraints {
             constraint.solve(&mut self.particles, dt, solver_settings);
@@ -349,7 +267,6 @@ impl<T> Body<T> {
     pub fn perform_step<F>(&mut self, forces: &Vec<F>, dt: T, solver_settings: &SolverSettings)
     where
         F: Force<T>,
-        T: FloatingPointNumber,
     {
         //calculate how external forces would affect the body
         self.apply_forces_recursively(forces, dt);
@@ -361,4 +278,54 @@ impl<T> Body<T> {
         //update velocities after all forces and constraints are processed
         self.update_positions_recursively(dt, solver_settings);
     }
+}
+
+impl<T> Body<T> {
+    pub fn empty() -> Self {
+        let id = next_id();
+        Self {
+            id,
+            particles: Vec::new(),
+            constraints: Vec::new(),
+            children: Vec::new(),
+            children_constraints: Vec::new(),
+            collision_constraint: None,
+        }
+    }
+
+    pub fn find_child_by_id(&self, id: BodyId) -> Option<&Body<T>> {
+        if self.id == id {
+            return Some(self);
+        }
+
+        for child in &self.children {
+            if let Some(found) = child.find_child_by_id(id) {
+                return Some(found);
+            }
+        }
+        None
+    }
+
+    pub fn find_child_by_id_mut(&mut self, id: BodyId) -> Option<&mut Body<T>> {
+        if self.id == id {
+            return Some(self);
+        }
+
+        for child in &mut self.children {
+            if let Some(found) = child.find_child_by_id_mut(id) {
+                return Some(found);
+            }
+        }
+        None
+    }
+
+    pub fn set_pinned(&mut self, pinned: bool) {
+        for particle in self.particles.iter_mut() {
+            particle.pinned = pinned;
+        }
+        for child in self.children.iter_mut() {
+            child.set_pinned(pinned);
+        }
+    }
+
 }

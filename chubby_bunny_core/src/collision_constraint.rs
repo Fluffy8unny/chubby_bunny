@@ -88,8 +88,8 @@ fn point_segment_distance_squared<T: FloatingPointNumber>(
     segment_b: Vector2<T>,
 ) -> PointSegmentDistance<T> {
     let segment = segment_b - segment_a;
-    let segment_len2 = segment.dot(&segment);
-    if segment_len2 <= T::zero() {
+    let segment_magnitude = segment.norm_squared();
+    if segment_magnitude <= T::zero() {
         let diff = point - segment_a;
         return PointSegmentDistance {
             distance_squared: diff.norm_squared(),
@@ -98,7 +98,7 @@ fn point_segment_distance_squared<T: FloatingPointNumber>(
         };
     }
 
-    let t = ((point - segment_a).dot(&segment) / segment_len2).clamp(T::zero(), T::one());
+    let t = ((point - segment_a).dot(&segment) / segment_magnitude).clamp(T::zero(), T::one());
     let projection = segment_a + segment * t;
     let diff = point - projection;
     PointSegmentDistance {
