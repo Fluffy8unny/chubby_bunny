@@ -1,5 +1,7 @@
 use crate::svg_parser::AttachmentSettings;
-use chubby_bunny_core::{AreaConstraint,BendingConstraint, Body, DistanceConstraint, FloatingPointNumber, eps};
+use chubby_bunny_core::{
+    eps, AreaConstraint, BendingConstraint, Body, DistanceConstraint, FloatingPointNumber,
+};
 use nalgebra::Vector2;
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -21,10 +23,8 @@ pub fn add_boundary_distance_constraints<T: FloatingPointNumber>(body: &mut Body
 }
 
 pub fn add_area_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffness: T) {
-   body.constraints.push(Box::new(AreaConstraint::new(
-        &body.particles,
-        stiffness,
-    )));
+    body.constraints
+        .push(Box::new(AreaConstraint::new(&body.particles, stiffness)));
 }
 
 pub fn add_shear_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffness: T) {
@@ -87,7 +87,7 @@ fn select_child_anchor_indices<T: FloatingPointNumber>(
     let stride = settings.child_sample_stride.max(1);
     let sampled: Vec<usize> = (0..child.particles.len()).step_by(stride).collect();
 
-    if settings.max_total_attachments == 0 || sampled.len() <= settings.max_total_attachments {
+    if sampled.len() <= settings.max_total_attachments {
         return sampled;
     }
 

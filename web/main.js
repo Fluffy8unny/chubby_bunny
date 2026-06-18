@@ -45,7 +45,9 @@ const handleOutgoingEvent = (rawEvent) => {
     return;
   }
 
-  const eventType = String(rawEvent.event_type ?? rawEvent.eventType ?? "").toLowerCase();
+  const eventType = String(
+    rawEvent.event_type ?? rawEvent.eventType ?? "",
+  ).toLowerCase();
   const bodyId = String(rawEvent.body_id ?? rawEvent.bodyId ?? "");
   const description = String(rawEvent.description ?? rawEvent.name ?? "");
   const timeStamp = Number(rawEvent.time_stamp ?? rawEvent.timeStamp);
@@ -95,7 +97,11 @@ const resizeCanvas = () => {
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 const enqueueInputEvent = (kind, event) => {
-  if (siteBanner && event.target instanceof Node && siteBanner.contains(event.target)) {
+  if (
+    siteBanner &&
+    event.target instanceof Node &&
+    siteBanner.contains(event.target)
+  ) {
     return;
   }
 
@@ -129,16 +135,20 @@ for (const [domType, kind] of [
   });
 }
 
-window.addEventListener("keydown", (event) => {
-  if (
-    event.repeat ||
-    !(event.code === "KeyD" || event.key === "d" || event.key === "D")
-  ) {
-    return;
-  }
-  event.preventDefault();
-  toggleProfilerEnabled();
-}, true);
+window.addEventListener(
+  "keydown",
+  (event) => {
+    if (
+      event.repeat ||
+      !(event.code === "KeyD" || event.key === "d" || event.key === "D")
+    ) {
+      return;
+    }
+    event.preventDefault();
+    toggleProfilerEnabled();
+  },
+  true,
+);
 
 const flushInputEvents = () => {
   for (const event of pendingInputEvents) {
@@ -174,12 +184,6 @@ const start = async () => {
 };
 
 const loop = (timestamp) => {
-  if (!document.hasFocus()) {
-    playground.last_timestamp = timestamp;
-    requestAnimationFrame(loop);
-    return;
-  }
-
   let dt = timestamp - (playground.last_timestamp || timestamp);
   playground.last_timestamp = timestamp;
   flushInputEvents();
