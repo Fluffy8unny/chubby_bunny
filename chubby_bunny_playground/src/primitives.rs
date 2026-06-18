@@ -43,9 +43,7 @@ pub fn create_polygon<T: FloatingPointNumber>(
         )));
     }
 
-    let idxs: Vec<usize> = (0..num_sides).collect();
     polygon.constraints.push(Box::new(AreaConstraint::new(
-        idxs,
         &polygon.particles,
         stiffness_area,
     )));
@@ -94,7 +92,6 @@ pub fn create_rect<T: FloatingPointNumber>(
     }
 
     rect.constraints.push(Box::new(AreaConstraint::new(
-        vec![0, 1, 2, 3],
         &rect.particles,
         stiffness_area,
     )));

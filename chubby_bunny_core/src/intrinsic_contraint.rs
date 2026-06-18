@@ -1,7 +1,7 @@
 use crate::constraint_common::{
     constraint_alpha_with_reference_dt, get_distance_correction_vector,
 };
-use crate::{FloatingPointNumber, Particle, SolverSettings, Transformation};
+use crate::{eps,FloatingPointNumber, Particle, SolverSettings, Transformation};
 use dyn_clone::DynClone;
 use nalgebra::Vector2;
 
@@ -50,26 +50,24 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for DistanceConstraint<T> {
 }
 #[derive(Clone)]
 pub struct AreaConstraint<T> {
-    pub idxs: Vec<usize>,
     pub rest_area: T,
     pub stiffness: T,
 }
 
 impl<T: FloatingPointNumber> AreaConstraint<T> {
-    pub fn new(idxs: Vec<usize>, particles: &[Particle<T>], stiffness: T) -> Self {
-        let rest_area = Self::calculate_signed_area(&idxs, particles);
+    pub fn new(particles: &[Particle<T>], stiffness: T) -> Self {
+        let rest_area = Self::calculate_signed_area(particles);
         Self {
-            idxs,
             rest_area,
             stiffness,
         }
     }
 
-    fn calculate_signed_area(idxs: &[usize], particles: &[Particle<T>]) -> T {
+    fn calculate_signed_area( particles: &[Particle<T>]) -> T {
         let mut area = T::zero();
-        for i in 0..idxs.len() {
-            let current = &particles[idxs[i]];
-            let next = &particles[idxs[(i + 1) % idxs.len()]];
+        for i in 0..particles.len() {
+            let current = &particles[i];
+            let next = &particles[(i + 1) % particles.len()];
             //det form of trapazoidal rule ad-bc
             area += current.position.x * next.position.y - next.position.x * current.position.y;
         }
@@ -79,13 +77,13 @@ impl<T: FloatingPointNumber> AreaConstraint<T> {
 
 impl<T: FloatingPointNumber> IntrinsicConstraint<T> for AreaConstraint<T> {
     fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings) {
-        if self.idxs.len() < 3 {
+        if particles.len() < 3 {
             return;
         }
 
-        let current_area = Self::calculate_signed_area(&self.idxs, particles);
+        let current_area = Self::calculate_signed_area(particles);
         let c = current_area - self.rest_area;
-        if c.abs() <= T::from(1.0e-8_f32) {
+        if c.abs() <= eps!(T, 8) {
             return;
         }
 
@@ -94,28 +92,26 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for AreaConstraint<T> {
             return;
         }
 
-        let n = self.idxs.len();
+        let n = particles.len();
         let half = T::from(0.5_f32);
         let mut grads = Vec::with_capacity(n);
         let mut gradient_sum = T::zero();
 
         for i in 0..n {
-            let prev_idx = self.idxs[(i + n - 1) % n];
-            let next_idx = self.idxs[(i + 1) % n];
-            let prev = particles[prev_idx].position;
-            let next = particles[next_idx].position;
+            let prev = particles[(i + n - 1) % n].position;
+            let next = particles[(i + 1) % n].position;
             let grad = Vector2::new((next.y - prev.y) * half, (prev.x - next.x) * half); //normal
             gradient_sum += grad.norm_squared();
             grads.push(grad);
         }
 
-        if gradient_sum <= T::from(1.0e-12_f32) {
+        if gradient_sum <= eps!(T, 12) {
             return;
         }
 
         let lambda = -alpha * c / gradient_sum;
-        for (i, idx) in self.idxs.iter().enumerate() {
-            particles[*idx].apply_position_correction_to_particle(&(grads[i] * lambda));
+        for i in 0..n {
+            particles[i].apply_position_correction_to_particle(&(grads[i] * lambda));
         }
     }
 
@@ -134,13 +130,11 @@ pub struct BendingConstraint<T> {
 }
 
 impl<T: FloatingPointNumber> BendingConstraint<T> {
-    pub fn new(
-        idx_prev: usize,
-        idx_center: usize,
-        idx_next: usize,
-        particles: &[Particle<T>],
-        stiffness: T,
-    ) -> Self {
+    pub fn new(idx_center: usize, particles: &[Particle<T>], stiffness: T) -> Self {
+        let n = particles.len();
+        let idx_prev = (idx_center + n - 1) % n;
+        let idx_next = (idx_center + 1) % n;
+
         let prev = particles[idx_prev].position;
         let center = particles[idx_center].position;
         let next = particles[idx_next].position;
@@ -186,13 +180,13 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for BendingConstraint<T> {
 
         let prev_len_sq = v_prev.norm_squared();
         let next_len_sq = v_next.norm_squared();
-        if prev_len_sq <= T::from(1.0e-12_f32) || next_len_sq <= T::from(1.0e-12_f32) {
+        if prev_len_sq <= eps!(T, 12) || next_len_sq <= eps!(T, 12) {
             return;
         }
 
         let current_angle = Self::calculate_angle(v_prev, v_next);
         let c = Self::wrap_angle_to_pi(current_angle - self.rest_angle);
-        if c.abs() <= T::from(1.0e-6_f32) {
+        if c.abs() <= eps!(T, 6) {
             return;
         }
 
@@ -205,7 +199,7 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for BendingConstraint<T> {
 
         let denom =
             grad_prev.norm_squared() + grad_center.norm_squared() + grad_next.norm_squared();
-        if denom <= T::from(1.0e-12_f32) {
+        if denom <= eps!(T, 12) {
             return;
         }
 

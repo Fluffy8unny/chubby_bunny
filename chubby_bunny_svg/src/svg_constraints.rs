@@ -20,7 +20,7 @@ pub fn add_boundary_distance_constraints<T: FloatingPointNumber>(body: &mut Body
     }
 }
 
-pub fn add_skip_shear_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffness: T) {
+pub fn add_shear_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffness: T) {
     let n = body.particles.len();
     if n < 4 || stiffness <= T::zero() {
         return;
@@ -58,12 +58,8 @@ pub fn add_boundary_bending_constraints<T: FloatingPointNumber>(body: &mut Body<
     }
 
     for i in 0..n {
-        let prev = (i + n - 1) % n;
-        let next = (i + 1) % n;
         body.constraints.push(Box::new(BendingConstraint::new(
-            prev,
             i,
-            next,
             &body.particles,
             stiffness,
         )));
@@ -135,32 +131,36 @@ fn best_parent_per_child<T: FloatingPointNumber>(
         let child_vec = child_pos - parent_centroid;
         let child_norm = child_vec.norm();
 
-        let mut best_parent_idx = 0usize;
-        let mut best_score = T::max_value().unwrap_or(T::from(1.0e12_f32));
-        let mut best_dist_sq = (parent.particles[0].position - child_pos).norm_squared();
+        let best_parent = parent
+            .particles
+            .iter()
+            .enumerate()
+            .map(|(parent_idx, parent_particle)| {
+                let parent_pos = parent_particle.position;
+                let dist_sq = (parent_pos - child_pos).norm_squared();
+                let score = parent_attachment_score(
+                    parent_pos,
+                    parent_centroid,
+                    child_pos,
+                    child_vec,
+                    child_norm,
+                );
 
-        for (parent_idx, parent_particle) in parent.particles.iter().enumerate() {
-            let parent_pos = parent_particle.position;
-            let score = parent_attachment_score(
-                parent_pos,
-                parent_centroid,
-                child_pos,
-                child_vec,
-                child_norm,
-            );
+                (
+                    score,
+                    AttachmentCandidate {
+                        parent_idx,
+                        child_idx,
+                        dist_sq,
+                    },
+                )
+            })
+            .min_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal))
+            .map(|(_, candidate)| candidate);
 
-            if score < best_score {
-                best_score = score;
-                best_parent_idx = parent_idx;
-                best_dist_sq = (parent_pos - child_pos).norm_squared();
-            }
+        if let Some(candidate) = best_parent {
+            candidates.push(candidate);
         }
-
-        candidates.push(AttachmentCandidate {
-            parent_idx: best_parent_idx,
-            child_idx,
-            dist_sq: best_dist_sq,
-        });
     }
 
     candidates
@@ -237,14 +237,6 @@ fn expand_candidates_to_springs<T: FloatingPointNumber>(
     (parent_idxs, child_idxs)
 }
 
-fn parent_centroid_of<T: FloatingPointNumber>(parent: &Body<T>) -> Vector2<T> {
-    parent
-        .particles
-        .iter()
-        .fold(Vector2::zeros(), |acc, p| acc + p.position)
-        / T::from(parent.particles.len() as f32)
-}
-
 pub fn nearest_parent_attachment_points<T: FloatingPointNumber>(
     parent: &Body<T>,
     child: &Body<T>,
@@ -259,7 +251,7 @@ pub fn nearest_parent_attachment_points<T: FloatingPointNumber>(
         return (Vec::new(), Vec::new());
     }
 
-    let parent_centroid = parent_centroid_of(parent);
+    let parent_centroid = parent.centroid();
     let candidates = best_parent_per_child(parent, child, &child_indices, parent_centroid);
     if candidates.is_empty() {
         return (Vec::new(), Vec::new());

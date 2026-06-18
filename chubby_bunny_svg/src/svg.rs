@@ -1,7 +1,7 @@
 use crate::meta::{BodyMeta, Color};
 use crate::svg_constraints::{
     add_boundary_bending_constraints, add_boundary_distance_constraints,
-    add_skip_shear_constraints, nearest_parent_attachment_points,
+    add_shear_constraints  , nearest_parent_attachment_points,
 };
 use chubby_bunny_core::{
     AreaConstraint, AttachmentConstraint, Body, BodyId, ExtrinsicConstraintType,
@@ -399,14 +399,25 @@ fn normalized_template_transform<T: FloatingPointNumber>(bodies: &[Body<T>]) -> 
     }
 }
 
-fn collect_id_pairs_recursive<T>(
+fn collect_instantiated_meta_recursive<T>(
     template: &Body<T>,
     instance: &Body<T>,
-    id_pairs: &mut Vec<(BodyId, BodyId)>,
+    template_meta: &HashMap<BodyId, BodyMeta>,
+    instance_meta: &mut HashMap<BodyId, BodyMeta>,
 ) {
-    id_pairs.push((template.id, instance.id));
+    if let Some(meta) = template_meta.get(&template.id) {
+        let mut copied_meta = meta.clone();
+        copied_meta.id = instance.id;
+        instance_meta.insert(instance.id, copied_meta);
+    }
+
     for (template_child, instance_child) in template.children.iter().zip(instance.children.iter()) {
-        collect_id_pairs_recursive(template_child, instance_child, id_pairs);
+        collect_instantiated_meta_recursive(
+            template_child,
+            instance_child,
+            template_meta,
+            instance_meta,
+        );
     }
 }
 
@@ -418,15 +429,7 @@ pub fn instantiate_svg_body<T: FloatingPointNumber>(
     let instance = template.duplicate_with_transformation(transformation);
     let mut instance_meta = HashMap::new();
 
-    let mut id_pairs = Vec::new();
-    collect_id_pairs_recursive(template, &instance, &mut id_pairs);
-    for (template_id, instance_id) in id_pairs {
-        if let Some(meta) = template_meta.get(&template_id) {
-            let mut copied_meta = meta.clone();
-            copied_meta.id = instance_id;
-            instance_meta.insert(instance_id, copied_meta);
-        }
-    }
+    collect_instantiated_meta_recursive(template, &instance, template_meta, &mut instance_meta);
 
     (instance, instance_meta)
 }
@@ -439,7 +442,7 @@ pub fn instantiate_svg_bodies<T: FloatingPointNumber>(
     let mut instances = Vec::with_capacity(templates.len());
     let mut instance_meta = HashMap::new();
 
-    for template in templates.iter() {
+    for template in templates {
         let (instance, meta) = instantiate_svg_body(template, template_meta, transformation);
         instances.push(instance);
         instance_meta.extend(meta);
@@ -474,15 +477,13 @@ fn parse_svg_path_to_body<T: FloatingPointNumber>(
 
     add_boundary_distance_constraints(&mut body, settings.constraint_settings.stiffness_distance);
 
-    let idxs: Vec<usize> = (0..body.particles.len()).collect();
     body.constraints.push(Box::new(AreaConstraint::new(
-        idxs,
         &body.particles,
         settings.constraint_settings.stiffness_area,
     )));
 
     add_boundary_bending_constraints(&mut body, settings.constraint_settings.stiffness_bending);
-    add_skip_shear_constraints(&mut body, settings.constraint_settings.stiffness_shear);
+    add_shear_constraints(&mut body, settings.constraint_settings.stiffness_shear);
 
     let style = path.style.as_deref().unwrap_or("");
     let meta = parse_style_to_body_meta(style, body.id, z_index);

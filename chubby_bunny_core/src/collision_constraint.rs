@@ -1,4 +1,4 @@
-use crate::{constraint_common::get_normal, Body, FloatingPointNumber, SolverSettings};
+use crate::{Body, FloatingPointNumber, SolverSettings, constraint_common::get_normal, eps};
 use itertools::Itertools;
 use nalgebra::Vector2;
 
@@ -61,13 +61,7 @@ fn edges_of<T: FloatingPointNumber>(body: &Body<T>) -> Vec<Edge<T>> {
         .collect()
 }
 
-fn collision_epsilon<T: FloatingPointNumber>() -> T {
-    T::from(1.0e-6_f32)
-}
 
-fn min_penetration_depth<T: FloatingPointNumber>() -> T {
-    T::from(1.0e-5_f32)
-}
 
 fn nearest_edge_to_point<'a, T: FloatingPointNumber>(
     point: Vector2<T>,
@@ -121,7 +115,7 @@ fn find_containment_contacts<T: FloatingPointNumber>(
     let container_edges = edges_of(container_body);
     let mut contacts = Vec::new();
 
-    let eps = collision_epsilon::<T>();
+    let eps = eps!(T, 6);
 
     for (contained_idx, contained_particle) in contained_body.particles.iter().enumerate() {
         let point = contained_particle.position;
@@ -149,7 +143,7 @@ fn find_containment_contacts<T: FloatingPointNumber>(
             normal = -normal;
         }
 
-        let penetration_depth = nearest.distance_squared.sqrt() + min_penetration_depth::<T>();
+        let penetration_depth = nearest.distance_squared.sqrt() + eps!(T, 5);
         contacts.push(ContainmentContact {
             contained_point_idx: contained_idx,
             edge: best_edge.clone(),
@@ -188,7 +182,7 @@ fn segment_intersection<T: FloatingPointNumber>(
     let q = edge_b.pt_a;
     let s = edge_b.pt_b - edge_b.pt_a;
 
-    let eps = collision_epsilon::<T>();
+    let eps = eps!(T, 6);
     let r_cross_s = r.perp(&s);
     if r_cross_s.abs() <= eps {
         return None; // Lines are parallel
@@ -223,7 +217,7 @@ fn segment_intersection<T: FloatingPointNumber>(
         (normal_b, penetration_depth_b)
     };
 
-    let penetration_depth = penetration_depth.max(min_penetration_depth::<T>());
+    let penetration_depth = penetration_depth.max(eps!(T, 5));
 
     let centroid_diff = edge_a.center() - edge_b.center();
     if centroid_diff.dot(&normal) < T::zero() {

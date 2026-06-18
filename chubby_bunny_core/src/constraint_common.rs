@@ -42,3 +42,11 @@ pub fn get_normal<T: FloatingPointNumber>(start: Vector2<T>, end: Vector2<T>) ->
     }
     Some(Vector2::new(-edge_vector.y, edge_vector.x).normalize())
 }
+
+#[macro_export]
+macro_rules! eps {
+    ($type:ident, $exp:literal) => {
+        // Evaluates 10^exp at compile-time as an f32, requires from32 trait 
+         <$type>::from(10.0_f32.powi(-$exp))
+    };
+}

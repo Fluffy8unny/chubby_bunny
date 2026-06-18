@@ -1,9 +1,8 @@
 use crate::constraint_common::{get_normal,get_distance_correction_vector};
-use crate::{Body, BodyId, FloatingPointNumber, Particle, SolverSettings, Transformation};
+use crate::{Body, BodyId,eps, FloatingPointNumber, Particle, SolverSettings, Transformation};
 use dyn_clone::DynClone;
 use std::collections::HashMap;
 
-static WALL_EPS: f32 = 1.0e-4_f32;
 
 #[derive(Clone)]
 pub enum ExtrinsicConstraintType<T> {
@@ -59,7 +58,7 @@ impl<T: FloatingPointNumber> GlobalExtrinsicConstraint<T> for WallConstraint<T> 
                     let to_particle = particle.position - line_origin;
                     let distance = to_particle.dot(&line_normal);
                     if distance < T::zero() {
-                        let correction_vector = line_normal * (-distance + T::from(WALL_EPS));
+                        let correction_vector = line_normal * (-distance + eps!(T, 4));
                         particle.apply_position_correction_to_particle(&correction_vector);
                     }
                 }

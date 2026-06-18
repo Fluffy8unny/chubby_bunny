@@ -213,15 +213,15 @@ impl<T> Body<T> {
         let rot_mat = nalgebra::Matrix2::new(cos_theta, -sin_theta, sin_theta, cos_theta);
         let centroid = rotation_center.unwrap_or_else(|| self.get_bounding_box().center());
 
-        let apply_to_vector = |v: Vector2<T>| {
+        let apply_transform = |v: Vector2<T>| {
             let centered = v - centroid;
             let rotated = rot_mat * centered + centroid;
             rotated * transformation.scale + transformation.offset
         };
 
         for particle in self.particles.iter_mut() {
-            particle.position = apply_to_vector(particle.position);
-            particle.pre_integration_position = apply_to_vector(particle.pre_integration_position);
+            particle.position = apply_transform(particle.position);
+            particle.pre_integration_position = apply_transform(particle.pre_integration_position);
         }
 
         for child in self.children.iter_mut() {
