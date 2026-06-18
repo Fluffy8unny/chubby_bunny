@@ -13,7 +13,7 @@ const renderer = createRenderer(canvas);
 const siteBanner = document.getElementById("site-banner");
 const siteBannerClose = document.getElementById("site-banner-close");
 let pendingInputEvents = [];
-const CLICK_TIME_THRESHOLD_MS = 125;
+const CLICK_TIME_THRESHOLD_MS = 375;
 const lastSelectionByBody = new Map();
 const TOUCH_MOUSE_SUPPRESSION_MS = 768;
 const ENABLE_PROFILER = false;
@@ -42,34 +42,63 @@ if (siteBannerClose) {
   });
 }
 
-const selectionKey = (event) => `${event.body_id}:${event.description}`;
-const handleOutgoingEvent = (event) => {
-  if (event.event_type === "Selection") {
+const normalizeOutgoingEvent = (event) => {
+  if (!event || typeof event !== "object") {
+    return null;
+  }
+
+  const eventType =
+    event.event_type ?? event.eventType ?? event.type ?? event.kind ?? null;
+  const bodyId = event.body_id ?? event.bodyId ?? null;
+  const description = event.description ?? event.name ?? null;
+  const timeStamp = event.time_stamp ?? event.timeStamp ?? null;
+
+  if (!eventType || bodyId === null || !description || timeStamp === null) {
+    return null;
+  }
+
+  return {
+    eventType: String(eventType).toLowerCase(),
+    bodyId: String(bodyId),
+    description: String(description),
+    timeStamp: Number(timeStamp),
+    raw: event,
+  };
+};
+
+const selectionKey = (event) => `${event.bodyId}:${event.description}`;
+const handleOutgoingEvent = (rawEvent) => {
+  const event = normalizeOutgoingEvent(rawEvent);
+  if (!event) {
+    return;
+  }
+
+  if (event.eventType === "selection") {
     lastSelectionByBody.set(selectionKey(event), event);
     return;
   }
 
-  if (event.event_type === "Deselection") {
+  if (event.eventType === "deselection") {
     const key = selectionKey(event);
     const lastSelection = lastSelectionByBody.get(key);
     if (!lastSelection) {
       return;
     }
 
-    const elapsed = event.time_stamp - lastSelection.time_stamp;
+    const elapsed = event.timeStamp - lastSelection.timeStamp;
     if (elapsed >= 0 && elapsed < CLICK_TIME_THRESHOLD_MS) {
       switch (event.description) {
         case "mail":
-          window.location = "mailto:Andreas@Weissenburger.info";
+          window.location.assign("mailto:Andreas@Weissenburger.info");
           break;
         case "git":
-          window.location = "https://github.com/Fluffy8unny";
+          window.location.assign("https://github.com/Fluffy8unny");
           break;
         case "about":
           showBanner();
           break;
       }
-      console.log(`Click event: ${event.description}`, event);
+      console.log(`Click event: ${event.description}`, event.raw);
     }
     lastSelectionByBody.delete(key);
   }
