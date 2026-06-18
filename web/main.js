@@ -15,10 +15,7 @@ const siteBannerClose = document.getElementById("site-banner-close");
 let pendingInputEvents = [];
 const CLICK_TIME_THRESHOLD_MS = 375;
 const lastSelectionByBody = new Map();
-const TOUCH_MOUSE_SUPPRESSION_MS = 768;
 const ENABLE_PROFILER = false;
-
-let lastTouchInputTimestamp = Number.NEGATIVE_INFINITY;
 
 const closeBanner = () => {
   if (!siteBanner) {
@@ -42,65 +39,46 @@ if (siteBannerClose) {
   });
 }
 
-const normalizeOutgoingEvent = (event) => {
-  if (!event || typeof event !== "object") {
-    return null;
-  }
-
-  const eventType =
-    event.event_type ?? event.eventType ?? event.type ?? event.kind ?? null;
-  const bodyId = event.body_id ?? event.bodyId ?? null;
-  const description = event.description ?? event.name ?? null;
-  const timeStamp = event.time_stamp ?? event.timeStamp ?? null;
-
-  if (!eventType || bodyId === null || !description || timeStamp === null) {
-    return null;
-  }
-
-  return {
-    eventType: String(eventType).toLowerCase(),
-    bodyId: String(bodyId),
-    description: String(description),
-    timeStamp: Number(timeStamp),
-    raw: event,
-  };
-};
-
-const selectionKey = (event) => `${event.bodyId}:${event.description}`;
+let lastSelection = null;
 const handleOutgoingEvent = (rawEvent) => {
-  const event = normalizeOutgoingEvent(rawEvent);
-  if (!event) {
+  if (!rawEvent || typeof rawEvent !== "object") {
     return;
   }
 
-  if (event.eventType === "selection") {
-    lastSelectionByBody.set(selectionKey(event), event);
+  const eventType = String(rawEvent.event_type ?? rawEvent.eventType ?? "").toLowerCase();
+  const bodyId = String(rawEvent.body_id ?? rawEvent.bodyId ?? "");
+  const description = String(rawEvent.description ?? rawEvent.name ?? "");
+  const timeStamp = Number(rawEvent.time_stamp ?? rawEvent.timeStamp);
+
+  if (!eventType || !bodyId || !description || Number.isNaN(timeStamp)) {
     return;
   }
 
-  if (event.eventType === "deselection") {
-    const key = selectionKey(event);
-    const lastSelection = lastSelectionByBody.get(key);
-    if (!lastSelection) {
+  if (eventType === "selection") {
+    lastSelection = { bodyId, description, timeStamp };
+    return;
+  }
+
+  if (eventType === "deselection") {
+    if (
+      !lastSelection ||
+      lastSelection.bodyId !== bodyId ||
+      lastSelection.description !== description
+    ) {
       return;
     }
 
-    const elapsed = event.timeStamp - lastSelection.timeStamp;
+    const elapsed = timeStamp - lastSelection.timeStamp;
     if (elapsed >= 0 && elapsed < CLICK_TIME_THRESHOLD_MS) {
-      switch (event.description) {
-        case "mail":
-          window.location.assign("mailto:Andreas@Weissenburger.info");
-          break;
-        case "git":
-          window.location.assign("https://github.com/Fluffy8unny");
-          break;
-        case "about":
-          showBanner();
-          break;
+      if (description === "mail") {
+        window.location.assign("mailto:Andreas@Weissenburger.info");
+      } else if (description === "git") {
+        window.location.assign("https://github.com/Fluffy8unny");
+      } else if (description === "about") {
+        showBanner();
       }
-      console.log(`Click event: ${event.description}`, event.raw);
     }
-    lastSelectionByBody.delete(key);
+    lastSelection = null;
   }
 };
 
@@ -109,72 +87,27 @@ const resizeCanvas = () => {
 
   if (playground) {
     pendingInputEvents = [];
-    lastSelectionByBody.clear();
+    lastSelection = null;
     playground.reset(width, height);
     playground.last_timestamp = performance.now();
   }
 };
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
-const getEvent = (eventName, event) => {
-  return {
-    kind: eventName,
+const enqueueInputEvent = (kind, event) => {
+  if (siteBanner && event.target instanceof Node && siteBanner.contains(event.target)) {
+    return;
+  }
+
+  const nextEvent = {
+    kind,
     x: event.clientX,
     y: event.clientY,
     button: event.button,
     time_stamp: performance.now(),
   };
-};
 
-const shouldIgnoreMouseEvent = () => {
-  return (
-    performance.now() - lastTouchInputTimestamp < TOUCH_MOUSE_SUPPRESSION_MS
-  );
-};
-
-const getPrimaryTouch = (touchEvent) => {
-  if (touchEvent.changedTouches && touchEvent.changedTouches.length > 0) {
-    return touchEvent.changedTouches[0];
-  }
-
-  if (touchEvent.touches && touchEvent.touches.length > 0) {
-    return touchEvent.touches[0];
-  }
-
-  return null;
-};
-
-const isTouchInsideBanner = (touchEvent) => {
-  const targetElement = touchEvent.target;
-  if (!(targetElement instanceof Element) || !siteBanner) {
-    return false;
-  }
-  return siteBanner.contains(targetElement);
-};
-
-const enqueueTouchEvent = (eventName, touchEvent) => {
-  if (isTouchInsideBanner(touchEvent)) {
-    // Let links/buttons in the banner use native touch behavior.
-    lastTouchInputTimestamp = performance.now();
-    return;
-  }
-
-  const touch = getPrimaryTouch(touchEvent);
-  if (!touch) {
-    return;
-  }
-
-  touchEvent.preventDefault();
-  lastTouchInputTimestamp = performance.now();
-  const nextEvent = {
-    kind: eventName,
-    x: touch.clientX,
-    y: touch.clientY,
-    button: 0,
-    time_stamp: performance.now(),
-  };
-
-  if (eventName === "move" && pendingInputEvents.length > 0) {
+  if (kind === "move" && pendingInputEvents.length > 0) {
     const lastIdx = pendingInputEvents.length - 1;
     if (pendingInputEvents[lastIdx].kind === "move") {
       pendingInputEvents[lastIdx] = nextEvent;
@@ -185,79 +118,27 @@ const enqueueTouchEvent = (eventName, touchEvent) => {
   pendingInputEvents.push(nextEvent);
 };
 
-document.addEventListener("mousemove", (event) => {
-  if (shouldIgnoreMouseEvent()) {
-    return;
-  }
-  const moveEvent = getEvent("move", event);
+for (const [domType, kind] of [
+  ["pointermove", "move"],
+  ["pointerdown", "down"],
+  ["pointerup", "up"],
+  ["pointercancel", "up"],
+]) {
+  document.addEventListener(domType, (event) => {
+    enqueueInputEvent(kind, event);
+  });
+}
+
+window.addEventListener("keydown", (event) => {
   if (
-    pendingInputEvents.length > 0 &&
-    pendingInputEvents[pendingInputEvents.length - 1].kind === "move"
+    event.repeat ||
+    !(event.code === "KeyD" || event.key === "d" || event.key === "D")
   ) {
-    pendingInputEvents[pendingInputEvents.length - 1] = moveEvent;
     return;
   }
-  pendingInputEvents.push(moveEvent);
-});
-
-document.addEventListener("mousedown", (event) => {
-  if (shouldIgnoreMouseEvent()) {
-    return;
-  }
-  pendingInputEvents.push(getEvent("down", event));
-});
-
-document.addEventListener("mouseup", (event) => {
-  if (shouldIgnoreMouseEvent()) {
-    return;
-  }
-  pendingInputEvents.push(getEvent("up", event));
-});
-
-document.addEventListener(
-  "touchstart",
-  (event) => {
-    enqueueTouchEvent("down", event);
-  },
-  { passive: false },
-);
-
-document.addEventListener(
-  "touchmove",
-  (event) => {
-    enqueueTouchEvent("move", event);
-  },
-  { passive: false },
-);
-
-document.addEventListener(
-  "touchend",
-  (event) => {
-    enqueueTouchEvent("up", event);
-  },
-  { passive: false },
-);
-
-document.addEventListener(
-  "touchcancel",
-  (event) => {
-    enqueueTouchEvent("up", event);
-  },
-  { passive: false },
-);
-
-const handleDebugWindowToggleKeydown = (event) => {
-  const isDebugKey = event.code === "KeyD" || event.key === "d" || event.key === "D";
-
-  if (event.repeat || !isDebugKey) {
-    return;
-  }
-
   event.preventDefault();
   toggleProfilerEnabled();
-};
-
-window.addEventListener("keydown", handleDebugWindowToggleKeydown, true);
+}, true);
 
 const flushInputEvents = () => {
   for (const event of pendingInputEvents) {
