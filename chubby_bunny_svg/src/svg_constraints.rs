@@ -1,5 +1,5 @@
-use crate::svg::AttachmentSettings;
-use chubby_bunny_core::{BendingConstraint, Body, DistanceConstraint, FloatingPointNumber};
+use crate::svg_parser::AttachmentSettings;
+use chubby_bunny_core::{AreaConstraint,BendingConstraint, Body, DistanceConstraint, FloatingPointNumber, eps};
 use nalgebra::Vector2;
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -18,6 +18,13 @@ pub fn add_boundary_distance_constraints<T: FloatingPointNumber>(body: &mut Body
             stiffness,
         )));
     }
+}
+
+pub fn add_area_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffness: T) {
+   body.constraints.push(Box::new(AreaConstraint::new(
+        &body.particles,
+        stiffness,
+    )));
 }
 
 pub fn add_shear_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffness: T) {
@@ -103,13 +110,13 @@ fn parent_attachment_score<T: FloatingPointNumber>(
     child_norm: T,
 ) -> T {
     let dist_sq = (parent_pos - child_pos).norm_squared();
-    if child_norm <= T::from(1.0e-6_f32) {
+    if child_norm <= eps!(T, 6) {
         return dist_sq;
     }
 
     let parent_vec = parent_pos - parent_centroid;
     let parent_norm = parent_vec.norm();
-    if parent_norm <= T::from(1.0e-6_f32) {
+    if parent_norm <= eps!(T, 6) {
         return T::max_value().unwrap_or(T::from(1.0e12_f32));
     }
 
