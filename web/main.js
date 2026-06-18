@@ -1,5 +1,10 @@
 import init, { Playground } from "../pkg/chubby_bunny_playground.js";
-import { initProfiler, measure, updateProfiler } from "./profiling.js";
+import {
+  initProfiler,
+  measure,
+  toggleProfilerEnabled,
+  updateProfiler,
+} from "./profiling.js";
 import { createRenderer } from "./rendering.js";
 
 let playground = null;
@@ -11,7 +16,7 @@ let pendingInputEvents = [];
 const CLICK_TIME_THRESHOLD_MS = 125;
 const lastSelectionByBody = new Map();
 const TOUCH_MOUSE_SUPPRESSION_MS = 768;
-const ENABLE_PROFILER = true;
+const ENABLE_PROFILER = false;
 
 let lastTouchInputTimestamp = Number.NEGATIVE_INFINITY;
 
@@ -211,6 +216,19 @@ document.addEventListener(
   },
   { passive: false },
 );
+
+const handleDebugWindowToggleKeydown = (event) => {
+  const isDebugKey = event.code === "KeyD" || event.key === "d" || event.key === "D";
+
+  if (event.repeat || !isDebugKey) {
+    return;
+  }
+
+  event.preventDefault();
+  toggleProfilerEnabled();
+};
+
+window.addEventListener("keydown", handleDebugWindowToggleKeydown, true);
 
 const flushInputEvents = () => {
   for (const event of pendingInputEvents) {

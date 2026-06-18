@@ -57,6 +57,10 @@ export const setProfilerEnabled = (enabled) => {
   }
 };
 
+export const toggleProfilerEnabled = () => {
+  setProfilerEnabled(!profiler.enabled);
+};
+
 export const initProfiler = (enabled = false) => {
   setProfilerEnabled(enabled);
 };
