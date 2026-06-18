@@ -177,7 +177,7 @@ impl Playground {
             for body in container.children.iter_mut() {
                 if body.point_in_polygon(position) {
                     self.current_selected_body.push(body.id);
-                    body.pin_child_by_id(body.id, true);
+                    body.set_pinned(true);
                     if let Some(name) = self.interactive_bodies.get(&body.id) {
                         interactive_body_selected.push(OutgoingEvent {
                             event_type: EventType::Selection,
@@ -196,7 +196,9 @@ impl Playground {
         let mut outgoing_events = Vec::new();
         while let Some(selected_body) = self.current_selected_body.pop() {
             for container in self.bodies.iter_mut() {
-                container.pin_child_by_id(selected_body, false);
+                if let Some(body) = container.find_child_by_id_mut(selected_body) {
+                    body.set_pinned(false);
+                }
             }
             //todo add velocity to the body based on the average velocity of the mouse during the drag
             if let Some(name) = self.interactive_bodies.get(&selected_body) {
@@ -221,7 +223,9 @@ impl Playground {
         {
             for container in self.bodies.iter_mut() {
                 for selected_body in &self.current_selected_body {
-                    container.set_movement_of_child_by_id(*selected_body, avg_displacement);
+                    if let Some(body) = container.find_child_by_id_mut(*selected_body) {
+                        body.set_uniform_movement(avg_displacement, Vector2::zeros());
+                    }
                 }
             }
         } else {

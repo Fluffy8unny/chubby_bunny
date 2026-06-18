@@ -135,14 +135,32 @@ impl<T> Body<T> {
         inside
     }
 
-    pub fn pin_child_by_id(&mut self, id: BodyId, pinned: bool) {
+    pub fn find_child_by_id(&self, id: BodyId) -> Option<&Body<T>> {
         if self.id == id {
-            self.set_pinned(pinned);
-        } else {
-            for child in self.children.iter_mut() {
-                child.pin_child_by_id(id, pinned);
+            return Some(self);
+        }
+
+        for child in &self.children {
+            if let Some(found) = child.find_child_by_id(id) {
+                return Some(found);
             }
         }
+
+        None
+    }
+
+    pub fn find_child_by_id_mut(&mut self, id: BodyId) -> Option<&mut Body<T>> {
+        if self.id == id {
+            return Some(self);
+        }
+
+        for child in &mut self.children {
+            if let Some(found) = child.find_child_by_id_mut(id) {
+                return Some(found);
+            }
+        }
+
+        None
     }
 
     pub fn set_pinned(&mut self, pinned: bool) {
@@ -151,19 +169,6 @@ impl<T> Body<T> {
         }
         for child in self.children.iter_mut() {
             child.set_pinned(pinned);
-        }
-    }
-
-    pub fn set_movement_of_child_by_id(&mut self, id: BodyId, offset: Vector2<T>)
-    where
-        T: FloatingPointNumber,
-    {
-        if self.id == id {
-            self.set_uniform_movement(offset, Vector2::zeros());
-        } else {
-            for child in self.children.iter_mut() {
-                child.set_movement_of_child_by_id(id, offset);
-            }
         }
     }
 

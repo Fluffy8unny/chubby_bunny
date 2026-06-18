@@ -35,6 +35,7 @@ pub struct InputState {
     mouse_events: HashMap<MouseButton, VecDeque<MouseState>>,
     pub events: VecDeque<Event>,
 }
+
 impl InputState {
     pub fn new() -> Self {
         Self {
