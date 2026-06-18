@@ -191,14 +191,12 @@ impl<T> Body<T> {
         copy
     }
 
-    pub fn duplicate_with_transformation(&self, transformation: Transformation<T>) -> Self
+    pub fn transform(&mut self, transformation: Transformation<T>) 
     where
         T: FloatingPointNumber,
     {
-        let mut copy = self.duplicate();
-        copy.apply_transformation_recursive(transformation, None);
-        copy.transform_constraints_recursive(transformation);
-        copy
+        self.apply_transformation_recursive(transformation, None);
+        self.transform_constraints_recursive(transformation);
     }
 
     fn apply_transformation_recursive(

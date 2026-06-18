@@ -2,7 +2,7 @@ use chubby_bunny_core::{
     Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, Particle, SolverSettings,
     Transformation, WallConstraint,
 };
-use chubby_bunny_svg::{instantiate_svg_bodies, load_svg, BodyMeta, BodySettings};
+use chubby_bunny_svg::{load_svg, BodyMeta, BodySettings};
 
 use nalgebra::Vector2;
 use std::collections::HashMap;
@@ -77,17 +77,16 @@ impl Playground {
         }
     }
 
-    fn load_svg_and_create_bodies(
+    fn load_svg_file(
         &mut self,
         svg_data: &str,
         svg_instance_transform: Transformation<f32>,
         settings: &BodySettings<f32>,
     ) -> Vec<Body> {
-        let (template, meta) = load_svg(svg_data, settings);
-        let (svg_instance, svg_instance_meta) =
-            instantiate_svg_bodies(&template, &meta, svg_instance_transform);
-        self.meta_data.extend(svg_instance_meta);
-        svg_instance
+        let (mut template, meta) = load_svg(svg_data, settings);
+        template.iter_mut().for_each(|template| template.transform(svg_instance_transform));
+        self.meta_data.extend(meta);
+        template
     }
 
     pub fn init(&mut self, width: usize, height: usize) {
@@ -129,7 +128,7 @@ impl Playground {
                 "about",
             ),
         ] {
-            let svg_instance = self.load_svg_and_create_bodies(svg_data, transform, &svg_settings);
+            let svg_instance = self.load_svg_file(svg_data, transform, &svg_settings);
             for body in &svg_instance {
                 self.interactive_bodies.insert(body.id, name.to_string());
             }
@@ -138,7 +137,7 @@ impl Playground {
         let cloud_settings =
             BodySettings::from_values(1.0, 0.01, false, 1.0, 1.0, 0.6, 0.8, 0.5, 5, 8, 2.0, 3);
 
-        let mut svg_instance = self.load_svg_and_create_bodies(
+        let mut svg_instance = self.load_svg_file(
             include_str!("../../assets/clouds_foreground.svg"),
             Transformation {
                 offset: Vector2::new(0.0, height as f32 - width as f32 / 16.0),
