@@ -262,20 +262,19 @@ impl Playground {
                 }
             }
         }
-
-        if let Some((body, meta)) = self.spawner.update(dt_ms) {
+        let dt: f32 = dt_ms / 1000.0;
+        let settings = SolverSettings {
+            reference_dt: 1.0 / 60.0,
+            constraint_iterations: 8,
+        };
+        let capped_dt = dt.min(2.0 * settings.reference_dt);
+        if let Some((body, meta)) = self.spawner.update(capped_dt) {
             self.meta_data.extend(meta);
             self.bodies[0].children.push(body);
         };
 
-        let dt: f32 = dt_ms / 1000.0;
         for body in self.bodies.iter_mut() {
             let constant_force = chubby_bunny_core::force::constant_force(self.gravity);
-            let settings = SolverSettings {
-                reference_dt: 1.0 / 60.0,
-                constraint_iterations: 8,
-            };
-            let capped_dt = dt.min(2.0 * settings.reference_dt);
             body.perform_step(&vec![constant_force], capped_dt, &settings);
         }
 

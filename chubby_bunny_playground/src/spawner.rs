@@ -99,11 +99,11 @@ impl<T: FloatingPointNumber> BunnySpawner<T> {
     }
 
     pub fn update(&mut self, dt_s: f32) -> Option<(Body<T>, HashMap<BodyId, BodyMeta>)> {
-        let dt = dt_s / 1000.0;
+        let dt_ms = dt_s * 1000.0;
         if self.number_of_bunnies >= self.max_bunnies {
             return None;
         }
-        self.spawn_timer += dt;
+        self.spawn_timer += dt_ms;
         if self.spawn_timer >= self.spawn_interval {
             self.spawn_timer -= self.spawn_interval;
             self.number_of_bunnies += 1;
