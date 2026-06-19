@@ -79,29 +79,23 @@ impl Playground {
 
     fn load_svg_file(
         &mut self,
-        svg_data: &str,
+        svg_path: &str,
         svg_instance_transform: Transformation<f32>,
         settings: &BodySettings<f32>,
     ) -> Vec<Body> {
-        let (mut template, meta) = load_svg(svg_data, settings);
-        template
-            .iter_mut()
-            .for_each(|template| template.transform(svg_instance_transform));
-        self.meta_data.extend(meta);
-        template
+        if let Ok((mut template, meta)) = load_svg(svg_path, settings) {
+            template
+                .iter_mut()
+                .for_each(|template| template.transform(svg_instance_transform));
+            self.meta_data.extend(meta);
+            template
+        } else {
+            eprint!("Failed to load SVG data from path: {}. Ignoring.", svg_path);
+            Vec::new()
+        }
     }
 
-    pub fn init(&mut self, width: usize, height: usize) {
-        self.bodies.clear();
-        self.polygon_arrays.clear();
-        self.meta_data.clear();
-        self.current_selected_body.clear();
-        self.interactive_bodies.clear();
-        self.user_input = InputState::new();
-        self.spawner.reset_runtime_state();
-
-        self.spawner.update_settings(width, height);
-        let mut container_body = create_container(width, height, self.spawner.get_scale());
+    fn create_scene(&mut self, width: usize, height: usize) -> Vec<Body> {
         let svg_settings =
             BodySettings::from_values(1.0, 0.01, false, 0.5, 0.35, 0.3, 0.4, 0.5, 5, 8, 2.0, 3);
 
@@ -113,6 +107,7 @@ impl Playground {
             rotation_radians: 0.0,
         };
 
+        let mut scene_bodies = Vec::new();
         for (svg_data, transform, name) in [
             (
                 include_str!("../../assets/mail.svg"),
@@ -134,12 +129,13 @@ impl Playground {
             for body in &svg_instance {
                 self.interactive_bodies.insert(body.id, name.to_string());
             }
-            container_body.children.extend(svg_instance);
+            scene_bodies.extend(svg_instance);
         }
+
         let cloud_settings =
             BodySettings::from_values(1.0, 0.01, false, 1.0, 1.0, 0.6, 0.8, 0.5, 5, 8, 2.0, 3);
 
-        let mut svg_instance = self.load_svg_file(
+        let mut cloud_bodies = self.load_svg_file(
             include_str!("../../assets/clouds_foreground.svg"),
             Transformation {
                 offset: Vector2::new(0.0, height as f32 - width as f32 / 16.0),
@@ -148,8 +144,8 @@ impl Playground {
             },
             &cloud_settings,
         );
+        scene_bodies.append(&mut cloud_bodies);
 
-        container_body.children.append(&mut svg_instance);
         self.spawner.load_bunnies_from_svg(
             vec![
                 include_str!("../../assets/t1.svg"),
@@ -159,6 +155,24 @@ impl Playground {
             ],
             svg_settings,
         );
+
+        scene_bodies
+    }
+
+    pub fn init(&mut self, width: usize, height: usize) {
+        self.bodies.clear();
+        self.polygon_arrays.clear();
+        self.meta_data.clear();
+        self.current_selected_body.clear();
+        self.interactive_bodies.clear();
+        self.user_input = InputState::new();
+        self.spawner.reset_runtime_state();
+
+        self.spawner.update_settings(width, height);
+        let mut container_body = create_container(width, height, self.spawner.get_scale());
+        container_body
+            .children
+            .extend(self.create_scene(width, height));
         self.meta_data.insert(
             container_body.id,
             default_meta_for_container(container_body.id),

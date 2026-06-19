@@ -142,9 +142,13 @@ impl<T: FloatingPointNumber> BunnySpawner<T> {
         self.bunny_meta.clear();
         self.svg_settings = Some(settings);
         for svg_path in svg_data.iter() {
-            let (mut bodies, meta) = load_svg(svg_path, self.svg_settings.as_ref().unwrap());
-            self.bunny_bodies.append(&mut bodies);
-            self.bunny_meta.push(meta);
+            if let Ok((mut bodies, meta)) = load_svg(svg_path, self.svg_settings.as_ref().unwrap())
+            {
+                self.bunny_bodies.append(&mut bodies);
+                self.bunny_meta.push(meta);
+            } else {
+                eprint!("Failed to load SVG data from path: {}. Ignoring.", svg_path);
+            }
         }
     }
 }

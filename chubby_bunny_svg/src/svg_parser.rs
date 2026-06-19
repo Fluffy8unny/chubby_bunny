@@ -1,10 +1,11 @@
-use crate::meta::{parse_style_to_body_meta, BodyMeta};
+use crate::meta::{parse_style_to_body_meta, BodyMeta, MetaMap};
 use crate::settings::BodySettings;
 use crate::svg_constraints::{
     add_area_constraints, add_boundary_bending_constraints, add_boundary_distance_constraints,
     add_shear_constraints, attach_child_to_parent,
 };
-use chubby_bunny_core::{Body, BodyId, FloatingPointNumber, Particle, Transformation};
+use chubby_bunny_core::{Body, FloatingPointNumber, Particle, Transformation};
+
 use nalgebra::Vector2;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -141,8 +142,8 @@ fn bbox_union_recursive<T: FloatingPointNumber>(
 fn collect_instantiated_meta_recursive<T>(
     template: &Body<T>,
     instance: &Body<T>,
-    template_meta: &HashMap<BodyId, BodyMeta>,
-    instance_meta: &mut HashMap<BodyId, BodyMeta>,
+    template_meta: &MetaMap,
+    instance_meta: &mut MetaMap,
 ) {
     if let Some(meta) = template_meta.get(&template.id) {
         let mut copied_meta = meta.clone();
@@ -162,11 +163,11 @@ fn collect_instantiated_meta_recursive<T>(
 
 pub fn instantiate_svg_body<T: FloatingPointNumber>(
     template: &Body<T>,
-    template_meta: &HashMap<BodyId, BodyMeta>,
+    template_meta: &MetaMap,
     transformation: Transformation<T>,
-) -> (Body<T>, HashMap<BodyId, BodyMeta>) {
+) -> (Body<T>, MetaMap) {
     let mut instance = template.clone();
-    let mut instance_meta = HashMap::new();
+    let mut instance_meta = MetaMap::new();
 
     instance.transform(transformation);
     collect_instantiated_meta_recursive(template, &instance, template_meta, &mut instance_meta);
@@ -175,11 +176,11 @@ pub fn instantiate_svg_body<T: FloatingPointNumber>(
 
 pub fn instantiate_svg_bodies<T: FloatingPointNumber>(
     templates: &[Body<T>],
-    template_meta: &HashMap<BodyId, BodyMeta>,
+    template_meta: &MetaMap,
     transformation: Transformation<T>,
-) -> (Vec<Body<T>>, HashMap<BodyId, BodyMeta>) {
+) -> (Vec<Body<T>>, MetaMap) {
     let mut instances = Vec::with_capacity(templates.len());
-    let mut instance_meta = HashMap::new();
+    let mut instance_meta = MetaMap::new();
 
     for template in templates {
         let (instance, meta) = instantiate_svg_body(template, template_meta, transformation);
@@ -229,7 +230,7 @@ fn parse_nodes_recursive<T: FloatingPointNumber>(
     nodes: &[SvgNode],
     z_index: i32,
     anchor: Option<Vector2<T>>,
-    meta_map: &mut HashMap<BodyId, BodyMeta>,
+    meta_map: &mut MetaMap,
     settings: &BodySettings<T>,
 ) -> Vec<Body<T>> {
     let mut bodies = Vec::new();
@@ -262,7 +263,7 @@ fn parse_group_recursive<T: FloatingPointNumber>(
     group: &Group,
     z_index: i32,
     anchor: Option<Vector2<T>>,
-    meta_map: &mut HashMap<BodyId, BodyMeta>,
+    meta_map: &mut MetaMap,
     settings: &BodySettings<T>,
 ) -> Vec<Body<T>> {
     let (svg_paths, child_groups) = split_group_children(group);
@@ -354,14 +355,13 @@ fn normalized_template_transform<T: FloatingPointNumber>(bodies: &[Body<T>]) -> 
 pub fn load_svg<T: FloatingPointNumber>(
     xml: &str,
     settings: &BodySettings<T>,
-) -> (Vec<Body<T>>, HashMap<BodyId, BodyMeta>) {
-    let svg: Svg = quick_xml::de::from_str(xml)
-        .expect("Failed to parse SVG XML. Ensure the input is a valid SVG string.");
+) -> Result<(Vec<Body<T>>, MetaMap), Box<dyn std::error::Error>> {
+    let svg: Svg = quick_xml::de::from_str(xml)?;
     let mut template_meta = HashMap::new();
     let mut templates = parse_nodes_recursive(&svg.children, 0, None, &mut template_meta, settings);
     let normalization = normalized_template_transform(&templates);
     templates
         .iter_mut()
         .for_each(|template| template.transform(normalization));
-    (templates, template_meta)
+    Ok((templates, template_meta))
 }

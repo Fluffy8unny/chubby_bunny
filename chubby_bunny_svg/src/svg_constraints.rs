@@ -24,6 +24,9 @@ pub fn add_boundary_distance_constraints<T: FloatingPointNumber>(body: &mut Body
 }
 
 pub fn add_area_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffness: T) {
+    if body.particles.len() < 3 || stiffness <= T::zero() {
+        return;
+    }
     body.constraints
         .push(Box::new(AreaConstraint::new(&body.particles, stiffness)));
 }
@@ -34,10 +37,6 @@ pub fn add_shear_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffne
         return;
     }
 
-    // Two diagonal bands: n/3 (inner) and n/2 (cross-body).
-    // Bending handles local angles and area handles volume; these two
-    // bands provide medium and full cross-body bracing without
-    // over-constraining the solver.
     let mut seen_pairs: HashSet<(usize, usize)> = HashSet::new();
     for step in [n / 3, n / 2] {
         if step < 2 {
@@ -174,44 +173,50 @@ fn best_parent_per_child<T: FloatingPointNumber>(
     candidates
 }
 
+fn median_for_sorted<T: FloatingPointNumber>(values: &[AttachmentCandidate<T>]) -> T
+where
+    T: FloatingPointNumber,
+{
+    let len = values.len();
+    if len == 0 {
+        return T::zero();
+    }
+    if len % 2 == 1 {
+        values[len / 2].dist_sq
+    } else {
+        (values[len / 2 - 1].dist_sq + values[len / 2].dist_sq) / T::from(2.0)
+    }
+}
+
 fn prune_distance_outliers<T: FloatingPointNumber>(
     mut candidates: Vec<AttachmentCandidate<T>>,
     settings: &AttachmentSettings<T>,
 ) -> Vec<AttachmentCandidate<T>> {
     candidates.sort_by(|a, b| a.dist_sq.partial_cmp(&b.dist_sq).unwrap_or(Ordering::Equal));
-    let fallback = candidates.clone();
 
-    let len = candidates.len();
-    let median_distance_sq = if len.is_multiple_of(2) {
-        (candidates[len / 2 - 1].dist_sq + candidates[len / 2].dist_sq) / T::from(2.0)
-    } else {
-        candidates[len / 2].dist_sq
-    };
-
-    if candidates.len() > 4 {
-        let max_distance_factor_sq = settings.max_distance_factor * settings.max_distance_factor;
-        let max_distance_sq = median_distance_sq * max_distance_factor_sq;
-        candidates.retain(|c| c.dist_sq <= max_distance_sq);
+    if candidates.len() <= 4 {
+        return candidates;
     }
 
-    let min_kept = fallback.len().min(3);
-    for candidate in fallback {
-        if candidates.len() >= min_kept {
-            break;
-        }
-        if !candidates
-            .iter()
-            .any(|c| c.child_idx == candidate.child_idx)
-        {
-            candidates.push(candidate);
-        }
+    let original = candidates.clone();
+    let median_distance_sq = median_for_sorted(&original);
+
+    let max_distance_factor_sq = settings.max_distance_factor * settings.max_distance_factor;
+    let max_distance_sq = median_distance_sq * max_distance_factor_sq;
+
+    let (mut kept, pruned): (Vec<_>, Vec<_>) = original
+        .into_iter()
+        .partition(|candidate| candidate.dist_sq <= max_distance_sq);
+
+    if kept.len() < 3 {
+        kept.extend(pruned.into_iter().take(3 - kept.len()));
+        kept.sort_by(|a, b| a.dist_sq.partial_cmp(&b.dist_sq).unwrap_or(Ordering::Equal));
     }
 
-    candidates.sort_by(|a, b| a.dist_sq.partial_cmp(&b.dist_sq).unwrap_or(Ordering::Equal));
-    candidates
+    kept
 }
 
-fn expand_candidates_to_springs<T: FloatingPointNumber>(
+fn expand_candidates_to_supports<T: FloatingPointNumber>(
     candidates: &[AttachmentCandidate<T>],
     parent_len: usize,
     settings: &AttachmentSettings<T>,
@@ -219,14 +224,14 @@ fn expand_candidates_to_springs<T: FloatingPointNumber>(
     let mut parent_idxs = Vec::new();
     let mut child_idxs = Vec::new();
     let mut seen_pairs: HashSet<(usize, usize)> = HashSet::new();
-    let springs_per_child = settings.parent_springs_per_child_anchor.max(1);
+    let supports_per_child = settings.parent_springs_per_child_anchor.max(1);
 
     for candidate in candidates {
-        let mut support_parent_idxs = Vec::with_capacity(springs_per_child);
+        let mut support_parent_idxs = Vec::with_capacity(supports_per_child);
         if parent_len > 0 {
-            for i in 0..springs_per_child {
+            for i in 0..supports_per_child {
                 let idx =
-                    (candidate.parent_idx + (i * parent_len) / springs_per_child) % parent_len;
+                    (candidate.parent_idx + (i * parent_len) / supports_per_child) % parent_len;
                 support_parent_idxs.push(idx);
             }
         }
@@ -266,7 +271,7 @@ pub fn nearest_parent_attachment_points<T: FloatingPointNumber>(
     }
 
     let candidates = prune_distance_outliers(candidates, settings);
-    expand_candidates_to_springs(&candidates, parent.particles.len(), settings)
+    expand_candidates_to_supports(&candidates, parent.particles.len(), settings)
 }
 
 pub fn attach_child_to_parent<T: FloatingPointNumber>(

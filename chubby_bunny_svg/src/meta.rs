@@ -1,5 +1,6 @@
 use chubby_bunny_core::BodyId;
-use svgtypes::{Paint, PaintFallback, Length};
+use svgtypes::{Length, Paint, PaintFallback};
+pub type MetaMap = std::collections::HashMap<BodyId, BodyMeta>;
 
 #[derive(Debug, Clone, Copy, serde::Serialize)]
 pub struct Color {
@@ -12,14 +13,24 @@ pub struct Color {
 impl Color {
     pub fn from_paint(value: &str) -> Option<Self> {
         match Paint::from_str(value).ok()? {
-            Paint::None => Some(Self { r: 0, g: 0, b: 0, a: 0.0 }),
+            Paint::None => Some(Self {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 0.0,
+            }),
             Paint::Color(parsed) => Some(Self {
                 r: parsed.red,
                 g: parsed.green,
                 b: parsed.blue,
                 a: (parsed.alpha as f32 / 255.0).clamp(0.0, 1.0),
             }),
-            Paint::FuncIRI(_, Some(PaintFallback::None)) => Some(Self { r: 0, g: 0, b: 0, a: 0.0 }),
+            Paint::FuncIRI(_, Some(PaintFallback::None)) => Some(Self {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 0.0,
+            }),
             Paint::FuncIRI(_, Some(PaintFallback::Color(parsed))) => Some(Self {
                 r: parsed.red,
                 g: parsed.green,
