@@ -1,77 +1,14 @@
-use crate::meta::{BodyMeta, parse_style_to_body_meta};
+use crate::meta::{parse_style_to_body_meta, BodyMeta};
+use crate::settings::BodySettings;
 use crate::svg_constraints::{
-    add_area_constraints, add_boundary_bending_constraints, add_boundary_distance_constraints, add_shear_constraints, attach_child_to_parent,
+    add_area_constraints, add_boundary_bending_constraints, add_boundary_distance_constraints,
+    add_shear_constraints, attach_child_to_parent,
 };
-use chubby_bunny_core::{ Body, BodyId,
-    FloatingPointNumber, Particle, Transformation,
-};
+use chubby_bunny_core::{Body, BodyId, FloatingPointNumber, Particle, Transformation};
 use nalgebra::Vector2;
 use serde::Deserialize;
 use std::collections::HashMap;
 use svgtypes::{PathParser, PathSegment};
-
-pub struct ParticleSettings<T> {
-    pub mass: T,
-    pub friction: T,
-    pub is_static: bool,
-}
-pub struct ConstraintSettings<T> {
-    pub stiffness_distance: T,
-    pub stiffness_shear: T,
-    pub stiffness_bending: T,
-    pub stiffness_area: T,
-    pub attachment_stiffness: T,
-}
-pub struct AttachmentSettings<T> {
-    pub child_sample_stride: usize,
-    pub max_total_attachments: usize,
-    pub max_distance_factor: T,
-    pub parent_springs_per_child_anchor: usize,
-}
-
-pub struct BodySettings<T> {
-    pub particle_settings: ParticleSettings<T>,
-    pub constraint_settings: ConstraintSettings<T>,
-    pub attachment_settings: AttachmentSettings<T>,
-}
-
-impl<T: FloatingPointNumber> BodySettings<T> {
-    pub fn from_values(
-        mass: T,
-        friction: T,
-        is_static: bool,
-        stiffness_distance: T,
-        stiffness_shear: T,
-        stiffness_bending: T,
-        stiffness_area: T,
-        attachment_stiffness: T,
-        child_sample_stride: usize,
-        max_total_attachments: usize,
-        max_distance_factor: T,
-        parent_springs_per_child_anchor: usize,
-    ) -> Self {
-        Self {
-            particle_settings: ParticleSettings {
-                mass,
-                friction,
-                is_static,
-            },
-            constraint_settings: ConstraintSettings {
-                stiffness_distance,
-                stiffness_shear,
-                stiffness_bending,
-                stiffness_area,
-                attachment_stiffness,
-            },
-            attachment_settings: AttachmentSettings {
-                child_sample_stride,
-                max_total_attachments,
-                max_distance_factor,
-                parent_springs_per_child_anchor,
-            },
-        }
-    }
-}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename = "svg")]
@@ -102,7 +39,6 @@ struct SvgPath {
     #[serde(rename = "@style")]
     pub style: Option<String>,
 }
-
 
 fn parse_simple_polygon_path<T: FloatingPointNumber>(d: &str) -> Vec<Vector2<T>> {
     fn to_t<T: FloatingPointNumber>(v: f64) -> T {
@@ -202,7 +138,6 @@ fn bbox_union_recursive<T: FloatingPointNumber>(
     }
 }
 
-
 fn collect_instantiated_meta_recursive<T>(
     template: &Body<T>,
     instance: &Body<T>,
@@ -232,7 +167,7 @@ pub fn instantiate_svg_body<T: FloatingPointNumber>(
 ) -> (Body<T>, HashMap<BodyId, BodyMeta>) {
     let mut instance = template.clone();
     let mut instance_meta = HashMap::new();
-    
+
     instance.transform(transformation);
     collect_instantiated_meta_recursive(template, &instance, template_meta, &mut instance_meta);
     (instance, instance_meta)
@@ -352,10 +287,16 @@ fn parse_group_recursive<T: FloatingPointNumber>(
             let parsed_children = child_groups
                 .iter()
                 .flat_map(|child_group| {
-                    parse_group_recursive(child_group, z_index + 1, Some(body_anchor), meta_map, settings)
+                    parse_group_recursive(
+                        child_group,
+                        z_index + 1,
+                        Some(body_anchor),
+                        meta_map,
+                        settings,
+                    )
                 })
                 .collect::<Vec<_>>();
- 
+
             for child in parsed_children {
                 attach_child_to_parent(&mut body, &child, &settings);
                 body.children.push(child);
@@ -419,6 +360,8 @@ pub fn load_svg<T: FloatingPointNumber>(
     let mut template_meta = HashMap::new();
     let mut templates = parse_nodes_recursive(&svg.children, 0, None, &mut template_meta, settings);
     let normalization = normalized_template_transform(&templates);
-    templates.iter_mut().for_each(|template| template.transform(normalization));
+    templates
+        .iter_mut()
+        .for_each(|template| template.transform(normalization));
     (templates, template_meta)
 }

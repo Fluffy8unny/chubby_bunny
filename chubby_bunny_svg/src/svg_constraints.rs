@@ -1,7 +1,7 @@
-use crate::BodySettings;
-use crate::svg_parser::AttachmentSettings;
+use crate::{AttachmentSettings, BodySettings};
 use chubby_bunny_core::{
-    AreaConstraint, AttachmentConstraint, BendingConstraint, Body, DistanceConstraint, ExtrinsicConstraintType, FloatingPointNumber, eps
+    eps, AreaConstraint, AttachmentConstraint, BendingConstraint, Body, DistanceConstraint,
+    ExtrinsicConstraintType, FloatingPointNumber,
 };
 use nalgebra::Vector2;
 use std::cmp::Ordering;
@@ -274,9 +274,11 @@ pub fn attach_child_to_parent<T: FloatingPointNumber>(
     child: &Body<T>,
     settings: &BodySettings<T>,
 ) {
-    let (parent_idxs, child_idxs) = nearest_parent_attachment_points(parent, child, &settings.attachment_settings);
+    let (parent_idxs, child_idxs) =
+        nearest_parent_attachment_points(parent, child, &settings.attachment_settings);
     if !parent_idxs.is_empty() {
-        parent.children_constraints
+        parent
+            .children_constraints
             .push(ExtrinsicConstraintType::Local(Box::new(
                 AttachmentConstraint::new(
                     child.id,
