@@ -1,9 +1,8 @@
 use crate::meta::{BodyMeta, parse_style_to_body_meta};
 use crate::svg_constraints::{
-    add_area_constraints, add_boundary_bending_constraints, add_boundary_distance_constraints, add_shear_constraints, nearest_parent_attachment_points
+    add_area_constraints, add_boundary_bending_constraints, add_boundary_distance_constraints, add_shear_constraints, attach_child_to_parent,
 };
-use chubby_bunny_core::{
-    AttachmentConstraint, Body, BodyId, ExtrinsicConstraintType,
+use chubby_bunny_core::{ Body, BodyId,
     FloatingPointNumber, Particle, Transformation,
 };
 use nalgebra::Vector2;
@@ -331,10 +330,10 @@ fn parse_group_recursive<T: FloatingPointNumber>(
     meta_map: &mut HashMap<BodyId, BodyMeta>,
     settings: &BodySettings<T>,
 ) -> Vec<Body<T>> {
-    let (direct_paths, child_groups) = split_group_children(group);
+    let (svg_paths, child_groups) = split_group_children(group);
 
-    // If a group has no direct path, bubble child group bodies up.
-    if direct_paths.is_empty() {
+    // If a group has no path, bubble child group bodies up.
+    if svg_paths.is_empty() {
         return child_groups
             .into_iter()
             .flat_map(|child_group| {
@@ -344,46 +343,26 @@ fn parse_group_recursive<T: FloatingPointNumber>(
     }
 
     let mut bodies = Vec::new();
-    for path in direct_paths {
+    for path in svg_paths {
         if let Some((mut body, meta, body_anchor)) =
             parse_svg_path_to_body(path, z_index, anchor, settings)
         {
             meta_map.insert(body.id, meta);
 
-            let mut parsed_children = Vec::new();
-            for child_group in &child_groups {
-                parsed_children.extend(parse_group_recursive(
-                    child_group,
-                    z_index + 1,
-                    Some(body_anchor),
-                    meta_map,
-                    settings,
-                ));
-            }
-
+            let parsed_children = child_groups
+                .iter()
+                .flat_map(|child_group| {
+                    parse_group_recursive(child_group, z_index + 1, Some(body_anchor), meta_map, settings)
+                })
+                .collect::<Vec<_>>();
+ 
             for child in parsed_children {
-                let (parent_idxs, child_idxs) =
-                    nearest_parent_attachment_points(&body, &child, &settings.attachment_settings);
-                if !parent_idxs.is_empty() {
-                    body.children_constraints
-                        .push(ExtrinsicConstraintType::Local(Box::new(
-                            AttachmentConstraint::new(
-                                child.id,
-                                &body,
-                                &child,
-                                parent_idxs,
-                                child_idxs,
-                                settings.constraint_settings.attachment_stiffness,
-                            ),
-                        )));
-                }
+                attach_child_to_parent(&mut body, &child, &settings);
                 body.children.push(child);
             }
-
             bodies.push(body);
         }
     }
-
     bodies
 }
 

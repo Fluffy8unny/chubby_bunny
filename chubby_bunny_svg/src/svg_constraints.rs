@@ -1,6 +1,7 @@
+use crate::BodySettings;
 use crate::svg_parser::AttachmentSettings;
 use chubby_bunny_core::{
-    eps, AreaConstraint, BendingConstraint, Body, DistanceConstraint, FloatingPointNumber,
+    AreaConstraint, AttachmentConstraint, BendingConstraint, Body, DistanceConstraint, ExtrinsicConstraintType, FloatingPointNumber, eps
 };
 use nalgebra::Vector2;
 use std::cmp::Ordering;
@@ -266,4 +267,25 @@ pub fn nearest_parent_attachment_points<T: FloatingPointNumber>(
 
     let candidates = prune_distance_outliers(candidates, settings);
     expand_candidates_to_springs(&candidates, parent.particles.len(), settings)
+}
+
+pub fn attach_child_to_parent<T: FloatingPointNumber>(
+    parent: &mut Body<T>,
+    child: &Body<T>,
+    settings: &BodySettings<T>,
+) {
+    let (parent_idxs, child_idxs) = nearest_parent_attachment_points(parent, child, &settings.attachment_settings);
+    if !parent_idxs.is_empty() {
+        parent.children_constraints
+            .push(ExtrinsicConstraintType::Local(Box::new(
+                AttachmentConstraint::new(
+                    child.id,
+                    &parent,
+                    &child,
+                    parent_idxs,
+                    child_idxs,
+                    settings.constraint_settings.attachment_stiffness,
+                ),
+            )));
+    }
 }
