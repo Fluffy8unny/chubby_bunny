@@ -11,6 +11,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use svgtypes::{PathParser, PathSegment};
 
+pub type SVGLoadResult<T> = Result<(Vec<Body<T>>, MetaMap), Box<dyn std::error::Error>>;
 #[derive(Debug, Deserialize)]
 #[serde(rename = "svg")]
 struct Svg {
@@ -190,7 +191,7 @@ pub fn instantiate_svg_bodies<T: FloatingPointNumber>(
     (instances, instance_meta)
 }
 
-fn parse_svg_path_to_body<T: FloatingPointNumber>(
+fn svg_to_body_instance<T: FloatingPointNumber>(
     path: &SvgPath,
     z_index: i32,
     anchor: Option<Vector2<T>>,
@@ -238,7 +239,7 @@ fn parse_nodes_recursive<T: FloatingPointNumber>(
         match node {
             SvgNode::Path(path) => {
                 if let Some((body, meta, _anchor)) =
-                    parse_svg_path_to_body(path, z_index, anchor, settings)
+                    svg_to_body_instance(path, z_index, anchor, settings)
                 {
                     meta_map.insert(body.id, meta);
                     bodies.push(body);
@@ -266,7 +267,7 @@ fn parse_group_recursive<T: FloatingPointNumber>(
     meta_map: &mut MetaMap,
     settings: &BodySettings<T>,
 ) -> Vec<Body<T>> {
-    let (svg_paths, child_groups) = split_group_children(group);
+    let (svg_paths, child_groups) = split_paths_and_groups(group);
 
     // If a group has no path, bubble child group bodies up.
     if svg_paths.is_empty() {
@@ -281,7 +282,7 @@ fn parse_group_recursive<T: FloatingPointNumber>(
     let mut bodies = Vec::new();
     for path in svg_paths {
         if let Some((mut body, meta, body_anchor)) =
-            parse_svg_path_to_body(path, z_index, anchor, settings)
+            svg_to_body_instance(path, z_index, anchor, settings)
         {
             meta_map.insert(body.id, meta);
 
@@ -299,7 +300,7 @@ fn parse_group_recursive<T: FloatingPointNumber>(
                 .collect::<Vec<_>>();
 
             for child in parsed_children {
-                attach_child_to_parent(&mut body, &child, &settings);
+                attach_child_to_parent(&mut body, &child, settings);
                 body.children.push(child);
             }
             bodies.push(body);
@@ -308,7 +309,7 @@ fn parse_group_recursive<T: FloatingPointNumber>(
     bodies
 }
 
-fn split_group_children(group: &Group) -> (Vec<&SvgPath>, Vec<&Group>) {
+fn split_paths_and_groups(group: &Group) -> (Vec<&SvgPath>, Vec<&Group>) {
     let mut direct_paths = Vec::new();
     let mut child_groups = Vec::new();
 
@@ -352,10 +353,7 @@ fn normalized_template_transform<T: FloatingPointNumber>(bodies: &[Body<T>]) -> 
     }
 }
 
-pub fn load_svg<T: FloatingPointNumber>(
-    xml: &str,
-    settings: &BodySettings<T>,
-) -> Result<(Vec<Body<T>>, MetaMap), Box<dyn std::error::Error>> {
+pub fn load_svg<T: FloatingPointNumber>(xml: &str, settings: &BodySettings<T>) -> SVGLoadResult<T> {
     let svg: Svg = quick_xml::de::from_str(xml)?;
     let mut template_meta = HashMap::new();
     let mut templates = parse_nodes_recursive(&svg.children, 0, None, &mut template_meta, settings);

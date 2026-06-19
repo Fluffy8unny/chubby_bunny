@@ -1,8 +1,7 @@
-use crate::constraint_common::{get_normal,get_distance_correction_vector};
-use crate::{Body, BodyId,eps, FloatingPointNumber, Particle, SolverSettings, Transformation};
+use crate::constraint_common::{get_distance_correction_vector, get_normal};
+use crate::{eps, Body, BodyId, FloatingPointNumber, Particle, SolverSettings, Transformation};
 use dyn_clone::DynClone;
 use std::collections::HashMap;
-
 
 #[derive(Clone)]
 pub enum ExtrinsicConstraintType<T> {
@@ -49,7 +48,6 @@ impl<T: FloatingPointNumber> GlobalExtrinsicConstraint<T> for WallConstraint<T> 
         _solver_settings: &SolverSettings,
     ) {
         for body in bodies.iter_mut() {
-            //calculate line based on parent points
             let line_origin = parent_particles[self.parent_point_idx_origin].position;
             let line_end = parent_particles[self.parent_point_idx_end].position;
 
@@ -62,7 +60,7 @@ impl<T: FloatingPointNumber> GlobalExtrinsicConstraint<T> for WallConstraint<T> 
                         particle.apply_position_correction_to_particle(&correction_vector);
                     }
                 }
-            }                    
+            }
         }
     }
 }

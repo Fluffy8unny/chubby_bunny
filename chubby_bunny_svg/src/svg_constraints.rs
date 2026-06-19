@@ -173,10 +173,7 @@ fn best_parent_per_child<T: FloatingPointNumber>(
     candidates
 }
 
-fn median_for_sorted<T: FloatingPointNumber>(values: &[AttachmentCandidate<T>]) -> T
-where
-    T: FloatingPointNumber,
-{
+fn median_for_sorted<T: FloatingPointNumber>(values: &[AttachmentCandidate<T>]) -> T {
     let len = values.len();
     if len == 0 {
         return T::zero();
@@ -193,7 +190,6 @@ fn prune_distance_outliers<T: FloatingPointNumber>(
     settings: &AttachmentSettings<T>,
 ) -> Vec<AttachmentCandidate<T>> {
     candidates.sort_by(|a, b| a.dist_sq.partial_cmp(&b.dist_sq).unwrap_or(Ordering::Equal));
-
     if candidates.len() <= 4 {
         return candidates;
     }
@@ -287,8 +283,8 @@ pub fn attach_child_to_parent<T: FloatingPointNumber>(
             .push(ExtrinsicConstraintType::Local(Box::new(
                 AttachmentConstraint::new(
                     child.id,
-                    &parent,
-                    &child,
+                    parent,
+                    child,
                     parent_idxs,
                     child_idxs,
                     settings.constraint_settings.attachment_stiffness,
