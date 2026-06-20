@@ -135,6 +135,47 @@ impl PlaygroundGame {
 
         scene_bodies
     }
+    fn handle_interaction(
+        &mut self,
+        mut incoming_events: VecDeque<Event>,
+        dt_ms: f32,
+    ) -> Vec<OutgoingEvent> {
+        let mut outgoing_events = Vec::new();
+        let mut movements = Vec::new();
+        while let Some(event) = incoming_events.pop_front() {
+            match event.event_type {
+                MouseEventType::Down => {
+                    if event.button == MouseButton::Left {
+                        outgoing_events.extend(
+                            self.handle_selection(
+                                event.state.mouse_position,
+                                event.state.time_stamp,
+                            ),
+                        );
+                    }
+                }
+                MouseEventType::Up => {
+                    if event.button == MouseButton::Left {
+                        outgoing_events.extend(self.handle_deselection(event.state.time_stamp));
+                    }
+                }
+                MouseEventType::Move => {
+                    if let Some(last_state) = event.last_state {
+                        let displacement = event.state.mouse_position - last_state.mouse_position;
+                        let time_delta = event.state.time_stamp - last_state.time_stamp;
+                        movements.push(displacement / time_delta);
+                        //self.handle_drag(event.button, displacement, dt_ms);
+                    }
+                }
+            }
+        }
+        if movements.len() > 0 {
+            let average_velocity =
+                movements.iter().fold(Vector2::zeros(), |acc, &d| acc + d) / movements.len() as f32;
+            self.handle_drag(MouseButton::Left, average_velocity, dt_ms);
+        }
+        outgoing_events
+    }
 
     fn handle_selection(&mut self, position: Vector2<f32>, time_stamp: f32) -> Vec<OutgoingEvent> {
         let mut outgoing_event_queue = Vec::new();
@@ -188,21 +229,17 @@ impl PlaygroundGame {
         outgoing_event_queue
     }
 
-    fn handle_drag(
-        &mut self,
-        _button: MouseButton,
-        mouse_displacement: Vector2<f32>,
-        _time_delta: f32,
-    ) {
+    fn handle_drag(&mut self, _button: MouseButton, mouse_velocity: Vector2<f32>, time_delta: f32) {
         for container in self.bodies.iter_mut() {
             for selected_body in self.current_selection.keys() {
                 if let Some(child) = container.find_child_by_id_mut(*selected_body) {
-                    child.set_uniform_movement(mouse_displacement, Vector2::zeros());
+                    child.set_uniform_movement(mouse_velocity * time_delta, Vector2::zeros());
                 }
             }
         }
     }
 }
+
 impl Game for PlaygroundGame {
     fn init(&mut self, width: usize, height: usize) {
         self.bodies.clear();
@@ -243,40 +280,12 @@ impl Game for PlaygroundGame {
         self.init(width as usize, height as usize);
     }
 
-    fn update(&mut self, mut incoming_events: VecDeque<Event>, dt_ms: f32) -> Vec<OutgoingEvent> {
-        let mut outgoing_events = Vec::new();
-        while let Some(event) = incoming_events.pop_front() {
-            match event.event_type {
-                MouseEventType::Down => {
-                    if event.button == MouseButton::Left {
-                        outgoing_events.extend(
-                            self.handle_selection(
-                                event.state.mouse_position,
-                                event.state.time_stamp,
-                            ),
-                        );
-                    }
-                }
-                MouseEventType::Up => {
-                    if event.button == MouseButton::Left {
-                        outgoing_events.extend(self.handle_deselection(event.state.time_stamp));
-                    }
-                }
-                MouseEventType::Move => {
-                    if let Some(last_state) = event.last_state {
-                        let displacement = event.state.mouse_position - last_state.mouse_position;
-                        web_sys::console::log_1(
-                            &format!("Mouse displacement: {:?}", displacement).into(),
-                        );
-                        self.handle_drag(event.button, displacement, dt_ms);
-                    }
-                }
-            }
-        }
+    fn update(&mut self, incoming_events: VecDeque<Event>, dt_ms: f32) -> Vec<OutgoingEvent> {
+        let outgoing_events = self.handle_interaction(incoming_events, dt_ms);
         let dt: f32 = dt_ms / 1000.0;
         let settings = SolverSettings {
             reference_dt: 1.0 / 60.0,
-            constraint_iterations: 8,
+            constraint_iterations: 5,
         };
         let capped_dt = dt.min(2.0 * settings.reference_dt);
         if let Some((body, meta)) = self.spawner.update(capped_dt) {
