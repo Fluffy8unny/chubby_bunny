@@ -2,7 +2,8 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-cd "$SCRIPT_DIR"
+REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
+cd "$REPO_ROOT"
 
 if ! command -v wasm-bindgen >/dev/null 2>&1; then
   cargo install wasm-bindgen-cli
@@ -14,11 +15,11 @@ if [ -z "$WASM_BINDGEN_BIN" ]; then
 fi
 
 rustup target add wasm32-unknown-unknown
-cargo build --target wasm32-unknown-unknown --release
-"$WASM_BINDGEN_BIN" target/wasm32-unknown-unknown/release/chubby_bunny_playground.wasm \
-  --out-dir pkg \
+
+cargo build -p constraint_example --target wasm32-unknown-unknown --release
+
+"$WASM_BINDGEN_BIN" target/wasm32-unknown-unknown/release/constraint_example.wasm \
+  --out-dir examples/contraint_example/pkg \
   --target web
 
-sh examples/minimal_box/build.sh
-sh examples/contraint_example/build.sh
-python3 -m http.server 8000
+printf '%s\n' "Built examples/contraint_example/pkg/constraint_example.js"

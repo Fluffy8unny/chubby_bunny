@@ -1,6 +1,6 @@
 use chubby_bunny_core::particle::Particle;
-use chubby_bunny_core::FloatingPointNumber;
 use chubby_bunny_core::{AreaConstraint, Body, DistanceConstraint};
+use chubby_bunny_core::{BendingConstraint, FloatingPointNumber};
 use nalgebra::Vector2;
 
 pub fn create_polygon<T: FloatingPointNumber>(
@@ -10,6 +10,7 @@ pub fn create_polygon<T: FloatingPointNumber>(
     stiffness_distance: T,
     stiffness_shear: T,
     stiffness_area: T,
+    stiffness_bending: T,
     friction: T,
 ) -> Body<T> {
     let mut polygon = Body::empty();
@@ -40,6 +41,14 @@ pub fn create_polygon<T: FloatingPointNumber>(
             (i + (num_sides / 2)) % num_sides,
             &polygon.particles,
             stiffness_shear,
+        )));
+    }
+
+    for i in 0..num_sides {
+        polygon.constraints.push(Box::new(BendingConstraint::new(
+            i,
+            &polygon.particles,
+            stiffness_bending,
         )));
     }
 

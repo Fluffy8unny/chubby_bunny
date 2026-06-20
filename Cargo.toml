@@ -6,6 +6,7 @@ members = [
     "chubby_bunny_playground",
     "chubby_bunny_bindgen",
     "examples/minimal_box",
+    "examples/contraint_example",
 ]
 
 resolver = "2"

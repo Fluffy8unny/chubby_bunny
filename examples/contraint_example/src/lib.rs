@@ -33,10 +33,10 @@ impl MinimalGame {
             ));
         };
 
-        create_particle_helper(0.1 * width, height as f32 * 0.8);
-        create_particle_helper(0.9 * width as f32, height as f32 * 0.9);
-        create_particle_helper(0.9 * width as f32, 0.1 * height as f32);
-        create_particle_helper(0.1 * width, 0.1 * height as f32);
+        create_particle_helper(0.0, height as f32 * 0.9);
+        create_particle_helper(width as f32, height as f32 * 0.9);
+        create_particle_helper(width as f32, 0.1 * height as f32);
+        create_particle_helper(0.0, 0.1 * height as f32);
         for i in 0..4 {
             container_body
                 .children_constraints
@@ -46,9 +46,63 @@ impl MinimalGame {
                     stiffness: 1.0,
                 })));
         }
-
-        let poly = create_polygon(center, width / 12.0, 12, 0.02, 0.02, 0.02, 0.02, 0.0);
-        container_body.children.push(poly);
+        let distance_radius = width / 10.0;
+        let poly_radius = distance_radius * 0.8;
+        let poly_distance_only = create_polygon(
+            Vector2::new(distance_radius, center.y),
+            poly_radius,
+            12,
+            0.5,
+            0.00,
+            0.00,
+            0.0,
+            0.002,
+        );
+        let poly_distance_shear_only = create_polygon(
+            Vector2::new(distance_radius * 3.0, center.y),
+            poly_radius,
+            12,
+            0.5,
+            0.2,
+            0.00,
+            0.0,
+            0.002,
+        );
+        let poly_distance_area = create_polygon(
+            Vector2::new(distance_radius * 5.0, center.y),
+            poly_radius,
+            12,
+            0.5,
+            0.00,
+            0.5,
+            0.0,
+            0.002,
+        );
+        let poly_bending = create_polygon(
+            Vector2::new(distance_radius * 7.0, center.y),
+            poly_radius,
+            12,
+            0.5,
+            0.00,
+            0.0,
+            0.3,
+            0.002,
+        );
+        let poly_stiff = create_polygon(
+            Vector2::new(distance_radius * 9.0, center.y),
+            poly_radius,
+            12,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.002,
+        );
+        container_body.children.push(poly_distance_only);
+        container_body.children.push(poly_distance_shear_only);
+        container_body.children.push(poly_distance_area);
+        container_body.children.push(poly_bending);
+        container_body.children.push(poly_stiff);
         container_body
     }
 }
