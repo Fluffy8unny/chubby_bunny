@@ -343,6 +343,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "88904434abc2901f197fe8cc55f0445e7ded921dba5911dad2e2b39b48e663c4"
 
 [[package]]
+name = "minimal_box"
+version = "0.1.0"
+dependencies = [
+ "chubby_bunny_bindgen",
+ "chubby_bunny_canvas_renderer",
+ "chubby_bunny_core",
+ "chubby_bunny_svg",
+ "nalgebra",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "nalgebra"
 version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
