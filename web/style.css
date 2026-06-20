@@ -116,7 +116,7 @@ html, body {
   width: calc(33% + 120px);
   height: 100%;
   z-index: 0;
-  background-image: url("../assets/clouds_background.svg");
+  background-image: url("./assets/clouds_background.svg");
   background-repeat: no-repeat;
   background-size: contain;
   background-position: bottom left;
