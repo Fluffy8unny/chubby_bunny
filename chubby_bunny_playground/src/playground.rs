@@ -1,6 +1,8 @@
 use crate::game_loop::{Game, GameLoop};
 use crate::input::{Event, MouseButton, MouseEventType};
-use crate::js_types::{default_meta_for_container, EventType, OutgoingEvent};
+use crate::js_types::{
+    default_meta, default_meta_for_container, selected_meta, EventType, OutgoingEvent,
+};
 use crate::spawner::BunnySpawner;
 use chubby_bunny_bindgen::chubby_bunny_bindgen;
 use chubby_bunny_core::{
@@ -43,7 +45,7 @@ fn create_container(width: usize, height: usize, max_scale: f32) -> Body {
 struct PlaygroundGame {
     bodies: Vec<Body>,
     meta_data: HashMap<BodyId, BodyMeta>,
-    current_selection: Vec<BodyId>,
+    current_selection: HashMap<BodyId, BodyMeta>,
     spawner: BunnySpawner<f32>,
     interactive_bodies: HashMap<BodyId, String>,
     gravity: Vector2<f32>,
@@ -53,7 +55,7 @@ impl PlaygroundGame {
         PlaygroundGame {
             bodies: Vec::new(),
             meta_data: HashMap::new(),
-            current_selection: Vec::new(),
+            current_selection: HashMap::new(),
             spawner: BunnySpawner::new(1000.0, 50, 1200.0, 150.0, 250.0),
             interactive_bodies: HashMap::new(),
             gravity: Vector2::new(0.0, 250.0),
@@ -139,8 +141,16 @@ impl PlaygroundGame {
         for container in self.bodies.iter_mut() {
             for body in container.children.iter_mut() {
                 if body.point_in_polygon(position) {
-                    self.current_selection.push(body.id);
+                    let selected_meta_data = self
+                        .meta_data
+                        .remove(&body.id)
+                        .unwrap_or_else(|| default_meta(body.id, 0));
+                    self.meta_data
+                        .insert(body.id, selected_meta(body.id, selected_meta_data.z_index));
+                    self.current_selection.insert(body.id, selected_meta_data);
+
                     body.set_pinned(true);
+
                     if let Some(name) = self.interactive_bodies.get(&body.id) {
                         outgoing_event_queue.push(OutgoingEvent {
                             event_type: EventType::Selection,
@@ -157,13 +167,15 @@ impl PlaygroundGame {
 
     fn handle_deselection(&mut self, time_stamp: f32) -> Vec<OutgoingEvent> {
         let mut outgoing_event_queue = Vec::new();
-        while let Some(selected_body) = self.current_selection.pop() {
+        for (selected_body, selected_meta_data) in self.current_selection.drain() {
             for container in self.bodies.iter_mut() {
                 if let Some(child) = container.find_child_by_id_mut(selected_body) {
                     child.set_pinned(false);
                 }
             }
-            //todo add velocity to the body based on the average velocity of the mouse during the drag
+
+            self.meta_data.insert(selected_body, selected_meta_data);
+
             if let Some(name) = self.interactive_bodies.get(&selected_body) {
                 outgoing_event_queue.push(OutgoingEvent {
                     event_type: EventType::Deselection,
@@ -183,7 +195,7 @@ impl PlaygroundGame {
         _time_delta: f32,
     ) {
         for container in self.bodies.iter_mut() {
-            for selected_body in &self.current_selection {
+            for selected_body in self.current_selection.keys() {
                 if let Some(child) = container.find_child_by_id_mut(*selected_body) {
                     child.set_uniform_movement(mouse_displacement, Vector2::zeros());
                 }
@@ -286,10 +298,6 @@ impl Game for PlaygroundGame {
 
     fn meta_data_to_render(&self) -> &HashMap<BodyId, BodyMeta> {
         &self.meta_data
-    }
-
-    fn current_selection_to_render(&self) -> &[BodyId] {
-        &self.current_selection
     }
 }
 

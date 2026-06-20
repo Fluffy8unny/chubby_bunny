@@ -18,7 +18,6 @@ pub trait Game {
     fn update(&mut self, incoming_events: VecDeque<Event>, dt_ms: f32) -> Vec<OutgoingEvent>;
     fn bodies_to_render(&self) -> &[Body];
     fn meta_data_to_render(&self) -> &HashMap<BodyId, BodyMeta>;
-    fn current_selection_to_render(&self) -> &[BodyId];
 }
 
 impl<G: Game> GameLoop<G> {
@@ -34,7 +33,6 @@ impl<G: Game> GameLoop<G> {
         self.polygon_arrays = bodies_to_polygon_arrays(
             self.game_impl.bodies_to_render().iter(),
             self.game_impl.meta_data_to_render(),
-            self.game_impl.current_selection_to_render(),
         );
         serde_wasm_bindgen::to_value(&outgoing_events)
             .map_err(|e| JsValue::from_str(&e.to_string()))

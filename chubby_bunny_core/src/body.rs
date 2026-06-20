@@ -101,7 +101,7 @@ impl<T: FloatingPointNumber> Body<T> {
             .fold(Vector2::zeros(), |acc, p| acc + p.position)
             / n
     }
-    
+
     pub fn set_uniform_movement(&mut self, offset_now: Vector2<T>, offset_last_frame: Vector2<T>) {
         for particle in self.particles.iter_mut() {
             particle.pre_integration_position = particle.position + offset_last_frame;
@@ -131,8 +131,9 @@ impl<T: FloatingPointNumber> Body<T> {
         }
 
         let mut inside = false;
-        for (&Particle{ position: a,.. }, &Particle{ position: b,.. }) in self.particles.iter().circular_tuple_windows() {
-
+        for (&Particle { position: a, .. }, &Particle { position: b, .. }) in
+            self.particles.iter().circular_tuple_windows()
+        {
             let y_intersection = (a.y > point.y) != (b.y > point.y);
             if !y_intersection {
                 continue;
@@ -255,7 +256,7 @@ impl<T: FloatingPointNumber> Body<T> {
         }
 
         if let Some(collision_constraint) = &self.collision_constraint {
-            for (a_idx, b_idx) in (0..self.children.len()).tuple_combinations() {
+            for [a_idx, b_idx] in (0..self.children.len()).array_combinations() {
                 let (left, right) = self.children.split_at_mut(b_idx);
                 let child_a = &mut left[a_idx];
                 let child_b = &mut right[0];
@@ -327,5 +328,4 @@ impl<T> Body<T> {
             child.set_pinned(pinned);
         }
     }
-
 }
