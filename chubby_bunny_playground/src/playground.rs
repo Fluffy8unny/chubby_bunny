@@ -1,9 +1,8 @@
-use crate::input::{InputState, MouseButton, MouseEventType};
-use crate::js_types::{
-    bodies_to_polygon_arrays, default_meta_for_container, EventType, OutgoingEvent, PolygonArray,
-};
+use crate::game_loop::{Game, GameLoop};
+use crate::input::{Event, MouseButton, MouseEventType};
+use crate::js_types::{default_meta_for_container, EventType, OutgoingEvent};
 use crate::spawner::BunnySpawner;
-
+use chubby_bunny_bindgen::chubby_bunny_bindgen;
 use chubby_bunny_core::{
     Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, Particle, SolverSettings,
     Transformation, WallConstraint,
@@ -11,8 +10,7 @@ use chubby_bunny_core::{
 use chubby_bunny_svg::{load_svg, BodyMeta, BodySettings};
 
 use nalgebra::Vector2;
-use std::collections::HashMap;
-use wasm_bindgen::prelude::*;
+use std::collections::{HashMap, VecDeque};
 
 fn create_container(width: usize, height: usize, max_scale: f32) -> Body {
     let mut container_body = Body::empty();
@@ -42,27 +40,20 @@ fn create_container(width: usize, height: usize, max_scale: f32) -> Body {
     container_body
 }
 
-#[wasm_bindgen]
-pub struct Playground {
+struct PlaygroundGame {
     bodies: Vec<Body>,
-    polygon_arrays: Vec<PolygonArray>,
     meta_data: HashMap<BodyId, BodyMeta>,
-    user_input: InputState,
-    current_selected_body: Vec<BodyId>,
+    current_selection: Vec<BodyId>,
     spawner: BunnySpawner<f32>,
     interactive_bodies: HashMap<BodyId, String>,
     gravity: Vector2<f32>,
 }
-#[wasm_bindgen]
-impl Playground {
-    #[wasm_bindgen(constructor)]
-    pub fn new() -> Playground {
-        Playground {
+impl PlaygroundGame {
+    pub fn new() -> PlaygroundGame {
+        PlaygroundGame {
             bodies: Vec::new(),
-            polygon_arrays: Vec::new(),
             meta_data: HashMap::new(),
-            user_input: InputState::new(),
-            current_selected_body: Vec::new(),
+            current_selection: Vec::new(),
             spawner: BunnySpawner::new(1000.0, 50, 1200.0, 150.0, 250.0),
             interactive_bodies: HashMap::new(),
             gravity: Vector2::new(0.0, 250.0),
@@ -143,13 +134,72 @@ impl Playground {
         scene_bodies
     }
 
-    pub fn init(&mut self, width: usize, height: usize) {
+    fn handle_selection(&mut self, position: Vector2<f32>, time_stamp: f32) -> Vec<OutgoingEvent> {
+        let mut outgoing_event_queue = Vec::new();
+        for container in self.bodies.iter_mut() {
+            for body in container.children.iter_mut() {
+                if body.point_in_polygon(position) {
+                    self.current_selection.push(body.id);
+                    body.set_pinned(true);
+                    if let Some(name) = self.interactive_bodies.get(&body.id) {
+                        outgoing_event_queue.push(OutgoingEvent {
+                            event_type: EventType::Selection,
+                            body_id: body.id,
+                            description: name.clone(),
+                            time_stamp,
+                        });
+                    }
+                }
+            }
+        }
+        outgoing_event_queue
+    }
+
+    fn handle_deselection(&mut self, time_stamp: f32) -> Vec<OutgoingEvent> {
+        let mut outgoing_event_queue = Vec::new();
+        while let Some(selected_body) = self.current_selection.pop() {
+            for container in self.bodies.iter_mut() {
+                if let Some(child) = container.find_child_by_id_mut(selected_body) {
+                    child.set_pinned(false);
+                }
+            }
+            //todo add velocity to the body based on the average velocity of the mouse during the drag
+            if let Some(name) = self.interactive_bodies.get(&selected_body) {
+                outgoing_event_queue.push(OutgoingEvent {
+                    event_type: EventType::Deselection,
+                    body_id: selected_body,
+                    description: name.clone(),
+                    time_stamp,
+                });
+            }
+        }
+        outgoing_event_queue
+    }
+
+    fn handle_drag(
+        &mut self,
+        button: MouseButton,
+        mouse_displacement: Vector2<f32>,
+        _time_delta: f32,
+    ) {
+        if button != MouseButton::Left {
+            return;
+        }
+        for container in self.bodies.iter_mut() {
+            for selected_body in &self.current_selection {
+                if let Some(child) = container.find_child_by_id_mut(*selected_body) {
+                    child.set_uniform_movement(mouse_displacement, Vector2::zeros());
+                }
+            }
+        }
+    }
+}
+impl Game for PlaygroundGame {
+    fn init(&mut self, width: usize, height: usize) {
         self.bodies.clear();
-        self.polygon_arrays.clear();
         self.meta_data.clear();
-        self.current_selected_body.clear();
+        self.current_selection.clear();
         self.interactive_bodies.clear();
-        self.user_input = InputState::new();
         self.spawner.reset_runtime_state();
         self.spawner.update_settings(width, height);
 
@@ -180,78 +230,18 @@ impl Playground {
         self.gravity = Vector2::new(0.0, height as f32 / 10.0);
     }
 
-    pub fn reset(&mut self, width: f32, height: f32) {
+    fn reset(&mut self, width: f32, height: f32) {
         self.init(width as usize, height as usize);
     }
 
-    fn handle_selection(&mut self, position: Vector2<f32>, time_stamp: f32) -> Vec<OutgoingEvent> {
-        let mut interactive_body_selected = Vec::new();
-        for container in self.bodies.iter_mut() {
-            for body in container.children.iter_mut() {
-                if body.point_in_polygon(position) {
-                    self.current_selected_body.push(body.id);
-                    body.set_pinned(true);
-                    if let Some(name) = self.interactive_bodies.get(&body.id) {
-                        interactive_body_selected.push(OutgoingEvent {
-                            event_type: EventType::Selection,
-                            body_id: body.id,
-                            description: name.clone(),
-                            time_stamp,
-                        });
-                    }
-                }
-            }
-        }
-        interactive_body_selected
-    }
-
-    fn handle_deselection(&mut self, time_stamp: f32) -> Vec<OutgoingEvent> {
+    fn update(
+        &mut self,
+        mut incoming_events: VecDeque<Event>,
+        mouse_speed: Option<Vector2<f32>>,
+        dt_ms: f32,
+    ) -> Vec<OutgoingEvent> {
         let mut outgoing_events = Vec::new();
-        while let Some(selected_body) = self.current_selected_body.pop() {
-            for container in self.bodies.iter_mut() {
-                if let Some(child) = container.find_child_by_id_mut(selected_body) {
-                    child.set_pinned(false);
-                }
-            }
-            //todo add velocity to the body based on the average velocity of the mouse during the drag
-            if let Some(name) = self.interactive_bodies.get(&selected_body) {
-                outgoing_events.push(OutgoingEvent {
-                    event_type: EventType::Deselection,
-                    body_id: selected_body,
-                    description: name.clone(),
-                    time_stamp,
-                });
-            }
-        }
-        outgoing_events
-    }
-
-    fn handle_drag(&mut self, button: MouseButton) {
-        if button != MouseButton::Left {
-            return;
-        }
-        if let Some((avg_displacement, _avg_time_delta)) = self
-            .user_input
-            .get_average_mouse_displacement_and_time_delta(button, 5)
-        {
-            for container in self.bodies.iter_mut() {
-                for selected_body in &self.current_selected_body {
-                    if let Some(child) = container.find_child_by_id_mut(*selected_body) {
-                        child.set_uniform_movement(avg_displacement, Vector2::zeros());
-                    }
-                }
-            }
-        } else {
-            web_sys::console::log_1(
-                &"Not enough data for average displacement and time delta.".into(),
-            );
-        }
-    }
-
-    pub fn update(&mut self, dt_ms: f32) -> Result<JsValue, JsValue> {
-        //handle user input
-        let mut outgoing_events = Vec::new();
-        while let Some(event) = self.user_input.events.pop_front() {
+        while let Some(event) = incoming_events.pop_front() {
             match event.event_type {
                 MouseEventType::Down => {
                     if event.button == MouseButton::Left {
@@ -269,7 +259,11 @@ impl Playground {
                     }
                 }
                 MouseEventType::Move => {
-                    self.handle_drag(event.button);
+                    if event.button == MouseButton::Left {
+                        if let Some(speed) = mouse_speed {
+                            self.handle_drag(event.button, speed, dt_ms);
+                        }
+                    }
                 }
             }
         }
@@ -289,37 +283,21 @@ impl Playground {
             body.perform_step(&vec![constant_force], capped_dt, &settings);
         }
 
-        self.polygon_arrays = bodies_to_polygon_arrays(
-            self.bodies.iter(),
-            &self.meta_data,
-            &self.current_selected_body,
-        );
-        serde_wasm_bindgen::to_value(&outgoing_events)
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+        outgoing_events
     }
 
-    pub fn get_polygon_arrays(&self) -> Result<JsValue, JsValue> {
-        serde_wasm_bindgen::to_value(&self.polygon_arrays)
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+    fn bodies_to_render(&self) -> &[Body] {
+        &self.bodies
     }
 
-    pub fn mouse_down(&mut self, x: f32, y: f32, mouse_button: MouseButton, time_stamp: f32) {
-        self.user_input
-            .mouse_down(mouse_button, Vector2::new(x, y), time_stamp);
+    fn meta_data_to_render(&self) -> &HashMap<BodyId, BodyMeta> {
+        &self.meta_data
     }
 
-    pub fn mouse_up(&mut self, x: f32, y: f32, mouse_button: MouseButton, time_stamp: f32) {
-        self.user_input
-            .mouse_up(mouse_button, Vector2::new(x, y), time_stamp);
-    }
-
-    pub fn mouse_move(&mut self, x: f32, y: f32, time_stamp: f32) {
-        self.user_input.mouse_move(Vector2::new(x, y), time_stamp);
+    fn current_selection_to_render(&self) -> &[BodyId] {
+        &self.current_selection
     }
 }
 
-impl Default for Playground {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+#[chubby_bunny_bindgen]
+pub struct Playground(GameLoop<PlaygroundGame>);
