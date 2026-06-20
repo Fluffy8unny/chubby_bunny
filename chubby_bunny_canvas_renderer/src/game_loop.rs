@@ -1,11 +1,11 @@
 use crate::input::{Event, InputState, MouseButton};
 use crate::js_types::{bodies_to_polygon_arrays, OutgoingEvent, PolygonArray};
 use chubby_bunny_core::{Body, BodyId};
-
 use chubby_bunny_svg::BodyMeta;
 use nalgebra::Vector2;
 use std::collections::{HashMap, VecDeque};
 use wasm_bindgen::prelude::*;
+
 pub struct GameLoop<G: Game> {
     pub game_impl: Box<G>,
     pub polygon_arrays: Vec<PolygonArray>,
@@ -26,6 +26,7 @@ impl<G: Game> GameLoop<G> {
         self.user_input = InputState::new();
         self.game_impl.init(width, height);
     }
+
     pub fn update(&mut self, dt_ms: f32) -> Result<JsValue, JsValue> {
         let outgoing_events = self
             .game_impl

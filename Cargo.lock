@@ -74,6 +74,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "chubby_bunny_canvas_renderer"
+version = "0.1.0"
+dependencies = [
+ "chubby_bunny_core",
+ "chubby_bunny_svg",
+ "nalgebra",
+ "serde",
+ "serde-wasm-bindgen",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "chubby_bunny_core"
 version = "0.1.0"
 dependencies = [
@@ -88,6 +100,7 @@ name = "chubby_bunny_playground"
 version = "0.1.0"
 dependencies = [
  "chubby_bunny_bindgen",
+ "chubby_bunny_canvas_renderer",
  "chubby_bunny_core",
  "chubby_bunny_svg",
  "getrandom",

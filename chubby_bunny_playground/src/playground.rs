@@ -1,15 +1,14 @@
-use crate::game_loop::{Game, GameLoop};
-use crate::input::{Event, MouseButton, MouseEventType};
-use crate::js_types::{
-    default_meta, default_meta_for_container, selected_meta, EventType, OutgoingEvent,
-};
+use crate::metas::{default_meta_for_container, selected_meta};
 use crate::spawner::BunnySpawner;
 use chubby_bunny_bindgen::chubby_bunny_bindgen;
+use chubby_bunny_canvas_renderer::game_loop::{Game, GameLoop};
+use chubby_bunny_canvas_renderer::input::{Event, MouseButton, MouseEventType};
+use chubby_bunny_canvas_renderer::js_types::{default_meta, EventType, OutgoingEvent};
 use chubby_bunny_core::{
     Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, Particle, SolverSettings,
     Transformation, WallConstraint,
 };
-use chubby_bunny_svg::{load_svg, BodyMeta, BodySettings};
+use chubby_bunny_svg::{load_svg, BodyMeta, BodySettings, MetaMap};
 
 use nalgebra::Vector2;
 use std::collections::{HashMap, VecDeque};
@@ -44,8 +43,8 @@ fn create_container(width: usize, height: usize, max_scale: f32) -> Body {
 
 struct PlaygroundGame {
     bodies: Vec<Body>,
-    meta_data: HashMap<BodyId, BodyMeta>,
-    current_selection: HashMap<BodyId, BodyMeta>,
+    meta_data: MetaMap,
+    current_selection: MetaMap,
     spawner: BunnySpawner<f32>,
     interactive_bodies: HashMap<BodyId, String>,
     gravity: Vector2<f32>,
@@ -169,7 +168,8 @@ impl PlaygroundGame {
                 }
             }
         }
-        if movements.len() > 0 {
+
+        if !movements.is_empty() {
             let average_velocity =
                 movements.iter().fold(Vector2::zeros(), |acc, &d| acc + d) / movements.len() as f32;
             self.handle_drag(MouseButton::Left, average_velocity, dt_ms);

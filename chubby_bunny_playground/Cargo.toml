@@ -9,6 +9,7 @@ crate-type = ["cdylib", "lib"]
 [dependencies]
 chubby_bunny_core = { path = "../chubby_bunny_core" }
 chubby_bunny_svg = { path = "../chubby_bunny_svg" }
+chubby_bunny_canvas_renderer = { path = "../chubby_bunny_canvas_renderer" }
 chubby_bunny_bindgen = { path = "../chubby_bunny_bindgen" }
 nalgebra = "0.35"
 itertools = "0.15"

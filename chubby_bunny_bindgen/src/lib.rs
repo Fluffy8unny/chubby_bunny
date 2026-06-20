@@ -29,10 +29,10 @@ pub fn chubby_bunny_bindgen(_attr: TokenStream, item: TokenStream) -> TokenStrea
         impl #struct_ident {
             #[::wasm_bindgen::prelude::wasm_bindgen(constructor)]
             pub fn new() -> Self {
-                Self(crate::game_loop::GameLoop {
+                Self(::chubby_bunny_canvas_renderer::game_loop::GameLoop {
                     game_impl: ::std::boxed::Box::new(<#game_impl_ty>::new()),
                     polygon_arrays: ::std::vec::Vec::new(),
-                    user_input: crate::input::InputState::new(),
+                    user_input: ::chubby_bunny_canvas_renderer::input::InputState::new(),
                 })
             }
 
@@ -61,7 +61,7 @@ pub fn chubby_bunny_bindgen(_attr: TokenStream, item: TokenStream) -> TokenStrea
                 &mut self,
                 x: f32,
                 y: f32,
-                mouse_button: crate::input::MouseButton,
+                mouse_button: ::chubby_bunny_canvas_renderer::input::MouseButton,
                 time_stamp: f32,
             ) {
                 self.0.mouse_down(x, y, mouse_button, time_stamp);
@@ -71,7 +71,7 @@ pub fn chubby_bunny_bindgen(_attr: TokenStream, item: TokenStream) -> TokenStrea
                 &mut self,
                 x: f32,
                 y: f32,
-                mouse_button: crate::input::MouseButton,
+                mouse_button: ::chubby_bunny_canvas_renderer::input::MouseButton,
                 time_stamp: f32,
             ) {
                 self.0.mouse_up(x, y, mouse_button, time_stamp);
