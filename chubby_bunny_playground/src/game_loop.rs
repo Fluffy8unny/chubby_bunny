@@ -15,12 +15,7 @@ pub struct GameLoop<G: Game> {
 pub trait Game {
     fn init(&mut self, width: usize, height: usize);
     fn reset(&mut self, width: f32, height: f32);
-    fn update(
-        &mut self,
-        incoming_events: VecDeque<Event>,
-        mouse_speed: Option<Vector2<f32>>,
-        dt_ms: f32,
-    ) -> Vec<OutgoingEvent>;
+    fn update(&mut self, incoming_events: VecDeque<Event>, dt_ms: f32) -> Vec<OutgoingEvent>;
     fn bodies_to_render(&self) -> &[Body];
     fn meta_data_to_render(&self) -> &HashMap<BodyId, BodyMeta>;
     fn current_selection_to_render(&self) -> &[BodyId];
@@ -33,15 +28,9 @@ impl<G: Game> GameLoop<G> {
         self.game_impl.init(width, height);
     }
     pub fn update(&mut self, dt_ms: f32) -> Result<JsValue, JsValue> {
-        let avg_mouse_speed = self
-            .user_input
-            .get_average_mouse_displacement_and_time_delta(MouseButton::Left, 5)
-            .map(|(displacement, _)| displacement);
-        let outgoing_events = self.game_impl.update(
-            self.user_input.events.drain(..).collect(),
-            avg_mouse_speed,
-            dt_ms,
-        );
+        let outgoing_events = self
+            .game_impl
+            .update(self.user_input.events.drain(..).collect(), dt_ms);
         self.polygon_arrays = bodies_to_polygon_arrays(
             self.game_impl.bodies_to_render().iter(),
             self.game_impl.meta_data_to_render(),

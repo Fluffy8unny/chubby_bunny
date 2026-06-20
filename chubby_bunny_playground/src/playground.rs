@@ -178,13 +178,10 @@ impl PlaygroundGame {
 
     fn handle_drag(
         &mut self,
-        button: MouseButton,
+        _button: MouseButton,
         mouse_displacement: Vector2<f32>,
         _time_delta: f32,
     ) {
-        if button != MouseButton::Left {
-            return;
-        }
         for container in self.bodies.iter_mut() {
             for selected_body in &self.current_selection {
                 if let Some(child) = container.find_child_by_id_mut(*selected_body) {
@@ -234,12 +231,7 @@ impl Game for PlaygroundGame {
         self.init(width as usize, height as usize);
     }
 
-    fn update(
-        &mut self,
-        mut incoming_events: VecDeque<Event>,
-        mouse_speed: Option<Vector2<f32>>,
-        dt_ms: f32,
-    ) -> Vec<OutgoingEvent> {
+    fn update(&mut self, mut incoming_events: VecDeque<Event>, dt_ms: f32) -> Vec<OutgoingEvent> {
         let mut outgoing_events = Vec::new();
         while let Some(event) = incoming_events.pop_front() {
             match event.event_type {
@@ -259,10 +251,12 @@ impl Game for PlaygroundGame {
                     }
                 }
                 MouseEventType::Move => {
-                    if event.button == MouseButton::Left {
-                        if let Some(speed) = mouse_speed {
-                            self.handle_drag(event.button, speed, dt_ms);
-                        }
+                    if let Some(last_state) = event.last_state {
+                        let displacement = event.state.mouse_position - last_state.mouse_position;
+                        web_sys::console::log_1(
+                            &format!("Mouse displacement: {:?}", displacement).into(),
+                        );
+                        self.handle_drag(event.button, displacement, dt_ms);
                     }
                 }
             }
