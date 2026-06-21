@@ -2,18 +2,19 @@ use chubby_bunny_bindgen::chubby_bunny_bindgen;
 use chubby_bunny_canvas_renderer::game_loop::{Game, GameLoop};
 use chubby_bunny_canvas_renderer::input::Event;
 use chubby_bunny_canvas_renderer::js_types::{default_meta, OutgoingEvent};
-use chubby_bunny_canvas_renderer::primitives::create_polygon;
-use chubby_bunny_core::{Body, ExtrinsicConstraintType, Particle, SolverSettings, WallConstraint};
-use chubby_bunny_svg::MetaMap;
+use chubby_bunny_core::{
+    Body, ExtrinsicConstraintType, Particle, SolverSettings, Transformation, WallConstraint,
+};
+use chubby_bunny_svg::{load_svg, BodySettings, MetaMap};
 use nalgebra::Vector2;
 use std::collections::VecDeque;
-
-struct ConstraintsGame {
+use web_sys::console;
+struct SVGGame {
     bodies: Vec<Body>,
     meta_data: MetaMap,
 }
 
-impl ConstraintsGame {
+impl SVGGame {
     pub fn new() -> Self {
         Self {
             bodies: Vec::new(),
@@ -21,7 +22,25 @@ impl ConstraintsGame {
         }
     }
 
-    fn build_box(center: Vector2<f32>, width: f32, height: f32) -> Body {
+    fn load_svg_file(
+        &mut self,
+        svg_source: &str,
+        svg_instance_transform: Transformation<f32>,
+        settings: &BodySettings<f32>,
+    ) -> Vec<Body> {
+        if let Ok((mut template, meta)) = load_svg(svg_source, settings) {
+            template
+                .iter_mut()
+                .for_each(|template| template.transform(svg_instance_transform));
+            self.meta_data.extend(meta);
+            template
+        } else {
+            console::error_1(&"Failed to load SVG data. Ignoring.".into());
+            Vec::new()
+        }
+    }
+
+    fn build_scene(&mut self, center: Vector2<f32>, width: f32, height: f32) -> Body {
         let mut container_body = Body::empty();
         let mut create_particle_helper = |x, y| {
             container_body.particles.push(Particle::new(
@@ -46,73 +65,30 @@ impl ConstraintsGame {
                     stiffness: 1.0,
                 })));
         }
-        let distance_radius = width / 10.0;
-        let poly_radius = distance_radius * 0.8;
-        let poly_distance_only = create_polygon(
-            Vector2::new(distance_radius, center.y),
-            poly_radius,
-            12,
-            0.5,
-            0.00,
-            0.00,
-            0.0,
-            0.002,
+        let svg_settings =
+            BodySettings::from_values(1.0, 0.01, false, 0.5, 0.35, 0.3, 0.4, 0.5, 5, 8, 2.0, 3);
+
+        let test_svg_bodies = self.load_svg_file(
+            include_str!("../web/assets/bunny.svg"),
+            Transformation {
+                offset: center,
+                scale: height * 0.25,
+                rotation_radians: 0.0,
+            },
+            &svg_settings,
         );
-        let poly_distance_shear_only = create_polygon(
-            Vector2::new(distance_radius * 3.0, center.y),
-            poly_radius,
-            12,
-            0.5,
-            0.2,
-            0.00,
-            0.0,
-            0.002,
-        );
-        let poly_distance_area = create_polygon(
-            Vector2::new(distance_radius * 5.0, center.y),
-            poly_radius,
-            12,
-            0.5,
-            0.00,
-            0.5,
-            0.0,
-            0.002,
-        );
-        let poly_bending = create_polygon(
-            Vector2::new(distance_radius * 7.0, center.y),
-            poly_radius,
-            12,
-            0.5,
-            0.00,
-            0.0,
-            0.3,
-            0.002,
-        );
-        let poly_stiff = create_polygon(
-            Vector2::new(distance_radius * 9.0, center.y),
-            poly_radius,
-            12,
-            0.5,
-            0.5,
-            0.5,
-            0.5,
-            0.002,
-        );
-        container_body.children.push(poly_distance_only);
-        container_body.children.push(poly_distance_shear_only);
-        container_body.children.push(poly_distance_area);
-        container_body.children.push(poly_bending);
-        container_body.children.push(poly_stiff);
+
+        container_body.children.extend(test_svg_bodies);
         container_body
     }
 }
 
-impl Game for ConstraintsGame {
+impl Game for SVGGame {
     fn init(&mut self, width: usize, height: usize) {
         self.bodies.clear();
         self.meta_data.clear();
 
-        let box_body = Self::build_box(
+        let box_body = self.build_scene(
             Vector2::new(width as f32 * 0.5, height as f32 * 0.5),
             width as f32,
             height as f32,
@@ -150,4 +126,4 @@ impl Game for ConstraintsGame {
 }
 
 #[chubby_bunny_bindgen]
-pub struct ConstraintsExample(GameLoop<ConstraintsGame>);
+pub struct SVGExample(GameLoop<SVGGame>);

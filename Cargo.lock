@@ -639,6 +639,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ed6a63f02c8539c91a8685a86f4099661ba3da017932f6ebbea6de3f0fa7c90"
 
 [[package]]
+name = "svg_example"
+version = "0.1.0"
+dependencies = [
+ "chubby_bunny_bindgen",
+ "chubby_bunny_canvas_renderer",
+ "chubby_bunny_core",
+ "chubby_bunny_svg",
+ "nalgebra",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "svgtypes"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -74,6 +74,9 @@ impl PlaygroundGame {
             self.meta_data.extend(meta);
             template
         } else {
+            web_sys::console::error_1(
+                &format!("Failed to load SVG data from path: {}. Ignoring.", svg_path).into(),
+            );
             eprint!("Failed to load SVG data from path: {}. Ignoring.", svg_path);
             Vec::new()
         }
@@ -163,7 +166,6 @@ impl PlaygroundGame {
                         let displacement = event.state.mouse_position - last_state.mouse_position;
                         let time_delta = event.state.time_stamp - last_state.time_stamp;
                         movements.push(displacement / time_delta);
-                        //self.handle_drag(event.button, displacement, dt_ms);
                     }
                 }
             }

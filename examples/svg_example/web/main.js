@@ -1,4 +1,4 @@
-import init, { ConstraintsExample } from "../pkg/constraint_example.js";
+import init, { SVGExample } from "../pkg/svg_example.js";
 import { createRenderer } from "../../../web/rendering.js";
 
 const canvas = document.getElementById("canvas");
@@ -47,12 +47,11 @@ const loop = (timestamp) => {
 
 const start = async () => {
   await init();
-  app = new ConstraintsExample();
+  app = new SVGExample();
   resize();
-  app.init(window.innerWidth, window.innerHeight);
+  app.init(800, 600);
   app.lastTimestamp = performance.now();
   requestAnimationFrame(loop);
 };
 
-window.addEventListener("resize", resize);
 start();
