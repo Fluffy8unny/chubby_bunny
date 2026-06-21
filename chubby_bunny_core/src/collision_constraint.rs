@@ -1,4 +1,7 @@
-use crate::{constraint_common::get_normal, eps, Body, FloatingPointNumber, SolverSettings};
+use crate::{
+    constraint_common::{distribute_based_on_mass, get_normal},
+    eps, Body, FloatingPointNumber, SolverSettings,
+};
 use itertools::Itertools;
 use nalgebra::Vector2;
 
@@ -246,8 +249,15 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
         correction_vector: &Vector2<T>,
         point_weight: T,
     ) {
-        let weight_a = T::one() - point_weight;
-        let weight_b = point_weight;
+        let point_weight_a = T::one() - point_weight;
+        let point_weight_b = point_weight;
+
+        let (weight_a, weight_b) = distribute_based_on_mass(
+            &body.particles[edge.idx_a],
+            &body.particles[edge.idx_b],
+            point_weight_a,
+            point_weight_b,
+        );
 
         body.particles[edge.idx_a]
             .apply_position_correction_to_particle(&(correction_vector * weight_a));

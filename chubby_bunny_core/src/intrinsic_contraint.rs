@@ -1,5 +1,5 @@
 use crate::constraint_common::{
-    constraint_alpha_with_reference_dt, get_distance_correction_vector,
+    constraint_alpha_with_reference_dt, distribute_based_on_mass, get_distance_correction_vector,
 };
 use crate::{eps, FloatingPointNumber, Particle, SolverSettings, Transformation};
 use dyn_clone::DynClone;
@@ -59,8 +59,18 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for DistanceConstraint<T> {
             dt,
             solver_settings,
         );
-        particles[self.idx_left].apply_position_correction_to_particle(&(-correction_vector));
-        particles[self.idx_right].apply_position_correction_to_particle(&correction_vector);
+        let (weight_left, weight_right) = distribute_based_on_mass(
+            &particles[self.idx_left],
+            &particles[self.idx_right],
+            T::from(0.5_f32),
+            T::from(0.5_f32),
+        );
+        let total_correction = correction_vector * T::from(2.0_f32);
+
+        particles[self.idx_left]
+            .apply_position_correction_to_particle(&(-total_correction * weight_left));
+        particles[self.idx_right]
+            .apply_position_correction_to_particle(&(total_correction * weight_right));
     }
 
     fn transform_params(&mut self, transformation: Transformation<T>) {

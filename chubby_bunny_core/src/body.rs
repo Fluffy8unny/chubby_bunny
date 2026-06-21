@@ -14,12 +14,14 @@ pub fn next_id() -> BodyId {
     NEXT_ID.fetch_add(1, Ordering::Relaxed) as BodyId
 }
 
+/// Axis-aligned bounding box for a body
 pub struct BoundingBox<T> {
     pub min: Vector2<T>,
     pub max: Vector2<T>,
 }
 
 impl<T: FloatingPointNumber> BoundingBox<T> {
+    /// Checks if this bounding box intersects with another bounding box.
     pub fn intersects(&self, other: &BoundingBox<T>) -> bool {
         self.min.x <= other.max.x
             && self.max.x >= other.min.x
@@ -27,6 +29,7 @@ impl<T: FloatingPointNumber> BoundingBox<T> {
             && self.max.y >= other.min.y
     }
 
+    /// Creates a bounding box with all values set to zero.
     pub fn zeros() -> Self {
         Self {
             min: Vector2::zeros(),
@@ -34,11 +37,13 @@ impl<T: FloatingPointNumber> BoundingBox<T> {
         }
     }
 
+    /// Calculates the center point of the bounding box.
     pub fn center(&self) -> Vector2<T> {
         (self.min + self.max) / T::from(2.0)
     }
 }
 
+/// Represents an affine transformation that can be applied to a body, including translation, scaling, and rotation.
 #[derive(Clone, Copy)]
 pub struct Transformation<T> {
     pub offset: Vector2<T>,
@@ -47,6 +52,7 @@ pub struct Transformation<T> {
 }
 
 impl<T: FloatingPointNumber> Transformation<T> {
+    /// Creates an identity transformation with no translation, unit scale, and no rotation.
     pub fn identity() -> Self {
         Self {
             offset: Vector2::zeros(),
@@ -56,16 +62,35 @@ impl<T: FloatingPointNumber> Transformation<T> {
     }
 }
 
+/// Represents a physical body in the simulation, consisting of particles and constraints.
+/// Bodies are hierarchical, meaning they can have child bodies with their own particles and constraints.
+/// The constraints are categorized into three types:
+/// intrinsic constraints: constraints that only  involve body itself
+/// extrinsic constraints: constraints are constraints between body and children
+/// collision constraint: constraints between children
+///
+/// Each step external forces are applied to the body and its children, then constraints are solved in the following order:
+/// 1. Intrinsic constraints of the body
+/// 2. Extrinsic constraints between the body and its children
+/// 3. Collision constraints between the body's children
+/// After all constraints are solved, the body's particles are updated based on their velocities and the time step.
 pub struct Body<T = f32> {
+    /// Unique identifier for the body, used for referencing in constraints and other operations.
     pub id: BodyId,
+    /// Particles that make up the body, representing its physical structure and properties. These need to be in CCW order.
     pub particles: Vec<Particle<T>>,
+    /// Intrinsic constraints that maintain the internal structure of the body, such as distance constraints between its particles.
     pub constraints: Vec<Box<dyn IntrinsicConstraint<T>>>,
     pub children: Vec<Body<T>>,
+    /// Extrinsic constraints that define how the body interacts with its children, such as attachment constraints or wall constraints.
     pub children_constraints: Vec<ExtrinsicConstraintType<T>>,
+    /// Collision constraint that defines how the body's children interact with each other.
     pub collision_constraint: Option<CollisionConstraint<T>>,
 }
 
 impl<T: Clone> Clone for Body<T> {
+    /// Custom clone implementation to ensure that child bodies get new unique IDs and that local extrinsic constraints are properly remapped to the new child IDs.
+    /// This means the body behaves identical to the old one, but has a different id in the system.
     fn clone(&self) -> Self {
         let children: Vec<Body<T>> = self.children.iter().map(Clone::clone).collect();
         let child_id_map: HashMap<BodyId, BodyId> = self
@@ -94,6 +119,7 @@ impl<T: Clone> Clone for Body<T> {
 }
 
 impl<T: FloatingPointNumber> Body<T> {
+    /// Calculates the centroid of the body based on the average position of its particles.
     pub fn centroid(&self) -> Vector2<T> {
         let n = T::from(self.particles.len() as f32);
         self.particles
@@ -101,7 +127,10 @@ impl<T: FloatingPointNumber> Body<T> {
             .fold(Vector2::zeros(), |acc, p| acc + p.position)
             / n
     }
-
+    /// Applies a uniform movement to the body by offsetting all particles by the same amount.
+    /// This is useful for moving the entire body without affecting its internal structure, such as when
+    /// offset_now is an offset applied to the body in the current frame, and offset_last_frame is the offset applied in the previous frame,
+    /// to maintain consistent velocity when moving a body.
     pub fn set_uniform_movement(&mut self, offset_now: Vector2<T>, offset_last_frame: Vector2<T>) {
         for particle in self.particles.iter_mut() {
             particle.pre_integration_position = particle.position + offset_last_frame;
@@ -112,6 +141,7 @@ impl<T: FloatingPointNumber> Body<T> {
         }
     }
 
+    /// Calculates the axis-aligned bounding box that contains all particles of the body.
     pub fn get_bounding_box(&self) -> BoundingBox<T> {
         if let Some((first, rest)) = self.particles.split_first() {
             let (min, max) = rest
@@ -125,6 +155,7 @@ impl<T: FloatingPointNumber> Body<T> {
         }
     }
 
+    /// Determines if a given point is inside the polygon formed by the body's particles.
     pub fn point_in_polygon(&self, point: Vector2<T>) -> bool {
         if self.particles.len() < 3 {
             return false;
@@ -152,6 +183,7 @@ impl<T: FloatingPointNumber> Body<T> {
         inside
     }
 
+    /// Applies an affine transformation to the body, including translation, scaling, and rotation.
     pub fn transform(&mut self, transformation: Transformation<T>) {
         self.apply_transformation_recursive(transformation, None);
         self.transform_constraints_recursive(transformation);
@@ -264,7 +296,7 @@ impl<T: FloatingPointNumber> Body<T> {
             }
         }
     }
-
+    /// Performs a simulation step for the body, applying forces, solving constraints, and updating particle positions.
     pub fn perform_step<F>(&mut self, forces: &Vec<F>, dt: T, solver_settings: &SolverSettings)
     where
         F: Force<T>,
@@ -282,6 +314,7 @@ impl<T: FloatingPointNumber> Body<T> {
 }
 
 impl<T> Body<T> {
+    /// Creates an empty body with a unique ID and no particles, constraints, or children.
     pub fn empty() -> Self {
         let id = next_id();
         Self {
@@ -294,6 +327,7 @@ impl<T> Body<T> {
         }
     }
 
+    /// Finds a child body by its unique ID, returning a reference to it if found.
     pub fn find_child_by_id(&self, id: BodyId) -> Option<&Body<T>> {
         if self.id == id {
             return Some(self);
@@ -307,6 +341,7 @@ impl<T> Body<T> {
         None
     }
 
+    /// Finds a mutable reference to a child body by its unique ID, returning it if found.
     pub fn find_child_by_id_mut(&mut self, id: BodyId) -> Option<&mut Body<T>> {
         if self.id == id {
             return Some(self);
@@ -320,6 +355,8 @@ impl<T> Body<T> {
         None
     }
 
+    /// Sets the pinned state of all particles in the body and its children,
+    /// effectively fixing them in place if pinned is true, or allowing them to move if pinned is false.
     pub fn set_pinned(&mut self, pinned: bool) {
         for particle in self.particles.iter_mut() {
             particle.pinned = pinned;
