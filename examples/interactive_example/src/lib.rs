@@ -4,7 +4,7 @@ use chubby_bunny_canvas_renderer::input::{Event, MouseButton, MouseEventType};
 use chubby_bunny_canvas_renderer::js_types::{default_meta, EventType, OutgoingEvent};
 use chubby_bunny_canvas_renderer::primitives::create_polygon;
 use chubby_bunny_core::{
-    Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, Particle, SolverSettings,
+    eps, Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, Particle, SolverSettings,
     WallConstraint,
 };
 use chubby_bunny_svg::MetaMap;
@@ -147,7 +147,9 @@ impl InteractiveGame {
                     if let Some(last_state) = event.last_state {
                         let displacement = event.state.mouse_position - last_state.mouse_position;
                         let time_delta = event.state.time_stamp - last_state.time_stamp;
-                        movements.push(displacement / time_delta);
+                        if time_delta > eps!(f32, 6) {
+                            movements.push(displacement / time_delta);
+                        }
                     }
                 }
             }

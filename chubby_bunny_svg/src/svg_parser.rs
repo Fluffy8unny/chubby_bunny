@@ -1,5 +1,5 @@
 use crate::meta::{parse_style_to_body_meta, BodyMeta, MetaMap};
-use crate::settings::BodySettings;
+use crate::settings::{BodySettings, SVGConstraintSettings};
 use crate::svg_constraints::{
     add_area_constraints, add_boundary_bending_constraints, add_boundary_distance_constraints,
     add_shear_constraints, attach_child_to_parent,
@@ -216,11 +216,6 @@ fn svg_to_body_instance<T: FloatingPointNumber>(
         ));
     }
 
-    add_boundary_distance_constraints(&mut body, settings.constraint_settings.stiffness_distance);
-    add_area_constraints(&mut body, settings.constraint_settings.stiffness_area);
-    add_boundary_bending_constraints(&mut body, settings.constraint_settings.stiffness_bending);
-    add_shear_constraints(&mut body, settings.constraint_settings.stiffness_shear);
-
     let style = path.style.as_deref().unwrap_or("");
     let meta = parse_style_to_body_meta(style, body.id, z_index);
 
@@ -300,7 +295,6 @@ fn parse_group_recursive<T: FloatingPointNumber>(
                 .collect::<Vec<_>>();
 
             for child in parsed_children {
-                attach_child_to_parent(&mut body, &child, settings);
                 body.children.push(child);
             }
             bodies.push(body);
@@ -353,13 +347,69 @@ fn normalized_template_transform<T: FloatingPointNumber>(bodies: &[Body<T>]) -> 
     }
 }
 
-pub fn load_svg<T: FloatingPointNumber>(xml: &str, settings: &BodySettings<T>) -> SVGLoadResult<T> {
+pub fn load_svg_to_body<T: FloatingPointNumber>(
+    xml: &str,
+    body_settings: &BodySettings<T>,
+) -> SVGLoadResult<T> {
     let svg: Svg = quick_xml::de::from_str(xml)?;
     let mut template_meta = HashMap::new();
-    let mut templates = parse_nodes_recursive(&svg.children, 0, None, &mut template_meta, settings);
+    let mut templates =
+        parse_nodes_recursive(&svg.children, 0, None, &mut template_meta, body_settings);
     let normalization = normalized_template_transform(&templates);
     templates
         .iter_mut()
         .for_each(|template| template.transform(normalization));
+    Ok((templates, template_meta))
+}
+
+fn add_automatic_constraints_recursive<T: FloatingPointNumber>(
+    body: &mut Body<T>,
+    constraint_settings: &SVGConstraintSettings<T>,
+) {
+    body.constraints.clear();
+    body.children_constraints.clear();
+
+    add_boundary_distance_constraints(
+        body,
+        constraint_settings.constraint_settings.stiffness_distance,
+    );
+    add_area_constraints(body, constraint_settings.constraint_settings.stiffness_area);
+    add_boundary_bending_constraints(
+        body,
+        constraint_settings.constraint_settings.stiffness_bending,
+    );
+    add_shear_constraints(
+        body,
+        constraint_settings.constraint_settings.stiffness_shear,
+    );
+
+    let mut children = std::mem::take(&mut body.children);
+    for child in children.iter_mut() {
+        add_automatic_constraints_recursive(child, constraint_settings);
+    }
+
+    for child in children.iter() {
+        attach_child_to_parent(body, child, constraint_settings);
+    }
+
+    body.children = children;
+}
+
+pub fn add_automatic_constraints<T: FloatingPointNumber>(
+    bodies: &mut [Body<T>],
+    constraint_settings: &SVGConstraintSettings<T>,
+) {
+    for body in bodies.iter_mut() {
+        add_automatic_constraints_recursive(body, constraint_settings);
+    }
+}
+
+pub fn load_svg<T: FloatingPointNumber>(
+    xml: &str,
+    body_settings: &BodySettings<T>,
+    constraint_settings: &SVGConstraintSettings<T>,
+) -> SVGLoadResult<T> {
+    let (mut templates, template_meta) = load_svg_to_body(xml, body_settings)?;
+    add_automatic_constraints(&mut templates, constraint_settings);
     Ok((templates, template_meta))
 }

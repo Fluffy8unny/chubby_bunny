@@ -5,10 +5,10 @@ use chubby_bunny_canvas_renderer::game_loop::{Game, GameLoop};
 use chubby_bunny_canvas_renderer::input::{Event, MouseButton, MouseEventType};
 use chubby_bunny_canvas_renderer::js_types::{default_meta, EventType, OutgoingEvent};
 use chubby_bunny_core::{
-    Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, Particle, SolverSettings,
+    eps, Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, Particle, SolverSettings,
     Transformation, WallConstraint,
 };
-use chubby_bunny_svg::{load_svg, BodyMeta, BodySettings, MetaMap};
+use chubby_bunny_svg::{load_svg, BodyMeta, BodySettings, MetaMap, SVGConstraintSettings};
 
 use nalgebra::Vector2;
 use std::collections::{HashMap, VecDeque};
@@ -65,9 +65,10 @@ impl PlaygroundGame {
         &mut self,
         svg_path: &str,
         svg_instance_transform: Transformation<f32>,
-        settings: &BodySettings<f32>,
+        body_settings: &BodySettings<f32>,
+        constraint_settings: &SVGConstraintSettings<f32>,
     ) -> Vec<Body> {
-        if let Ok((mut template, meta)) = load_svg(svg_path, settings) {
+        if let Ok((mut template, meta)) = load_svg(svg_path, body_settings, constraint_settings) {
             template
                 .iter_mut()
                 .for_each(|template| template.transform(svg_instance_transform));
@@ -86,7 +87,8 @@ impl PlaygroundGame {
         &mut self,
         width: usize,
         height: usize,
-        svg_settings: &BodySettings<f32>,
+        body_settings: &BodySettings<f32>,
+        constraint_settings: &SVGConstraintSettings<f32>,
     ) -> Vec<Body> {
         let button_scale = width.min(height) as f32 / 6.0;
         let button_drop_off = height as f32 - button_scale * 2.0;
@@ -114,15 +116,17 @@ impl PlaygroundGame {
                 "about",
             ),
         ] {
-            let svg_instance = self.load_svg_file(svg_data, transform, svg_settings);
+            let svg_instance =
+                self.load_svg_file(svg_data, transform, body_settings, constraint_settings);
             for body in &svg_instance {
                 self.interactive_bodies.insert(body.id, name.to_string());
             }
             scene_bodies.extend(svg_instance);
         }
 
-        let cloud_settings =
-            BodySettings::from_values(1.0, 0.01, false, 1.0, 1.0, 0.6, 0.8, 0.5, 5, 8, 2.0, 3);
+        let cloud_body_settings = BodySettings::from_values(1.0, 0.01, false);
+        let cloud_constraint_settings =
+            SVGConstraintSettings::from_values(1.0, 1.0, 0.6, 0.8, 0.5, 5, 8, 2.0, 3);
 
         let mut cloud_bodies = self.load_svg_file(
             include_str!("../../web/assets/clouds_foreground.svg"),
@@ -131,7 +135,8 @@ impl PlaygroundGame {
                 scale: width as f32,
                 rotation_radians: 0.0,
             },
-            &cloud_settings,
+            &cloud_body_settings,
+            &cloud_constraint_settings,
         );
         scene_bodies.append(&mut cloud_bodies);
 
@@ -165,7 +170,9 @@ impl PlaygroundGame {
                     if let Some(last_state) = event.last_state {
                         let displacement = event.state.mouse_position - last_state.mouse_position;
                         let time_delta = event.state.time_stamp - last_state.time_stamp;
-                        movements.push(displacement / time_delta);
+                        if time_delta > eps!(f32, 6) {
+                            movements.push(displacement / time_delta);
+                        }
                     }
                 }
             }
@@ -251,13 +258,17 @@ impl Game for PlaygroundGame {
         self.spawner.reset_runtime_state();
         self.spawner.update_settings(width, height);
 
-        let svg_settings =
-            BodySettings::from_values(1.0, 0.01, false, 0.5, 0.35, 0.3, 0.4, 0.5, 5, 8, 2.0, 3);
+        let svg_body_settings = BodySettings::from_values(1.0, 0.01, false);
+        let svg_constraint_settings =
+            SVGConstraintSettings::from_values(0.5, 0.35, 0.3, 0.4, 0.5, 5, 8, 2.0, 3);
         let mut container_body = create_container(width, height, self.spawner.get_scale());
 
-        container_body
-            .children
-            .extend(self.create_scene(width, height, &svg_settings));
+        container_body.children.extend(self.create_scene(
+            width,
+            height,
+            &svg_body_settings,
+            &svg_constraint_settings,
+        ));
         self.spawner.load_bunnies_from_svg(
             vec![
                 include_str!("../../web/assets/t1.svg"),
@@ -265,7 +276,8 @@ impl Game for PlaygroundGame {
                 include_str!("../../web/assets/t3.svg"),
                 include_str!("../../web/assets/t4.svg"),
             ],
-            svg_settings,
+            &svg_body_settings,
+            &svg_constraint_settings,
         );
 
         self.meta_data.insert(

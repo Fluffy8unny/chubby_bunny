@@ -5,7 +5,7 @@ use chubby_bunny_canvas_renderer::js_types::{default_meta, OutgoingEvent};
 use chubby_bunny_core::{
     Body, ExtrinsicConstraintType, Particle, SolverSettings, Transformation, WallConstraint,
 };
-use chubby_bunny_svg::{load_svg, BodySettings, MetaMap};
+use chubby_bunny_svg::{load_svg, BodySettings, MetaMap, SVGConstraintSettings};
 use nalgebra::Vector2;
 use std::collections::VecDeque;
 use web_sys::console;
@@ -26,9 +26,12 @@ impl SVGGame {
         &mut self,
         svg_source: &str,
         svg_instance_transform: Transformation<f32>,
-        settings: &BodySettings<f32>,
+        body_settings: &BodySettings<f32>,
+        constraint_settings: &SVGConstraintSettings<f32>,
     ) -> Vec<Body> {
-        if let Ok((mut template, meta)) = load_svg(svg_source, settings) {
+        if let Ok((mut template, meta)) =
+            load_svg(svg_source, body_settings, constraint_settings)
+        {
             template
                 .iter_mut()
                 .for_each(|template| template.transform(svg_instance_transform));
@@ -65,8 +68,9 @@ impl SVGGame {
                     stiffness: 1.0,
                 })));
         }
-        let svg_settings =
-            BodySettings::from_values(1.0, 0.01, false, 0.5, 0.35, 0.3, 0.4, 0.5, 5, 8, 2.0, 3);
+        let svg_body_settings = BodySettings::from_values(1.0, 0.01, false);
+        let svg_constraint_settings =
+            SVGConstraintSettings::from_values(0.5, 0.35, 0.3, 0.4, 0.5, 5, 8, 2.0, 3);
 
         let test_svg_bodies = self.load_svg_file(
             include_str!("../web/assets/bunny.svg"),
@@ -75,7 +79,8 @@ impl SVGGame {
                 scale: height * 0.25,
                 rotation_radians: 0.0,
             },
-            &svg_settings,
+            &svg_body_settings,
+            &svg_constraint_settings,
         );
 
         container_body.children.extend(test_svg_bodies);

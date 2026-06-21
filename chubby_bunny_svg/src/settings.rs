@@ -1,9 +1,11 @@
 use chubby_bunny_core::FloatingPointNumber;
+
 pub struct ParticleSettings<T> {
     pub mass: T,
     pub friction: T,
     pub is_static: bool,
 }
+
 pub struct ConstraintSettings<T> {
     pub stiffness_distance: T,
     pub stiffness_shear: T,
@@ -11,6 +13,7 @@ pub struct ConstraintSettings<T> {
     pub stiffness_area: T,
     pub attachment_stiffness: T,
 }
+
 pub struct AttachmentSettings<T> {
     pub child_sample_stride: usize,
     pub max_total_attachments: usize,
@@ -20,6 +23,9 @@ pub struct AttachmentSettings<T> {
 
 pub struct BodySettings<T> {
     pub particle_settings: ParticleSettings<T>,
+}
+
+pub struct SVGConstraintSettings<T> {
     pub constraint_settings: ConstraintSettings<T>,
     pub attachment_settings: AttachmentSettings<T>,
 }
@@ -29,6 +35,19 @@ impl<T: FloatingPointNumber> BodySettings<T> {
         mass: T,
         friction: T,
         is_static: bool,
+    ) -> Self {
+        Self {
+            particle_settings: ParticleSettings {
+                mass,
+                friction,
+                is_static,
+            },
+        }
+    }
+}
+
+impl<T: FloatingPointNumber> SVGConstraintSettings<T> {
+    pub fn from_values(
         stiffness_distance: T,
         stiffness_shear: T,
         stiffness_bending: T,
@@ -40,11 +59,6 @@ impl<T: FloatingPointNumber> BodySettings<T> {
         parent_springs_per_child_anchor: usize,
     ) -> Self {
         Self {
-            particle_settings: ParticleSettings {
-                mass,
-                friction,
-                is_static,
-            },
             constraint_settings: ConstraintSettings {
                 stiffness_distance,
                 stiffness_shear,

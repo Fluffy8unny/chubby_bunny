@@ -1,4 +1,4 @@
-use crate::{AttachmentSettings, BodySettings};
+use crate::{AttachmentSettings, SVGConstraintSettings};
 use chubby_bunny_core::{
     eps, AreaConstraint, AttachmentConstraint, BendingConstraint, Body, DistanceConstraint,
     ExtrinsicConstraintType, FloatingPointNumber,
@@ -273,7 +273,7 @@ pub fn nearest_parent_attachment_points<T: FloatingPointNumber>(
 pub fn attach_child_to_parent<T: FloatingPointNumber>(
     parent: &mut Body<T>,
     child: &Body<T>,
-    settings: &BodySettings<T>,
+    settings: &SVGConstraintSettings<T>,
 ) {
     let (parent_idxs, child_idxs) =
         nearest_parent_attachment_points(parent, child, &settings.attachment_settings);

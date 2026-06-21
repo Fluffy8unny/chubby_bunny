@@ -1,5 +1,7 @@
 use chubby_bunny_core::{Body, BodyId, FloatingPointNumber, Transformation};
-use chubby_bunny_svg::{instantiate_svg_body, load_svg, BodyMeta, BodySettings};
+use chubby_bunny_svg::{
+    instantiate_svg_body, load_svg, BodyMeta, BodySettings, SVGConstraintSettings,
+};
 
 use nalgebra::Vector2;
 use rand::rngs::SmallRng;
@@ -47,7 +49,6 @@ pub struct BunnySpawner<T = f32> {
     max_pos_x: T,
     min_scale: T,
     max_scale: T,
-    svg_settings: Option<BodySettings<T>>,
     random_picker: RandomPicker<T>,
 }
 
@@ -70,7 +71,6 @@ impl<T: FloatingPointNumber> BunnySpawner<T> {
             max_pos_x: max_pos,
             min_scale,
             max_scale,
-            svg_settings: None,
             random_picker: RandomPicker::new(Vec::new(), T::zero(), max_pos, max_scale),
         }
     }
@@ -137,13 +137,16 @@ impl<T: FloatingPointNumber> BunnySpawner<T> {
         );
     }
 
-    pub fn load_bunnies_from_svg(&mut self, svg_data: Vec<&str>, settings: BodySettings<T>) {
+    pub fn load_bunnies_from_svg(
+        &mut self,
+        svg_data: Vec<&str>,
+        body_settings: &BodySettings<T>,
+        constraint_settings: &SVGConstraintSettings<T>,
+    ) {
         self.bunny_bodies.clear();
         self.bunny_meta.clear();
-        self.svg_settings = Some(settings);
         for svg_path in svg_data.iter() {
-            if let Ok((mut bodies, meta)) = load_svg(svg_path, self.svg_settings.as_ref().unwrap())
-            {
+            if let Ok((mut bodies, meta)) = load_svg(svg_path, body_settings, constraint_settings) {
                 self.bunny_bodies.append(&mut bodies);
                 self.bunny_meta.push(meta);
             } else {
