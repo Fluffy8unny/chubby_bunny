@@ -80,8 +80,10 @@ const loop = (timestamp) => {
   flushInputEvents();
   const dt = timestamp - (app.lastTimestamp || timestamp);
   app.lastTimestamp = timestamp;
-  app.update(dt);
-
+  let events = app.update(dt);
+  for (const event of events) {
+    console.log("Log event from Rust:", event.description ?? event);
+  }
   const polygonArrays = app.get_polygon_arrays();
   renderer.render(polygonArrays);
   requestAnimationFrame(loop);

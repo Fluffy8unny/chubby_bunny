@@ -60,9 +60,9 @@ impl InteractiveGame {
                 poly_radius,
                 12,
                 0.5,
-                0.00,
+                0.2,
+                0.2,
                 0.0,
-                0.3,
                 0.002,
             );
             container_body.children.push(poly);
