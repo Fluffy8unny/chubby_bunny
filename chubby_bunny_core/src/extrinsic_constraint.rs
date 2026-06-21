@@ -3,11 +3,15 @@ use crate::{eps, Body, BodyId, FloatingPointNumber, Particle, SolverSettings, Tr
 use dyn_clone::DynClone;
 use std::collections::HashMap;
 
+/// Constraint that acts on particles of multiple bodies, where the bodies influence each other.
 #[derive(Clone)]
 pub enum ExtrinsicConstraintType<T> {
+    /// Constraint that acts on all bodies in the system, such as collision with a global boundary.
     Global(Box<dyn GlobalExtrinsicConstraint<T>>),
+    /// Constraint that acts on a single body, but depends on the state of other bodies, such as an attachment.
     Local(Box<dyn LocalExtrinsicConstraint<T>>),
 }
+/// Constraints that act on particles of multiple bodies, where the bodies influence each other.
 pub trait GlobalExtrinsicConstraint<T = f32>: DynClone {
     fn solve(
         &self,
@@ -19,6 +23,7 @@ pub trait GlobalExtrinsicConstraint<T = f32>: DynClone {
 }
 dyn_clone::clone_trait_object!(<T> GlobalExtrinsicConstraint<T>);
 
+/// Constraints that act on a single body, but depend on the state of other bodies.
 pub trait LocalExtrinsicConstraint<T = f32>: DynClone {
     fn solve(
         &self,
@@ -33,12 +38,20 @@ pub trait LocalExtrinsicConstraint<T = f32>: DynClone {
 }
 dyn_clone::clone_trait_object!(<T> LocalExtrinsicConstraint<T>);
 
+/// Collision between bodies, that are the children of a given parent body, and a line defined by two particles of the parent body.
+///
+/// The line segment is treated as a one-sided wall. The difference to the CollisionConstraint is, that the wall is completly static
+/// This is mainly used to keep the whole scene on the screen by attaching all bodies to a large container body, that has wall constraints on its edges.
 #[derive(Clone)]
 pub struct WallConstraint<T> {
+    /// Index of the parent particle that defines the line start.
     pub parent_point_idx_origin: usize,
+    /// Index of the parent particle that defines the line end.
     pub parent_point_idx_end: usize,
+    /// Solver stiffness in `[0, 1]` where higher values enforce the target more strongly.
     pub stiffness: T,
 }
+
 impl<T: FloatingPointNumber> GlobalExtrinsicConstraint<T> for WallConstraint<T> {
     fn solve(
         &self,
@@ -65,15 +78,23 @@ impl<T: FloatingPointNumber> GlobalExtrinsicConstraint<T> for WallConstraint<T> 
     }
 }
 
+/// Attachment between a child body and a parent body, that tries to preserve the initial distance between defined pairs of parent and child particles.
 #[derive(Clone)]
 pub struct AttachmentConstraint<T> {
+    /// Id of the parent body this constraint is attached to.
     pub id: BodyId,
+    /// Indices of the parent particles involved in the attachment.
     pub point_idxs_parent: Vec<usize>,
+    /// Indices of the child particles involved in the attachment.
     pub point_idxs_child: Vec<usize>,
+    /// Target distances between corresponding parent and child particles.
     pub target_distances: Vec<T>,
+    /// Solver stiffness in `[0, 1]` where higher values enforce the target more strongly.
     pub stiffness: T,
 }
+
 impl<T: FloatingPointNumber> AttachmentConstraint<T> {
+    /// Builds an attachment constraint from the current distances between the specified parent and child particles.
     pub fn new(
         body_id: BodyId,
         parent: &Body<T>,

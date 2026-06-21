@@ -1,13 +1,21 @@
-use crate::{Body, FloatingPointNumber, SolverSettings, constraint_common::get_normal, eps};
+use crate::{constraint_common::get_normal, eps, Body, FloatingPointNumber, SolverSettings};
 use itertools::Itertools;
 use nalgebra::Vector2;
 
+/// Collision between two bodies, that are the children of a given parent body, where both bodies can move and influence each other.
+///
+/// This is done in two steps:
+/// First, edge intersections between the two bodies are detected and resolved by applying position corrections to the intersecting edges.
+///  Second, it is checked if one body is completely or partially contained in the other body, which is resolved by applying position corrections
+///  along the normal from the contained point to the nearest edge of the container body.
 #[derive(Clone)]
 pub struct CollisionConstraint<T> {
+    /// Solver stiffness in `[0, 1]` where higher values enforce the target more strongly.
     stiffness: T,
 }
 
 impl<T> CollisionConstraint<T> {
+    /// Creates a new collision constraint with the given stiffness.
     pub fn new(stiffness: T) -> Self {
         Self { stiffness }
     }
@@ -61,11 +69,9 @@ fn edges_of<T: FloatingPointNumber>(body: &Body<T>) -> Vec<Edge<T>> {
         .collect()
 }
 
-
-
-fn nearest_edge_to_point< T: FloatingPointNumber>(
+fn nearest_edge_to_point<T: FloatingPointNumber>(
     point: Vector2<T>,
-    edges: & [Edge<T>],
+    edges: &[Edge<T>],
 ) -> Option<(&Edge<T>, PointSegmentDistance<T>)> {
     edges
         .iter()

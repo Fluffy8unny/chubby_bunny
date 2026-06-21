@@ -1,10 +1,13 @@
 use crate::{FloatingPointNumber, Particle};
 use nalgebra::Vector2;
 
+/// Force that can be applied to particles, such as gravity or user interaction forces.
 pub trait Force<T = f32> {
     fn apply(&self, particle: &Particle<T>) -> Vector2<T>;
 }
 
+/// Creates a constant force that applies the same force vector to all particles.
+/// This can be used to implement gravity by providing a downward force vector.
 pub fn constant_force<T>(f: Vector2<T>) -> impl Force<T>
 where
     T: Copy,
@@ -24,16 +27,23 @@ where
     ConstantForce { f }
 }
 
+/// Creates a force that applies no force to any particle.
 pub fn no_force<T: FloatingPointNumber>() -> impl Force<T> {
     constant_force(Vector2::zeros())
 }
 
+/// Enum used to describe how the strength of a point-based force decays with distance. This is used by `point_based_force`.
 pub enum ForceDecayType {
+    /// The force strength remains constant regardless of distance.
     Constant,
+    /// The force strength decreases linearly with distance.
     Linear,
+    /// The force strength decreases quadratically with distance.
     Quadratic,
 }
 
+/// Creates a force that attracts particles towards a specific target point, with strength that can decay based on distance.
+/// This can be used to implement user interaction forces, deflectors or attractors.
 pub fn point_based_force<T: FloatingPointNumber>(
     target: Vector2<T>,
     strength: T,

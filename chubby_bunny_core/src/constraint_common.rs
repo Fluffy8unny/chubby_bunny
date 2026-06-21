@@ -35,7 +35,10 @@ pub fn get_distance_correction_vector<T: FloatingPointNumber>(
     move_direction * correction_magnitude
 }
 
-pub fn get_normal<T: FloatingPointNumber>(start: Vector2<T>, end: Vector2<T>) -> Option<Vector2<T>> {
+pub fn get_normal<T: FloatingPointNumber>(
+    start: Vector2<T>,
+    end: Vector2<T>,
+) -> Option<Vector2<T>> {
     let edge_vector = end - start;
     if edge_vector.norm_squared() <= T::zero() {
         return None;
@@ -43,10 +46,20 @@ pub fn get_normal<T: FloatingPointNumber>(start: Vector2<T>, end: Vector2<T>) ->
     Some(Vector2::new(-edge_vector.y, edge_vector.x).normalize())
 }
 
+pub fn distribute_based_on_mass<T: FloatingPointNumber>(
+    particle_a: &Particle<T>,
+    particle_b: &Particle<T>,
+) -> (T, T) {
+    let total_mass = particle_a.mass + particle_b.mass;
+    if total_mass <= T::zero() {
+        return (T::from(0.5), T::from(0.5));
+    }
+    (particle_b.mass / total_mass, particle_a.mass / total_mass)
+}
 #[macro_export]
 macro_rules! eps {
     ($type:ident, $exp:literal) => {
-        // Evaluates 10^exp at compile-time as an f32, requires from32 trait 
-         <$type>::from(10.0_f32.powi(-$exp))
+        // Evaluates 10^exp at compile-time as an f32, requires from32 trait
+        <$type>::from(10.0_f32.powi(-$exp))
     };
 }
