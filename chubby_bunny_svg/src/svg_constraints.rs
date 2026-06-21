@@ -7,6 +7,9 @@ use nalgebra::Vector2;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 
+/// Adds distance constraints between adjacent particles in the body to maintain the outer shape of the body.
+/// This is doing nothing for internal stability, but is important for maintaining the visual shape of the body,
+/// especially for bodies with few particles.
 pub fn add_boundary_distance_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffness: T) {
     let n = body.particles.len();
     if n < 2 || stiffness <= T::zero() {
@@ -23,6 +26,7 @@ pub fn add_boundary_distance_constraints<T: FloatingPointNumber>(body: &mut Body
     }
 }
 
+/// Adds an area constraint to the body to maintain its overall area. Basically limits squishyness.
 pub fn add_area_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffness: T) {
     if body.particles.len() < 3 || stiffness <= T::zero() {
         return;
@@ -31,6 +35,9 @@ pub fn add_area_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffnes
         .push(Box::new(AreaConstraint::new(&body.particles, stiffness)));
 }
 
+/// Adds shear constraints to the body to maintain its internal structure. These constraints
+/// connect non-adjacent particles, helping to resist deformation.
+/// Internally it adds distance constraints between particles that are 1/3 and 1/2 of the way around the body.
 pub fn add_shear_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffness: T) {
     let n = body.particles.len();
     if n < 4 || stiffness <= T::zero() {
@@ -58,6 +65,8 @@ pub fn add_shear_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffne
     }
 }
 
+/// Adds bending constraints to the body to resist changes in the angle between adjacent edges.
+/// This is important for concave regions, to prevent them from folding in on themselves.
 pub fn add_boundary_bending_constraints<T: FloatingPointNumber>(body: &mut Body<T>, stiffness: T) {
     let n = body.particles.len();
     if n < 3 || stiffness <= T::zero() {
@@ -246,7 +255,7 @@ fn expand_candidates_to_supports<T: FloatingPointNumber>(
     (parent_idxs, child_idxs)
 }
 
-pub fn nearest_parent_attachment_points<T: FloatingPointNumber>(
+fn nearest_parent_attachment_points<T: FloatingPointNumber>(
     parent: &Body<T>,
     child: &Body<T>,
     settings: &AttachmentSettings<T>,
@@ -270,6 +279,7 @@ pub fn nearest_parent_attachment_points<T: FloatingPointNumber>(
     expand_candidates_to_supports(&candidates, parent.particles.len(), settings)
 }
 
+/// Attaches a child body to a parent body by creating attachment constraints between selected pairs of parent and child particles.
 pub fn attach_child_to_parent<T: FloatingPointNumber>(
     parent: &mut Body<T>,
     child: &Body<T>,

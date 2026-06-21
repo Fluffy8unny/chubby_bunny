@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use svgtypes::{PathParser, PathSegment};
 
 pub type SVGLoadResult<T> = Result<(Vec<Body<T>>, MetaMap), Box<dyn std::error::Error>>;
+
 #[derive(Debug, Deserialize)]
 #[serde(rename = "svg")]
 struct Svg {
@@ -162,6 +163,8 @@ fn collect_instantiated_meta_recursive<T>(
     }
 }
 
+/// Creates a new instance of a body template, applying the given transformation to the instance.
+/// This also generates a new MetaMap for the instance, copying and transforming the metadata from the template.
 pub fn instantiate_svg_body<T: FloatingPointNumber>(
     template: &Body<T>,
     template_meta: &MetaMap,
@@ -175,6 +178,8 @@ pub fn instantiate_svg_body<T: FloatingPointNumber>(
     (instance, instance_meta)
 }
 
+/// Instantiates multiple body templates, applying the given transformation to each instance.
+/// This also generates a new MetaMap for the instances, copying and transforming the metadata from the templates.
 pub fn instantiate_svg_bodies<T: FloatingPointNumber>(
     templates: &[Body<T>],
     template_meta: &MetaMap,
@@ -347,6 +352,11 @@ fn normalized_template_transform<T: FloatingPointNumber>(bodies: &[Body<T>]) -> 
     }
 }
 
+/// loads an SVG string into a vector of body templates and a corresponding MetaMap.
+/// The body templates are normalized to fit within a unit square, and the MetaMap
+/// contains metadata for each body, indexed by their IDs.
+///
+/// No automatic constraints are added at this stage, only the bodies and their metadata are loaded and normalized.
 pub fn load_svg_to_body<T: FloatingPointNumber>(
     xml: &str,
     body_settings: &BodySettings<T>,
@@ -404,6 +414,11 @@ pub fn add_automatic_constraints<T: FloatingPointNumber>(
     }
 }
 
+/// Loads an svg string into a vector of body templates and a corresponding MetaMap.
+///
+/// The body templates are normalized to fit within a unit square, and the MetaMap
+/// contains metadata for each body, indexed by their IDs.
+/// Finally this adds automatic constraints to the bodies based on the provided settings.
 pub fn load_svg<T: FloatingPointNumber>(
     xml: &str,
     body_settings: &BodySettings<T>,

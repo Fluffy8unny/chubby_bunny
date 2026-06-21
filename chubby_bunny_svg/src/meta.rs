@@ -3,6 +3,7 @@ use svgtypes::{Length, Paint, PaintFallback};
 pub type MetaMap = std::collections::HashMap<BodyId, BodyMeta>;
 
 #[derive(Debug, Clone, Copy, serde::Serialize)]
+/// Represents an RGBA color with red, green, blue components as u8 (0-255) and alpha as f32 (0.0-1.0).
 pub struct Color {
     pub r: u8,
     pub g: u8,
@@ -11,6 +12,7 @@ pub struct Color {
 }
 
 impl Color {
+    /// Creates a Color from a SVG paint value.
     pub fn from_paint(value: &str) -> Option<Self> {
         match Paint::from_str(value).ok()? {
             Paint::None => Some(Self {
@@ -41,6 +43,7 @@ impl Color {
         }
     }
 
+    /// Creates a black color with full opacity.
     pub fn black() -> Self {
         Self {
             r: 0,
@@ -50,6 +53,10 @@ impl Color {
         }
     }
 }
+
+/// Metadata associated with a body, including its unique ID, colors for stroke and fill,
+/// line weight, z-index for rendering order, and whether to smooth edges when rendering.
+/// This is made to be easily serialized for canvas like renderers
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct BodyMeta {
     pub id: BodyId,
@@ -60,6 +67,7 @@ pub struct BodyMeta {
     pub smooth_edges: bool,
 }
 
+/// Parses a SVG style string into a BodyMeta struct
 pub fn parse_style_to_body_meta(style: &str, id: BodyId, z_index: i32) -> BodyMeta {
     let mut line_color = Color::black();
     let mut fill_color = Color::black();
