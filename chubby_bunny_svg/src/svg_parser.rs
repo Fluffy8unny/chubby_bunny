@@ -405,6 +405,7 @@ fn add_automatic_constraints_recursive<T: FloatingPointNumber>(
     body.children = children;
 }
 
+/// Adds automatic constraints to the body and all its descendants based on the provided settings.
 pub fn add_automatic_constraints<T: FloatingPointNumber>(
     bodies: &mut [Body<T>],
     constraint_settings: &SVGConstraintSettings<T>,

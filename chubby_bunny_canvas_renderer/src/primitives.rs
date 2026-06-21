@@ -3,6 +3,9 @@ use chubby_bunny_core::{AreaConstraint, Body, DistanceConstraint};
 use chubby_bunny_core::{BendingConstraint, FloatingPointNumber};
 use nalgebra::Vector2;
 
+/// Helper function to create a polygon body with specified parameters, including the center position, radius, number of sides, stiffness for various constraints,
+/// and friction. The function generates particles arranged in a circular pattern and applies distance, shear, bending, and area constraints to maintain the shape and behavior of the polygon.
+/// Shear constraints are applied between opposite corners to help resist deformation, while the area constraint helps maintain the overall area of the polygon.
 pub fn create_polygon<T: FloatingPointNumber>(
     center: Vector2<T>,
     radius: T,
@@ -60,6 +63,8 @@ pub fn create_polygon<T: FloatingPointNumber>(
     polygon
 }
 
+/// Creates a rectangular body with specified parameters.
+/// Shear constraints are applied between opposite corners to help resist deformation.
 pub fn create_rect<T: FloatingPointNumber>(
     start: Vector2<T>,
     width: T,
@@ -107,6 +112,8 @@ pub fn create_rect<T: FloatingPointNumber>(
     rect
 }
 
+/// Creates a quadrilateral body with specified parameters, including the starting position, size, stiffness for various constraints, and friction.
+/// Shear constraints are applied between opposite corners to help resist deformation.
 pub fn create_quad<T: FloatingPointNumber>(
     start: Vector2<T>,
     size: T,
