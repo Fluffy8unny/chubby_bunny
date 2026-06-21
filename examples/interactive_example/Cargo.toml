@@ -1,0 +1,15 @@
+[package]
+name = "interactive_example"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+chubby_bunny_core = { path = "../../chubby_bunny_core" }
+chubby_bunny_svg = { path = "../../chubby_bunny_svg" }
+chubby_bunny_canvas_renderer = { path = "../../chubby_bunny_canvas_renderer" }
+chubby_bunny_bindgen = { path = "../../chubby_bunny_bindgen" }
+wasm-bindgen = "0.2"
+nalgebra = "0.35"

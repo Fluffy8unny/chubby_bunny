@@ -7,6 +7,7 @@ members = [
     "chubby_bunny_bindgen",
     "examples/minimal_box",
     "examples/contraint_example",
+    "examples/interactive_example",
     "examples/svg_example",
 ]
 
