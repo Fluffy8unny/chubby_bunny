@@ -13,12 +13,7 @@ if [ -z "$WASM_BINDGEN_BIN" ]; then
   WASM_BINDGEN_BIN="$HOME/.cargo/bin/wasm-bindgen"
 fi
 
-rustup target add wasm32-unknown-unknown
-cargo build --target wasm32-unknown-unknown --release
-"$WASM_BINDGEN_BIN" target/wasm32-unknown-unknown/release/chubby_bunny_playground.wasm \
-  --out-dir pkg \
-  --target web
-
+sh chubby_bunny_playground/build.sh
 sh examples/minimal_box/build.sh
 sh examples/contraint_example/build.sh
 sh examples/svg_example/build.sh

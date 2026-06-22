@@ -101,17 +101,17 @@ impl PlaygroundGame {
         let mut scene_bodies = Vec::new();
         for (svg_data, transform, name) in [
             (
-                include_str!("../../web/assets/mail.svg"),
+                include_str!("../web/assets/mail.svg"),
                 get_transform(width as f32 / 2.0 - button_scale * 1.5),
                 "mail",
             ),
             (
-                include_str!("../../web/assets/git.svg"),
+                include_str!("../web/assets/git.svg"),
                 get_transform(width as f32 / 2.0 - button_scale * 0.5),
                 "git",
             ),
             (
-                include_str!("../../web/assets/about.svg"),
+                include_str!("../web/assets/about.svg"),
                 get_transform(width as f32 / 2.0 + button_scale * 0.5),
                 "about",
             ),
@@ -129,7 +129,7 @@ impl PlaygroundGame {
             SVGConstraintSettings::from_values(1.0, 1.0, 0.6, 0.8, 0.5, 5, 8, 2.0, 3);
 
         let mut cloud_bodies = self.load_svg_file(
-            include_str!("../../web/assets/clouds_foreground.svg"),
+            include_str!("../web/assets/clouds_foreground.svg"),
             Transformation {
                 offset: Vector2::new(0.0, height as f32 - width as f32 / 16.0),
                 scale: width as f32,
@@ -271,10 +271,10 @@ impl Game for PlaygroundGame {
         ));
         self.spawner.load_bunnies_from_svg(
             vec![
-                include_str!("../../web/assets/t1.svg"),
-                include_str!("../../web/assets/t2.svg"),
-                include_str!("../../web/assets/t3.svg"),
-                include_str!("../../web/assets/t4.svg"),
+                include_str!("../web/assets/t1.svg"),
+                include_str!("../web/assets/t2.svg"),
+                include_str!("../web/assets/t3.svg"),
+                include_str!("../web/assets/t4.svg"),
             ],
             &svg_body_settings,
             &svg_constraint_settings,
