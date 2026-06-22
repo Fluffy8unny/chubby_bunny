@@ -36,7 +36,7 @@ Chubby Bunny is a Rust workspace for WebAssembly-compatible soft-body physics. I
 
 ## Design philosophy
 
-The system is organized around modular bodies arranged in a hierarchy. Constraints describe the relationships between those bodies, while forces act on them to drive motion and interaction. That separation keeps the model composable: bodies define the structure, constraints define how pieces relate, and forces define how the system evolves.
+The system is organized around modular bodies arranged in a hierarchy. Constraints describe the relationships between those bodies, while forces act on them to drive motion and interaction. That separation keeps the model composable: bodies define the structure, constraints define how pieces relate, and forces influence the whole system externally.
 ```mermaid
 graph LR
     A[Particles] --> B[Bodies]
@@ -92,6 +92,7 @@ Typical flow:
 2. Normalize the result into a unit-space template.
 3. Optionally add automatic constraints for the parsed hierarchy.
 4. Instantiate the template with transformations when needed.
+5. 
 ```mermaid
 graph LR
     SVG[SVG file] --> Parse[Parse shapes & groups]
@@ -111,7 +112,7 @@ The repository includes several WASM examples under `examples/`.
 
 | Example | What it demonstrates |
 |---|---|
-| `minimal_box` | Minimal setup for a soft-body scene — best place to start |
+| `minimal_box` | Minimal setup for a soft-body scene  |
 | `contraint_example` | Side-by-side comparison of different constraint configurations |
 | `interactive_example` | Interactive selection and dragging |
 | `svg_example` | SVG-driven body generation from an imported file |
