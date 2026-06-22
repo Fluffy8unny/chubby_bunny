@@ -1,5 +1,4 @@
-
-![Chubby Bunny logo](web/assets/logo.svg)
+![Chubby Bunny logo](readme_assets/logo.png)
 
 # Chubby Bunny
 
@@ -12,7 +11,7 @@ It combines three main pieces:
 - a simple canvas renderer and wasm bindings for interactive browser demos
 
 This makes it easy to design shapes in programs like inkscape and use them inside of a browser envoirement.
-
+You can check out an example at [chubby bunny example](http://weissenburger.info).
 ## Table of Contents
 
 - [Design Philosophy](#design-philosophy)
@@ -31,8 +30,8 @@ The system is organized around modular bodies arranged in a hierarchy. Constrain
 
 Constraints describe the physical properties of bodies. By adding them to a shape, you can create stiff or squishy behaivor. These can either be added manually or automatically.
 
+![Constraint gif](readme_assets/constraints.gif)
 ### Intrinsic Constraints
-
 These act within a single body.
 
 - `DistanceConstraint`: preserves the distance between two particles
@@ -54,7 +53,7 @@ Handles colision between bodies.
 
 
 ## SVG Pipeline
-
+![Worklflow example](readme_assets/workflow.png)
 The SVG pipeline is designed for polygonal shapes and nested group hierarchies.
 
 Typical flow:

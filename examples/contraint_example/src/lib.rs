@@ -3,7 +3,9 @@ use chubby_bunny_canvas_renderer::game_loop::{Game, GameLoop};
 use chubby_bunny_canvas_renderer::input::Event;
 use chubby_bunny_canvas_renderer::js_types::{default_meta, OutgoingEvent};
 use chubby_bunny_canvas_renderer::primitives::create_polygon;
-use chubby_bunny_core::{Body, ExtrinsicConstraintType, Particle, SolverSettings, WallConstraint};
+use chubby_bunny_core::{
+    Body, CollisionConstraint, ExtrinsicConstraintType, Particle, SolverSettings, WallConstraint,
+};
 use chubby_bunny_svg::MetaMap;
 use nalgebra::Vector2;
 use std::collections::VecDeque;
@@ -47,7 +49,7 @@ impl ConstraintsGame {
                 })));
         }
         let distance_radius = width / 10.0;
-        let poly_radius = distance_radius * 0.8;
+        let poly_radius = distance_radius;
         let poly_distance_only = create_polygon(
             Vector2::new(distance_radius, center.y),
             poly_radius,
@@ -103,6 +105,7 @@ impl ConstraintsGame {
         container_body.children.push(poly_distance_area);
         container_body.children.push(poly_bending);
         container_body.children.push(poly_stiff);
+        container_body.collision_constraint = Some(CollisionConstraint::new(0.99));
         container_body
     }
 }
