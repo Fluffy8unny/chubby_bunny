@@ -10,12 +10,11 @@ It combines three main pieces:
 - an SVG pipeline that can turn polygonal SVG shapes into bodies and automatically generate useful constraints
 - a simple canvas renderer and wasm bindings for interactive browser demos
 
-The goal is to make it easy to prototype deformable 2D bodies in Rust and run them in the browser with a minimal integration layer.
+This makes it easy to design shapes in programs like inkscape and use them inside of a browser envoirement.
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Features](#features)
+ [Features](#features)
 - [Available Constraints](#available-constraints)
 - [SVG Pipeline](#svg-pipeline)
 - [Examples](#examples)
@@ -23,30 +22,10 @@ The goal is to make it easy to prototype deformable 2D bodies in Rust and run th
 - [Getting Started](#getting-started)
 - [Project Status](#project-status)
 
-## Overview
-
-Chubby Bunny is aimed at lightweight 2D soft-body experiments that work well with WebAssembly. The workspace is split into focused crates so you can use only the parts you need.
-
-At a high level, you can:
-
-- build bodies directly from particles and constraints
-- generate bodies automatically from SVG polygons
-- attach nested SVG shapes to parent bodies through attachment constraints
-- render the result in a browser using the included canvas renderer
-- expose demos or applications through the wasm bindings layer
-
-## Features
-
-- Wasm-compatible soft-body physics written in Rust
-- Particle-based bodies with intrinsic, extrinsic, and collision constraints
-- Automatic body generation from polygonal SVG paths
-- Automatic SVG constraint generation for outline, area, shear, bending, and attachments
-- Simple HTML canvas renderer for browser demos
-- Small example applications for testing and iteration
 
 ## Available Constraints
 
-The project currently exposes and uses the following constraint types.
+Constraints describe the physical properties of bodies. By adding them to a shape, you can create stiff or squishy behaivor. These can either be added manually or automatically.
 
 ### Intrinsic Constraints
 
@@ -65,19 +44,10 @@ These act between bodies or between a body and an external structure.
 
 ### Collision Constraints
 
-These resolve interactions between bodies.
+Handles colision between bodies.
 
 - `CollisionConstraint`: resolves edge intersections and containment contacts between sibling bodies
 
-### SVG-Generated Constraints
-
-When using the SVG utilities, the following helpers can be added automatically:
-
-- boundary distance constraints
-- shear constraints
-- boundary bending constraints
-- area constraints
-- parent-child attachment constraints
 
 ## SVG Pipeline
 
@@ -90,10 +60,6 @@ Typical flow:
 3. Optionally add automatic constraints for the parsed hierarchy.
 4. Instantiate the template with transformations when needed.
 
-This gives you two modes of use:
-
-- automatic setup for fast iteration
-- manual setup when you want full control over generated constraints
 
 ## Examples
 
@@ -112,7 +78,7 @@ See [examples/README.md](examples/README.md) for the current examples workflow.
 - `chubby_bunny_svg`: SVG parsing, metadata extraction, and automatic constraint generation
 - `chubby_bunny_canvas_renderer`: lightweight canvas rendering helpers
 - `chubby_bunny_bindgen`: wasm-facing binding helpers
-- `chubby_bunny_playground`: higher-level playground integration
+- `chubby_bunny_playground`: Code for a website, that contains a lot of cute bunnies
 
 ## Getting Started
 
@@ -120,12 +86,6 @@ Build the workspace:
 
 ```sh
 cargo build
-```
-
-Run checks:
-
-```sh
-cargo check
 ```
 
 Build an example:
