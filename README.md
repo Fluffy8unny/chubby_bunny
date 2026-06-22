@@ -1,3 +1,4 @@
+
 ![Chubby Bunny logo](web/assets/logo.svg)
 
 # Chubby Bunny
@@ -14,7 +15,7 @@ This makes it easy to design shapes in programs like inkscape and use them insid
 
 ## Table of Contents
 
- [Features](#features)
+- [Design Philosophy](#design-philosophy)
 - [Available Constraints](#available-constraints)
 - [SVG Pipeline](#svg-pipeline)
 - [Examples](#examples)
@@ -22,6 +23,9 @@ This makes it easy to design shapes in programs like inkscape and use them insid
 - [Getting Started](#getting-started)
 - [Project Status](#project-status)
 
+## Design Philosophy
+
+The system is organized around modular bodies arranged in a hierarchy. Constraints describe the relationships between those bodies, while forces act on them to drive motion and interaction. That separation keeps the model composable: bodies define the structure, constraints define how pieces relate, and forces define how the system evolves.
 
 ## Available Constraints
 
@@ -105,7 +109,3 @@ Then open an example page such as:
 ```text
 http://localhost:8000/examples/minimal_box/web/
 ```
-
-## Project Status
-
-This README is a starting point and will expand with API examples, SVG authoring guidance, and more detailed setup notes.
