@@ -1,5 +1,5 @@
 import init, { SVGExample } from "../pkg/svg_example.js";
-import { createRenderer } from "../../../web/rendering.js";
+import { createRenderer } from "../../../chubby_bunny_playground/web/rendering.js";
 
 const canvas = document.getElementById("canvas");
 const renderer = createRenderer(canvas);

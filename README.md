@@ -47,8 +47,6 @@ graph LR
     E --> F[Browser / WASM]
 ```
 
-
-
 ---
 
 ## Available constraints
@@ -103,11 +101,85 @@ graph LR
     Constraints --> Instantiate[Instantiate with transforms]
 ```
 
-
 ---
 
 ## Examples
+### Simple example
+Create a struct to store the bodies and meta data, you want to display.
+```
+struct MinimalGame {
+    bodies: Vec<Body>,
+    meta_data: MetaMap,
+}
+```
 
+Implement the required functions for the game trait
+```rust
+impl Game for MinimalGame {
+    // called at the start
+    fn init(&mut self, width: usize, height: usize) {
+        self.bodies.clear();
+        self.meta_data.clear();
+
+        // lets build a simple quad, and add it to to the bodies we want to display
+        let mut box_body = Body::empty();
+        let mut create_particle_helper = |x, y| {
+            box_body.particles.push(Particle::new(
+                nalgebra::Vector2::new(x, y),     // position
+                nalgebra::Vector2::new(0.0, 0.0), // initial velocity
+                1.0,   // weight of this particle
+                0.1,   // friction
+                true,  // is it pinned currently
+            ));
+        };
+
+        // CCW order
+        create_particle_helper(0.25 * width as f32, 0.25 * height as f32);
+        create_particle_helper(0.25 * width as f32, 0.75 * height as f32);
+        create_particle_helper(0.75 * width as f32, 0.75 * height as f32);
+        create_particle_helper(0.75 * width as f32, 0.25 * height as f32);
+        self.meta_data.insert(box_body.id, default_meta(box_body.id, 1));
+        self.bodies.push(box_body);
+    }
+
+    // called to reset the state e.g. when resizing
+    fn reset(&mut self, width: f32, height: f32) {
+        self.init(width as usize, height as usize);
+    }
+
+    // perform an update (physics step. handling events)
+    fn update(&mut self, _incoming_events: VecDeque<Event>, dt_ms: f32) -> Vec<OutgoingEvent> {
+        let settings = SolverSettings {
+            reference_dt: 1.0 / 60.0,  // baseline for the expected speed
+            constraint_iterations: 6,  // iterations for the physics
+        };
+
+        let dt = dt_ms / 1000.0;
+        // add a force that acts as gravity. This c
+        for body in self.bodies.iter_mut() {
+            //let constant_force = chubby_bunny_core::force::constant_force(Vector2::new(0.0, 250.0)); //px/s^2
+            //body.perform_step(&vec![constant_force], dt, &settings);
+        }
+        Vec::new() // we don't handle any events heere, so just return empty vec
+    }
+
+    // How the renderer acesses the actual data
+    fn bodies_to_render(&self) -> &[Body] {
+        &self.bodies
+    }
+    
+    // How the renderer acesses the actual data
+    fn meta_data_to_render(&self) -> &MetaMap {
+        &self.meta_data
+    }
+}
+
+/// This hooks up the WASM bindings for everything
+#[chubby_bunny_bindgen]
+pub struct MinimalBox(GameLoop<MinimalGame>);
+```
+
+### Available examples
 The repository includes several WASM examples under `examples/`.
 
 | Example | What it demonstrates |

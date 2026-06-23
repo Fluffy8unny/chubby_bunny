@@ -1,5 +1,5 @@
 import init, { MinimalBox } from "../pkg/minimal_box.js";
-import { createRenderer } from "../../../web/rendering.js";
+import { createRenderer } from "../../../chubby_bunny_playground/web/rendering.js";
 
 const canvas = document.getElementById("canvas");
 const renderer = createRenderer(canvas);
