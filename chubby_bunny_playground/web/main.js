@@ -13,9 +13,67 @@ const renderer = createRenderer(canvas);
 const siteBanner = document.getElementById("site-banner");
 const siteBannerClose = document.getElementById("site-banner-close");
 let pendingInputEvents = [];
-const CLICK_TIME_THRESHOLD_MS = 375;
+const CLICK_GESTURE_THRESHOLD = Object.freeze({
+  maxElapsedMs: 125,
+  maxTravelPx: 15,
+});
 const lastSelectionByBody = new Map();
 const ENABLE_PROFILER = false;
+const pointerGesture = {
+  isActive: false,
+  lastX: 0,
+  lastY: 0,
+  travelPx: 0,
+};
+let latestCompletedPointerGesture = null;
+
+const beginPointerGesture = (x, y) => {
+  pointerGesture.isActive = true;
+  pointerGesture.lastX = x;
+  pointerGesture.lastY = y;
+  pointerGesture.travelPx = 0;
+  latestCompletedPointerGesture = null;
+};
+
+const extendPointerGesture = (x, y) => {
+  if (!pointerGesture.isActive) {
+    return;
+  }
+
+  const dx = x - pointerGesture.lastX;
+  const dy = y - pointerGesture.lastY;
+  pointerGesture.travelPx += Math.hypot(dx, dy);
+  pointerGesture.lastX = x;
+  pointerGesture.lastY = y;
+};
+
+const endPointerGesture = (x, y, timeStamp) => {
+  if (pointerGesture.isActive) {
+    extendPointerGesture(x, y);
+  }
+
+  latestCompletedPointerGesture = {
+    timeStamp,
+    travelPx: pointerGesture.isActive ? pointerGesture.travelPx : 0,
+  };
+
+  pointerGesture.isActive = false;
+  pointerGesture.travelPx = 0;
+};
+
+const createClickMetrics = (
+  selectionTimeStamp,
+  deselectionTimeStamp,
+  pointerTravelPx,
+) => ({
+  elapsedMs: deselectionTimeStamp - selectionTimeStamp,
+  pointerTravelPx,
+});
+
+const isClickWithinThreshold = (metrics, threshold) =>
+  metrics.elapsedMs >= 0 &&
+  metrics.elapsedMs < threshold.maxElapsedMs &&
+  metrics.pointerTravelPx <= threshold.maxTravelPx;
 
 const closeBanner = () => {
   if (!siteBanner) {
@@ -70,8 +128,13 @@ const handleOutgoingEvent = (rawEvent) => {
       return;
     }
 
-    const elapsed = timeStamp - lastSelection.timeStamp;
-    if (elapsed >= 0 && elapsed < CLICK_TIME_THRESHOLD_MS) {
+    const clickMetrics = createClickMetrics(
+      lastSelection.timeStamp,
+      timeStamp,
+      latestCompletedPointerGesture?.travelPx ?? Number.POSITIVE_INFINITY,
+    );
+
+    if (isClickWithinThreshold(clickMetrics, CLICK_GESTURE_THRESHOLD)) {
       if (description === "mail") {
         window.location.assign("mailto:Andreas@Weissenburger.info");
       } else if (description === "git") {
@@ -80,6 +143,8 @@ const handleOutgoingEvent = (rawEvent) => {
         showBanner();
       }
     }
+
+    latestCompletedPointerGesture = null;
     lastSelection = null;
   }
 };
@@ -90,6 +155,9 @@ const resizeCanvas = () => {
   if (playground) {
     pendingInputEvents = [];
     lastSelection = null;
+    pointerGesture.isActive = false;
+    pointerGesture.travelPx = 0;
+    latestCompletedPointerGesture = null;
     playground.reset(width, height);
     playground.last_timestamp = performance.now();
   }
@@ -112,6 +180,14 @@ const enqueueInputEvent = (kind, event) => {
     button: event.button,
     time_stamp: performance.now(),
   };
+
+  if (kind === "down") {
+    beginPointerGesture(nextEvent.x, nextEvent.y);
+  } else if (kind === "move") {
+    extendPointerGesture(nextEvent.x, nextEvent.y);
+  } else if (kind === "up") {
+    endPointerGesture(nextEvent.x, nextEvent.y, nextEvent.time_stamp);
+  }
 
   if (kind === "move" && pendingInputEvents.length > 0) {
     const lastIdx = pendingInputEvents.length - 1;
