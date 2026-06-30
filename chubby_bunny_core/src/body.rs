@@ -240,7 +240,7 @@ impl<T: FloatingPointNumber> Body<T> {
         }
     }
 
-    fn apply_forces_recursively<F>(&mut self, forces: &Vec<F>, dt: T)
+    fn apply_forces_recursively<F>(&mut self, forces: &[F], dt: T)
     where
         F: Force<T>,
     {
@@ -297,7 +297,7 @@ impl<T: FloatingPointNumber> Body<T> {
         }
     }
     /// Performs a simulation step for the body, applying forces, solving constraints, and updating particle positions.
-    pub fn perform_step<F>(&mut self, forces: &Vec<F>, dt: T, solver_settings: &SolverSettings)
+    pub fn perform_step<F>(&mut self, forces: &[F], dt: T, solver_settings: &SolverSettings)
     where
         F: Force<T>,
     {
