@@ -78,7 +78,7 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for DistanceConstraint<T> {
         }
 
         let (weight_left, weight_right) =
-            distribute_based_on_mass(&left, &right, T::from(0.5_f32), T::from(0.5_f32));
+            distribute_based_on_mass(left, right, T::from(0.5_f32), T::from(0.5_f32));
 
         left.apply_position_correction_to_particle(&(-correction * weight_left));
         right.apply_position_correction_to_particle(&(correction * weight_right));

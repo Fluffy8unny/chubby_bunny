@@ -19,7 +19,7 @@ rustup target add wasm32-unknown-unknown
 cargo build -p constraint_example --target wasm32-unknown-unknown --release
 
 "$WASM_BINDGEN_BIN" target/wasm32-unknown-unknown/release/constraint_example.wasm \
-  --out-dir examples/contraint_example/pkg \
+  --out-dir examples/constraint_example/pkg \
   --target web
 
-printf '%s\n' "Built examples/contraint_example/pkg/constraint_example.js"
+printf '%s\n' "Built examples/constraint_example/pkg/constraint_example.js"

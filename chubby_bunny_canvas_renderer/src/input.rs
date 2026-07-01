@@ -44,6 +44,12 @@ pub struct InputState {
     last_mouse_state: Option<MouseState>,
 }
 
+impl Default for InputState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InputState {
     /// Creates a new InputState with an empty event queue and no last mouse state.
     pub fn new() -> Self {

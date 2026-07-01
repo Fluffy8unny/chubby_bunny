@@ -2,7 +2,7 @@ use chubby_bunny_bindgen::chubby_bunny_bindgen;
 use chubby_bunny_canvas_renderer::game_loop::{Game, GameLoop};
 use chubby_bunny_canvas_renderer::input::Event;
 use chubby_bunny_canvas_renderer::js_types::{default_meta, OutgoingEvent};
-use chubby_bunny_canvas_renderer::primitives::create_polygon;
+use chubby_bunny_canvas_renderer::primitives::{create_polygon, SimpleBodySettings};
 use chubby_bunny_core::{
     Body, CollisionConstraint, ExtrinsicConstraintType, Particle, SolverSettings, WallConstraint,
 };
@@ -35,10 +35,10 @@ impl ConstraintsGame {
             ));
         };
 
-        create_particle_helper(0.0, height as f32 * 0.9);
-        create_particle_helper(width as f32, height as f32 * 0.9);
-        create_particle_helper(width as f32, 0.1 * height as f32);
-        create_particle_helper(0.0, 0.1 * height as f32);
+        create_particle_helper(0.0, height * 0.9);
+        create_particle_helper(width, height * 0.9);
+        create_particle_helper(width, 0.1 * height);
+        create_particle_helper(0.0, 0.1 * height);
         for i in 0..4 {
             container_body
                 .children_constraints
@@ -50,56 +50,72 @@ impl ConstraintsGame {
         }
         let distance_radius = width / 10.0;
         let poly_radius = distance_radius;
+
         let poly_distance_only = create_polygon(
             Vector2::new(distance_radius, center.y),
             poly_radius,
             12,
-            0.5,
-            0.00,
-            0.00,
-            0.0,
-            0.002,
+            &SimpleBodySettings {
+                stiffness_distance: 0.5,
+                stiffness_shear: 0.0,
+                stiffness_area: 0.0,
+                stiffness_bending: 0.0,
+                friction: 0.002,
+            },
         );
+
         let poly_distance_shear_only = create_polygon(
             Vector2::new(distance_radius * 3.0, center.y),
             poly_radius,
             12,
-            0.5,
-            0.2,
-            0.00,
-            0.0,
-            0.002,
+            &SimpleBodySettings {
+                stiffness_distance: 0.5,
+                stiffness_shear: 0.2,
+                stiffness_area: 0.0,
+                stiffness_bending: 0.0,
+                friction: 0.002,
+            },
         );
+
         let poly_distance_area = create_polygon(
             Vector2::new(distance_radius * 5.0, center.y),
             poly_radius,
             12,
-            0.5,
-            0.00,
-            0.5,
-            0.0,
-            0.002,
+            &SimpleBodySettings {
+                stiffness_distance: 0.5,
+                stiffness_shear: 0.0,
+                stiffness_area: 0.5,
+                stiffness_bending: 0.0,
+                friction: 0.002,
+            },
         );
+
         let poly_bending = create_polygon(
             Vector2::new(distance_radius * 7.0, center.y),
             poly_radius,
             12,
-            0.5,
-            0.00,
-            0.0,
-            0.3,
-            0.002,
+            &SimpleBodySettings {
+                stiffness_distance: 0.5,
+                stiffness_shear: 0.0,
+                stiffness_area: 0.0,
+                stiffness_bending: 0.3,
+                friction: 0.002,
+            },
         );
+
         let poly_stiff = create_polygon(
             Vector2::new(distance_radius * 9.0, center.y),
             poly_radius,
             12,
-            0.5,
-            0.5,
-            0.5,
-            0.5,
-            0.002,
+            &SimpleBodySettings {
+                stiffness_distance: 0.5,
+                stiffness_shear: 0.5,
+                stiffness_area: 0.5,
+                stiffness_bending: 0.5,
+                friction: 0.002,
+            },
         );
+
         container_body.children.push(poly_distance_only);
         container_body.children.push(poly_distance_shear_only);
         container_body.children.push(poly_distance_area);
@@ -138,7 +154,7 @@ impl Game for ConstraintsGame {
         let dt = dt_ms / 1000.0;
         for body in self.bodies.iter_mut() {
             let constant_force = chubby_bunny_core::force::constant_force(Vector2::new(0.0, 250.0)); //px/s^2
-            body.perform_step(&vec![constant_force], dt, &settings);
+            body.perform_step(&[constant_force], dt, &settings);
         }
         Vec::new()
     }
