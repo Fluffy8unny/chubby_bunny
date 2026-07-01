@@ -29,9 +29,7 @@ impl SVGGame {
         body_settings: &BodySettings<f32>,
         constraint_settings: &SVGConstraintSettings<f32>,
     ) -> Vec<Body> {
-        if let Ok((mut template, meta)) =
-            load_svg(svg_source, body_settings, constraint_settings)
-        {
+        if let Ok((mut template, meta)) = load_svg(svg_source, body_settings, constraint_settings) {
             template
                 .iter_mut()
                 .for_each(|template| template.transform(svg_instance_transform));
@@ -55,10 +53,10 @@ impl SVGGame {
             ));
         };
 
-        create_particle_helper(0.0, height as f32 * 0.9);
-        create_particle_helper(width as f32, height as f32 * 0.9);
-        create_particle_helper(width as f32, 0.1 * height as f32);
-        create_particle_helper(0.0, 0.1 * height as f32);
+        create_particle_helper(0.0, height * 0.9);
+        create_particle_helper(width, height * 0.9);
+        create_particle_helper(width, 0.1 * height);
+        create_particle_helper(0.0, 0.1 * height);
         for i in 0..4 {
             container_body
                 .children_constraints
@@ -116,7 +114,7 @@ impl Game for SVGGame {
         let dt = dt_ms / 1000.0;
         for body in self.bodies.iter_mut() {
             let constant_force = chubby_bunny_core::force::constant_force(Vector2::new(0.0, 250.0)); //px/s^2
-            body.perform_step(&vec![constant_force], dt, &settings);
+            body.perform_step(&[constant_force], dt, &settings);
         }
         Vec::new()
     }

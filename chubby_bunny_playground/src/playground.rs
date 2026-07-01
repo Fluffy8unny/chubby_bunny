@@ -309,7 +309,7 @@ impl Game for PlaygroundGame {
 
         for body in self.bodies.iter_mut() {
             let constant_force = chubby_bunny_core::force::constant_force(self.gravity);
-            body.perform_step(&vec![constant_force], capped_dt, &settings);
+            body.perform_step(&[constant_force], capped_dt, &settings);
         }
 
         outgoing_events

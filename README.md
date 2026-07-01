@@ -185,7 +185,7 @@ The repository includes several WASM examples under `examples/`.
 | Example | What it demonstrates |
 |---|---|
 | `minimal_box` | Minimal setup for a soft-body scene  |
-| `contraint_example` | Side-by-side comparison of different constraint configurations |
+| `constraint_example` | Side-by-side comparison of different constraint configurations |
 | `interactive_example` | Interactive selection and dragging |
 | `svg_example` | SVG-driven body generation from an imported file |
 
@@ -243,7 +243,7 @@ Then open an example page:
 | Example | URL |
 |---|---|
 | `minimal_box` | <http://localhost:8000/examples/minimal_box/web/> |
-| `contraint_example` | <http://localhost:8000/examples/contraint_example/web/> |
+| `constraint_example` | <http://localhost:8000/examples/constraint_example/web/> |
 | `interactive_example` | <http://localhost:8000/examples/interactive_example/web/> |
 | `svg_example` | <http://localhost:8000/examples/svg_example/web/> |
 

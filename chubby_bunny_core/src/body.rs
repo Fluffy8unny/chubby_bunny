@@ -73,6 +73,7 @@ impl<T: FloatingPointNumber> Transformation<T> {
 /// 1. Intrinsic constraints of the body
 /// 2. Extrinsic constraints between the body and its children
 /// 3. Collision constraints between the body's children
+///
 /// After all constraints are solved, the body's particles are updated based on their velocities and the time step.
 pub struct Body<T = f32> {
     /// Unique identifier for the body, used for referencing in constraints and other operations.

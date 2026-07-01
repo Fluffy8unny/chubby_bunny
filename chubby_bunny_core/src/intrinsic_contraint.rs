@@ -1,6 +1,4 @@
-use crate::constraint_common::{
-    constraint_alpha_with_reference_dt, distribute_based_on_mass, get_distance_correction_vector,
-};
+use crate::constraint_common::{constraint_alpha_with_reference_dt, distribute_based_on_mass};
 use crate::{eps, FloatingPointNumber, Particle, SolverSettings, Transformation};
 use dyn_clone::DynClone;
 use nalgebra::Vector2;
@@ -51,26 +49,39 @@ impl<T: FloatingPointNumber> DistanceConstraint<T> {
 
 impl<T: FloatingPointNumber> IntrinsicConstraint<T> for DistanceConstraint<T> {
     fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings) {
-        let correction_vector = get_distance_correction_vector(
-            &particles[self.idx_left],
-            &particles[self.idx_right],
-            self.stiffness,
-            self.target_distance,
-            dt,
-            solver_settings,
-        );
-        let (weight_left, weight_right) = distribute_based_on_mass(
-            &particles[self.idx_left],
-            &particles[self.idx_right],
-            T::from(0.5_f32),
-            T::from(0.5_f32),
-        );
-        let total_correction = correction_vector * T::from(2.0_f32);
+        let alpha = constraint_alpha_with_reference_dt(self.stiffness, dt, solver_settings);
+        if alpha <= T::zero() {
+            return;
+        }
 
-        particles[self.idx_left]
-            .apply_position_correction_to_particle(&(-total_correction * weight_left));
-        particles[self.idx_right]
-            .apply_position_correction_to_particle(&(total_correction * weight_right));
+        let left_idx = self.idx_left;
+        let right_idx = self.idx_right;
+        let (left, right) = if left_idx < right_idx {
+            let (a, b) = particles.split_at_mut(right_idx);
+            (&mut a[left_idx], &mut b[0])
+        } else {
+            let (a, b) = particles.split_at_mut(left_idx);
+            (&mut b[0], &mut a[right_idx])
+        };
+
+        let line_between = right.position - left.position;
+        let point_distance = line_between.norm();
+        if point_distance <= T::zero() {
+            return;
+        }
+
+        let distance_delta = self.target_distance - point_distance;
+        let correction = line_between * (alpha * distance_delta / point_distance);
+
+        if left.pinned && right.pinned {
+            return;
+        }
+
+        let (weight_left, weight_right) =
+            distribute_based_on_mass(left, right, T::from(0.5_f32), T::from(0.5_f32));
+
+        left.apply_position_correction_to_particle(&(-correction * weight_left));
+        right.apply_position_correction_to_particle(&(correction * weight_right));
     }
 
     fn transform_params(&mut self, transformation: Transformation<T>) {

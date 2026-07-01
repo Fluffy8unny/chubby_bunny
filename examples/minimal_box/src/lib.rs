@@ -2,7 +2,7 @@ use chubby_bunny_bindgen::chubby_bunny_bindgen;
 use chubby_bunny_canvas_renderer::game_loop::{Game, GameLoop};
 use chubby_bunny_canvas_renderer::input::Event;
 use chubby_bunny_canvas_renderer::js_types::{default_meta, OutgoingEvent};
-use chubby_bunny_canvas_renderer::primitives::create_polygon;
+use chubby_bunny_canvas_renderer::primitives::{create_polygon, SimpleBodySettings};
 use chubby_bunny_core::{Body, ExtrinsicConstraintType, Particle, SolverSettings, WallConstraint};
 use chubby_bunny_svg::MetaMap;
 use nalgebra::Vector2;
@@ -33,10 +33,10 @@ impl MinimalGame {
             ));
         };
 
-        create_particle_helper(0.1 * width, height as f32 * 0.8);
-        create_particle_helper(0.9 * width as f32, height as f32 * 0.9);
-        create_particle_helper(0.9 * width as f32, 0.1 * height as f32);
-        create_particle_helper(0.1 * width, 0.1 * height as f32);
+        create_particle_helper(0.1 * width, height * 0.8);
+        create_particle_helper(0.9 * width, height * 0.9);
+        create_particle_helper(0.9 * width, 0.1 * height);
+        create_particle_helper(0.1 * width, 0.1 * height);
         for i in 0..4 {
             container_body
                 .children_constraints
@@ -47,7 +47,15 @@ impl MinimalGame {
                 })));
         }
 
-        let poly = create_polygon(center, width / 12.0, 12, 0.02, 0.02, 0.02, 0.02, 0.0);
+        let settings = SimpleBodySettings {
+            stiffness_distance: 0.5,
+            stiffness_shear: 0.0,
+            stiffness_area: 0.0,
+            stiffness_bending: 0.0,
+            friction: 0.002,
+        };
+
+        let poly = create_polygon(center, width / 12.0, 12, &settings);
         container_body.children.push(poly);
         container_body
     }
@@ -81,7 +89,7 @@ impl Game for MinimalGame {
         let dt = dt_ms / 1000.0;
         for body in self.bodies.iter_mut() {
             let constant_force = chubby_bunny_core::force::constant_force(Vector2::new(0.0, 250.0)); //px/s^2
-            body.perform_step(&vec![constant_force], dt, &settings);
+            body.perform_step(&[constant_force], dt, &settings);
         }
         Vec::new()
     }

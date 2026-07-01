@@ -2,7 +2,7 @@ use chubby_bunny_bindgen::chubby_bunny_bindgen;
 use chubby_bunny_canvas_renderer::game_loop::{Game, GameLoop};
 use chubby_bunny_canvas_renderer::input::{Event, MouseButton, MouseEventType};
 use chubby_bunny_canvas_renderer::js_types::{default_meta, EventType, OutgoingEvent};
-use chubby_bunny_canvas_renderer::primitives::create_polygon;
+use chubby_bunny_canvas_renderer::primitives::{create_polygon, SimpleBodySettings};
 use chubby_bunny_core::{
     eps, Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, Particle, SolverSettings,
     WallConstraint,
@@ -38,9 +38,9 @@ impl InteractiveGame {
             ));
         };
 
-        create_particle_helper(0.0, height as f32);
-        create_particle_helper(width as f32, height as f32);
-        create_particle_helper(width as f32, 0.0);
+        create_particle_helper(0.0, height);
+        create_particle_helper(width, height);
+        create_particle_helper(width, 0.0);
         create_particle_helper(0.0, 0.0);
         for i in 0..4 {
             container_body
@@ -51,19 +51,23 @@ impl InteractiveGame {
                     stiffness: 1.0,
                 })));
         }
+
         let distance_radius = width / 10.0;
         let poly_radius = distance_radius * 0.8;
+        let settings = SimpleBodySettings {
+            stiffness_distance: 0.5,
+            stiffness_shear: 0.0,
+            stiffness_area: 0.0,
+            stiffness_bending: 0.0,
+            friction: 0.002,
+        };
 
         for i in (1..10).step_by(2) {
             let poly = create_polygon(
                 Vector2::new(distance_radius * i as f32, center.y),
                 poly_radius,
                 12,
-                0.5,
-                0.2,
-                0.2,
-                0.0,
-                0.002,
+                &settings,
             );
             container_body.children.push(poly);
         }
@@ -193,7 +197,7 @@ impl Game for InteractiveGame {
         let dt = dt_ms / 1000.0;
         for body in self.bodies.iter_mut() {
             let constant_force = chubby_bunny_core::force::constant_force(Vector2::new(0.0, 250.0)); //px/s^2
-            body.perform_step(&vec![constant_force], dt, &settings);
+            body.perform_step(&[constant_force], dt, &settings);
         }
         outgoing_events
     }

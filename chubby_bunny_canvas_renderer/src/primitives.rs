@@ -3,6 +3,14 @@ use chubby_bunny_core::{AreaConstraint, Body, DistanceConstraint};
 use chubby_bunny_core::{BendingConstraint, FloatingPointNumber};
 use nalgebra::Vector2;
 
+pub struct SimpleBodySettings<T> {
+    pub stiffness_distance: T,
+    pub stiffness_shear: T,
+    pub stiffness_area: T,
+    pub stiffness_bending: T,
+    pub friction: T,
+}
+
 /// Helper function to create a polygon body with specified parameters, including the center position, radius, number of sides, stiffness for various constraints,
 /// and friction. The function generates particles arranged in a circular pattern and applies distance, shear, bending, and area constraints to maintain the shape and behavior of the polygon.
 /// Shear constraints are applied between opposite corners to help resist deformation, while the area constraint helps maintain the overall area of the polygon.
@@ -10,11 +18,7 @@ pub fn create_polygon<T: FloatingPointNumber>(
     center: Vector2<T>,
     radius: T,
     num_sides: usize,
-    stiffness_distance: T,
-    stiffness_shear: T,
-    stiffness_area: T,
-    stiffness_bending: T,
-    friction: T,
+    settings: &SimpleBodySettings<T>,
 ) -> Body<T> {
     let mut polygon = Body::empty();
     for i in 0..num_sides {
@@ -24,7 +28,7 @@ pub fn create_polygon<T: FloatingPointNumber>(
             position,
             nalgebra::Vector2::zeros(),
             T::one(),
-            friction,
+            settings.friction,
             false,
         ));
     }
@@ -34,7 +38,7 @@ pub fn create_polygon<T: FloatingPointNumber>(
             i,
             (i + 1) % num_sides,
             &polygon.particles,
-            stiffness_distance,
+            settings.stiffness_distance,
         )));
     }
 
@@ -43,7 +47,7 @@ pub fn create_polygon<T: FloatingPointNumber>(
             i,
             (i + (num_sides / 2)) % num_sides,
             &polygon.particles,
-            stiffness_shear,
+            settings.stiffness_shear,
         )));
     }
 
@@ -51,13 +55,13 @@ pub fn create_polygon<T: FloatingPointNumber>(
         polygon.constraints.push(Box::new(BendingConstraint::new(
             i,
             &polygon.particles,
-            stiffness_bending,
+            settings.stiffness_bending,
         )));
     }
 
     polygon.constraints.push(Box::new(AreaConstraint::new(
         &polygon.particles,
-        stiffness_area,
+        settings.stiffness_area,
     )));
 
     polygon
@@ -69,10 +73,7 @@ pub fn create_rect<T: FloatingPointNumber>(
     start: Vector2<T>,
     width: T,
     height: T,
-    stiffness_distance: T,
-    stiffness_shear: T,
-    stiffness_area: T,
-    friction: T,
+    settings: &SimpleBodySettings<T>,
 ) -> Body<T> {
     let mut rect = Body::empty();
     let mut create_particle_helper = |offset| {
@@ -80,7 +81,7 @@ pub fn create_rect<T: FloatingPointNumber>(
             start + offset,
             nalgebra::Vector2::zeros(),
             T::one(),
-            friction,
+            settings.friction,
             false,
         ));
     };
@@ -99,20 +100,20 @@ pub fn create_rect<T: FloatingPointNumber>(
     };
 
     for i in 0..4 {
-        create_distance_constraint_helper(i, (i + 1) % 4, stiffness_distance);
+        create_distance_constraint_helper(i, (i + 1) % 4, settings.stiffness_distance);
     }
     for i in 0..2 {
-        create_distance_constraint_helper(i, (i + 2) % 4, stiffness_shear);
+        create_distance_constraint_helper(i, (i + 2) % 4, settings.stiffness_shear);
     }
 
     rect.constraints.push(Box::new(AreaConstraint::new(
         &rect.particles,
-        stiffness_area,
+        settings.stiffness_area,
     )));
     rect
 }
 
-/// Creates a quadrilateral body with specified parameters, including the starting position, size, stiffness for various constraints, and friction.
+/// Creates a quadrilateral body with specified parameters.
 /// Shear constraints are applied between opposite corners to help resist deformation.
 pub fn create_quad<T: FloatingPointNumber>(
     start: Vector2<T>,
@@ -122,13 +123,12 @@ pub fn create_quad<T: FloatingPointNumber>(
     stiffness_area: T,
     friction: T,
 ) -> Body<T> {
-    create_rect(
-        start,
-        size,
-        size,
+    let settings = SimpleBodySettings {
         stiffness_distance,
         stiffness_shear,
         stiffness_area,
+        stiffness_bending: T::zero(),
         friction,
-    )
+    };
+    create_rect(start, size, size, &settings)
 }
