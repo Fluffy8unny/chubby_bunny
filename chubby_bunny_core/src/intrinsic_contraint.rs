@@ -1,4 +1,4 @@
-use crate::constraint_common::constraint_alpha_with_reference_dt;
+use crate::constraint_common::{constraint_alpha_with_reference_dt, distribute_based_on_mass};
 use crate::{eps, FloatingPointNumber, Particle, SolverSettings, Transformation};
 use dyn_clone::DynClone;
 use nalgebra::Vector2;
@@ -77,22 +77,8 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for DistanceConstraint<T> {
             return;
         }
 
-        if left.pinned {
-            right.apply_position_correction_to_particle(&correction);
-            return;
-        }
-
-        if right.pinned {
-            left.apply_position_correction_to_particle(&(-correction));
-            return;
-        }
-
-        let total_mass = left.mass + right.mass;
-        let (weight_left, weight_right) = if total_mass > T::zero() {
-            (right.mass / total_mass, left.mass / total_mass)
-        } else {
-            (T::from(0.5_f32), T::from(0.5_f32))
-        };
+        let (weight_left, weight_right) =
+            distribute_based_on_mass(&left, &right, T::from(0.5_f32), T::from(0.5_f32));
 
         left.apply_position_correction_to_particle(&(-correction * weight_left));
         right.apply_position_correction_to_particle(&(correction * weight_right));

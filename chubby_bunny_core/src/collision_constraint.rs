@@ -38,7 +38,7 @@ struct Edge<T> {
     max: Vector2<T>,
 }
 impl<T: FloatingPointNumber> Edge<T> {
-    fn intersects_aabb(&self, other: &Edge<T>) -> bool {
+    fn intersects(&self, other: &Edge<T>) -> bool {
         self.min.x <= other.max.x
             && self.max.x >= other.min.x
             && self.min.y <= other.max.y
@@ -77,8 +77,8 @@ fn edges_of<T: FloatingPointNumber>(body: &Body<T>) -> Vec<Edge<T>> {
             let pt_b = body.particles[idx_b].position;
             let dir = pt_b - pt_a;
             let len_sq = dir.norm_squared();
-            let normal = get_normal(pt_a, pt_b).map(|left| -left);
 
+            //save evewything we can to avoid recomputing it later
             Edge {
                 idx_a,
                 idx_b,
@@ -86,7 +86,7 @@ fn edges_of<T: FloatingPointNumber>(body: &Body<T>) -> Vec<Edge<T>> {
                 pt_b,
                 dir,
                 center: (pt_a + pt_b) / T::from(2.0),
-                normal,
+                normal: get_normal(pt_b, pt_a),
                 len_sq,
                 min: pt_a.inf(&pt_b),
                 max: pt_a.sup(&pt_b),
@@ -147,7 +147,6 @@ fn find_containment_contacts<T: FloatingPointNumber>(
     container_edges: &[Edge<T>],
 ) -> Vec<ContainmentContact<T>> {
     let mut contacts = Vec::new();
-
     let eps = eps!(T, 6);
 
     for (contained_idx, contained_particle) in contained_body.particles.iter().enumerate() {
@@ -210,7 +209,7 @@ fn segment_intersection<T: FloatingPointNumber>(
     edge_a: &Edge<T>,
     edge_b: &Edge<T>,
 ) -> Option<Intersection<T>> {
-    if !edge_a.intersects_aabb(edge_b) {
+    if !edge_a.intersects(edge_b) {
         return None;
     }
 
