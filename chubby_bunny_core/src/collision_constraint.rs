@@ -45,6 +45,9 @@ impl<T: FloatingPointNumber> Edge<T> {
             && self.max.y >= other.min.y
     }
 }
+/// Represents the intersection between two edges
+/// Descibes the normal of the intersection, the penetration depth,
+/// and the relative positions along each edge
 struct Intersection<T> {
     normal: Vector2<T>,
     edge_a_t: T,
@@ -52,10 +55,10 @@ struct Intersection<T> {
     penetration_depth: T,
 }
 
-#[derive(Clone)]
 struct ContainmentContact<T> {
     contained_point_idx: usize,
-    edge_idx: usize,
+    edge_particle_idx_a: usize,
+    edge_particle_idx_b: usize,
     rel_edge_position: T,
     normal: Vector2<T>,
     penetration_depth: T,
@@ -98,13 +101,12 @@ fn edges_of<T: FloatingPointNumber>(body: &Body<T>) -> Vec<Edge<T>> {
 fn nearest_edge_to_point<T: FloatingPointNumber>(
     point: Vector2<T>,
     edges: &[Edge<T>],
-) -> Option<(usize, PointSegmentDistance<T>)> {
+) -> Option<(&Edge<T>, PointSegmentDistance<T>)> {
     edges
         .iter()
-        .enumerate()
-        .map(|(idx, edge)| {
+        .map(|edge| {
             (
-                idx,
+                edge,
                 point_segment_distance_squared(point, edge.pt_a, edge.pt_b),
             )
         })
@@ -155,10 +157,9 @@ fn find_containment_contacts<T: FloatingPointNumber>(
             continue;
         }
 
-        let Some((best_edge_idx, nearest)) = nearest_edge_to_point(point, container_edges) else {
+        let Some((best_edge, nearest)) = nearest_edge_to_point(point, container_edges) else {
             continue;
         };
-        let best_edge = &container_edges[best_edge_idx];
 
         if best_edge.len_sq <= eps {
             continue;
@@ -178,7 +179,8 @@ fn find_containment_contacts<T: FloatingPointNumber>(
         let penetration_depth = nearest.distance_squared.sqrt() + eps!(T, 5);
         contacts.push(ContainmentContact {
             contained_point_idx: contained_idx,
-            edge_idx: best_edge_idx,
+            edge_particle_idx_a: best_edge.idx_a,
+            edge_particle_idx_b: best_edge.idx_b,
             rel_edge_position: nearest.t,
             normal,
             penetration_depth,
@@ -187,6 +189,8 @@ fn find_containment_contacts<T: FloatingPointNumber>(
     contacts
 }
 
+/// Calculates the overlap depth between two edges when projected onto a given axis.
+/// Projects both edges onto the axis and calculates how much they overlap along that axis.
 fn overlap_depth_on_axis<T: FloatingPointNumber>(
     edge_a: &Edge<T>,
     edge_b: &Edge<T>,
@@ -205,6 +209,7 @@ fn overlap_depth_on_axis<T: FloatingPointNumber>(
     (a_max.min(b_max) - a_min.max(b_min)).max(T::zero())
 }
 
+/// Determines if two line segments intersect and calculates the intersection point and penetration depth if they do.
 fn segment_intersection<T: FloatingPointNumber>(
     edge_a: &Edge<T>,
     edge_b: &Edge<T>,
@@ -267,10 +272,11 @@ fn segment_intersection<T: FloatingPointNumber>(
 }
 
 impl<T: FloatingPointNumber> CollisionConstraint<T> {
-    fn apply_position_correction_to_edge(
+    fn apply_position_correction_to_particles(
         &self,
         body: &mut Body<T>,
-        edge: &Edge<T>,
+        idx_a: usize,
+        idx_b: usize,
         correction_vector: &Vector2<T>,
         point_weight: T,
     ) {
@@ -278,24 +284,39 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
         let point_weight_b = point_weight;
 
         let (weight_a, weight_b) = distribute_based_on_mass(
-            &body.particles[edge.idx_a],
-            &body.particles[edge.idx_b],
+            &body.particles[idx_a],
+            &body.particles[idx_b],
             point_weight_a,
             point_weight_b,
         );
 
-        body.particles[edge.idx_a]
+        body.particles[idx_a]
             .apply_position_correction_to_particle(&(correction_vector * weight_a));
-        body.particles[edge.idx_b]
+        body.particles[idx_b]
             .apply_position_correction_to_particle(&(correction_vector * weight_b));
+    }
+
+    fn apply_position_correction_to_edge(
+        &self,
+        body: &mut Body<T>,
+        edge: &Edge<T>,
+        correction_vector: &Vector2<T>,
+        point_weight: T,
+    ) {
+        self.apply_position_correction_to_particles(
+            body,
+            edge.idx_a,
+            edge.idx_b,
+            correction_vector,
+            point_weight,
+        );
     }
 
     fn resolve_containment_contacts(
         &self,
         contained_body: &mut Body<T>,
         container_body: &mut Body<T>,
-        container_edges: &[Edge<T>],
-        contacts: Vec<ContainmentContact<T>>,
+        contacts: &[ContainmentContact<T>],
         time_correction_factor: T,
     ) {
         //tood replace 0.5 with weight based
@@ -305,10 +326,10 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
             let correction_vector = contact.normal * correction_scale * contact.penetration_depth;
             contained_body.particles[contact.contained_point_idx]
                 .apply_position_correction_to_particle(&(correction_vector));
-            let edge = &container_edges[contact.edge_idx];
-            self.apply_position_correction_to_edge(
+            self.apply_position_correction_to_particles(
                 container_body,
-                edge,
+                contact.edge_particle_idx_a,
+                contact.edge_particle_idx_b,
                 &(-correction_vector),
                 contact.rel_edge_position,
             );
@@ -359,21 +380,9 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
         }
 
         let contacts_a_in_b = find_containment_contacts(body_a, body_b, &edges_b);
-        self.resolve_containment_contacts(
-            body_a,
-            body_b,
-            &edges_b,
-            contacts_a_in_b,
-            time_correction_factor,
-        );
+        self.resolve_containment_contacts(body_a, body_b, &contacts_a_in_b, time_correction_factor);
 
         let contacts_b_in_a = find_containment_contacts(body_b, body_a, &edges_a);
-        self.resolve_containment_contacts(
-            body_b,
-            body_a,
-            &edges_a,
-            contacts_b_in_a,
-            time_correction_factor,
-        );
+        self.resolve_containment_contacts(body_b, body_a, &contacts_b_in_a, time_correction_factor);
     }
 }
