@@ -343,13 +343,6 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
         dt: T,
         solver_settings: &SolverSettings,
     ) {
-        if !body_a
-            .get_bounding_box()
-            .intersects(&body_b.get_bounding_box())
-        {
-            return;
-        }
-
         let time_correction_factor = dt
             / T::from(solver_settings.reference_dt * solver_settings.constraint_iterations as f32);
         let edges_a = edges_of(body_a);

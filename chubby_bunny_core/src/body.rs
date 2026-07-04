@@ -289,7 +289,12 @@ impl<T: FloatingPointNumber> Body<T> {
         }
 
         if let Some(collision_constraint) = &self.collision_constraint {
+            let bounding_boxes: Vec<BoundingBox<T>> =
+                self.children.iter().map(|c| c.get_bounding_box()).collect();
             for [a_idx, b_idx] in (0..self.children.len()).array_combinations() {
+                if !bounding_boxes[a_idx].intersects(&bounding_boxes[b_idx]) {
+                    continue;
+                }
                 let (left, right) = self.children.split_at_mut(b_idx);
                 let child_a = &mut left[a_idx];
                 let child_b = &mut right[0];
@@ -297,6 +302,7 @@ impl<T: FloatingPointNumber> Body<T> {
             }
         }
     }
+
     /// Performs a simulation step for the body, applying forces, solving constraints, and updating particle positions.
     pub fn perform_step<F>(&mut self, forces: &[F], dt: T, solver_settings: &SolverSettings)
     where
