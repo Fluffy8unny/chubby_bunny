@@ -336,20 +336,59 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
         }
     }
 
-    pub fn solve(
+    fn build_filtered_edges(&self, body: &Body<T>) -> Vec<Edge<T>> {
+        let min_edge_len_sq = eps!(T, 6);
+        let mut edges = edges_of(body);
+        edges.retain(|edge| edge.len_sq > min_edge_len_sq);
+        edges
+    }
+
+    fn resolve_sorted_edge_pairs(
         &self,
         body_a: &mut Body<T>,
         body_b: &mut Body<T>,
-        dt: T,
-        solver_settings: &SolverSettings,
+        edges_a: &[Edge<T>],
+        edges_b: &[Edge<T>],
+        time_correction_factor: T,
     ) {
-        let time_correction_factor = dt
-            / T::from(solver_settings.reference_dt * solver_settings.constraint_iterations as f32);
-        let edges_a = edges_of(body_a);
-        let edges_b = edges_of(body_b);
+        let mut sorted_edges_a: Vec<&Edge<T>> = edges_a.iter().collect();
+        let mut sorted_edges_b: Vec<&Edge<T>> = edges_b.iter().collect();
+        let sort_by_min_x = |a: &&Edge<T>, b: &&Edge<T>| {
+            a.min
+                .x
+                .partial_cmp(&b.min.x)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        };
+        sorted_edges_a.sort_by(sort_by_min_x);
+        sorted_edges_b.sort_by(sort_by_min_x);
 
-        for edge_a in &edges_a {
-            for edge_b in &edges_b {
+        let Some(last_b_max_x) = sorted_edges_b.last().map(|edge| edge.max.x) else {
+            return;
+        };
+
+        let mut b_start = 0usize;
+        for edge_a in sorted_edges_a {
+            if edge_a.min.x > last_b_max_x {
+                break;
+            }
+
+            while b_start < sorted_edges_b.len() && sorted_edges_b[b_start].max.x < edge_a.min.x {
+                b_start += 1;
+            }
+
+            if b_start >= sorted_edges_b.len() {
+                break;
+            }
+
+            let mut b_idx = b_start;
+            while b_idx < sorted_edges_b.len() && sorted_edges_b[b_idx].min.x <= edge_a.max.x {
+                let edge_b = sorted_edges_b[b_idx];
+                b_idx += 1;
+
+                if edge_a.min.y > edge_b.max.y || edge_a.max.y < edge_b.min.y {
+                    continue;
+                }
+
                 let Some(intersection) = segment_intersection(edge_a, edge_b) else {
                     continue;
                 };
@@ -371,6 +410,33 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
                 );
             }
         }
+    }
+
+    fn handle_edge_intersections(
+        &self,
+        body_a: &mut Body<T>,
+        body_b: &mut Body<T>,
+        time_correction_factor: T,
+    ) -> (Vec<Edge<T>>, Vec<Edge<T>>) {
+        let edges_a = self.build_filtered_edges(body_a);
+        let edges_b = self.build_filtered_edges(body_b);
+
+        self.resolve_sorted_edge_pairs(body_a, body_b, &edges_a, &edges_b, time_correction_factor);
+
+        (edges_a, edges_b)
+    }
+
+    pub fn solve(
+        &self,
+        body_a: &mut Body<T>,
+        body_b: &mut Body<T>,
+        dt: T,
+        solver_settings: &SolverSettings,
+    ) {
+        let time_correction_factor = dt
+            / T::from(solver_settings.reference_dt * solver_settings.constraint_iterations as f32);
+        let (edges_a, edges_b) =
+            self.handle_edge_intersections(body_a, body_b, time_correction_factor);
 
         let contacts_a_in_b = find_containment_contacts(body_a, body_b, &edges_b);
         self.resolve_containment_contacts(body_a, body_b, &contacts_a_in_b, time_correction_factor);
