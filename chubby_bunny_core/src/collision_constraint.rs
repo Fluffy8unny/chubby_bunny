@@ -272,7 +272,7 @@ fn segment_intersection<T: FloatingPointNumber>(
 }
 
 impl<T: FloatingPointNumber> CollisionConstraint<T> {
-    fn apply_position_correction_to_particles(
+    fn apply_position_correction_to_edge(
         &self,
         body: &mut Body<T>,
         idx_a: usize,
@@ -296,22 +296,6 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
             .apply_position_correction_to_particle(&(correction_vector * weight_b));
     }
 
-    fn apply_position_correction_to_edge(
-        &self,
-        body: &mut Body<T>,
-        edge: &Edge<T>,
-        correction_vector: &Vector2<T>,
-        point_weight: T,
-    ) {
-        self.apply_position_correction_to_particles(
-            body,
-            edge.idx_a,
-            edge.idx_b,
-            correction_vector,
-            point_weight,
-        );
-    }
-
     fn resolve_containment_contacts(
         &self,
         contained_body: &mut Body<T>,
@@ -319,14 +303,12 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
         contacts: &[ContainmentContact<T>],
         time_correction_factor: T,
     ) {
-        //tood replace 0.5 with weight based
         let correction_scale = self.stiffness * time_correction_factor;
-
         for contact in contacts {
             let correction_vector = contact.normal * correction_scale * contact.penetration_depth;
             contained_body.particles[contact.contained_point_idx]
                 .apply_position_correction_to_particle(&(correction_vector));
-            self.apply_position_correction_to_particles(
+            self.apply_position_correction_to_edge(
                 container_body,
                 contact.edge_particle_idx_a,
                 contact.edge_particle_idx_b,
@@ -398,13 +380,15 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
                     * intersection.penetration_depth;
                 self.apply_position_correction_to_edge(
                     body_a,
-                    edge_a,
+                    edge_a.idx_a,
+                    edge_a.idx_b,
                     &correction_vector,
                     intersection.edge_a_t,
                 );
                 self.apply_position_correction_to_edge(
                     body_b,
-                    edge_b,
+                    edge_b.idx_a,
+                    edge_b.idx_b,
                     &(-correction_vector),
                     intersection.edge_b_t,
                 );
