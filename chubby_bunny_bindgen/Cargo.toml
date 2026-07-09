@@ -2,6 +2,13 @@
 name = "chubby_bunny_bindgen"
 version = "0.1.0"
 edition = "2021"
+description = "Procedural macros for chubby_bunny WebAssembly bindings"
+license = "MIT"
+documentation = "https://docs.rs/chubby_bunny_bindgen"
+homepage = "http://weissenburger.info"
+repository = "https://github.com/Fluffy8unny/chubby_bunny"
+categories = ["wasm", "development-tools::procedural-macro-helpers"]
+keywords = ["wasm", "bindgen", "proc-macro", "webassembly", "physics"]
 
 [lib]
 proc-macro = true

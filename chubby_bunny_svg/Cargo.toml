@@ -2,6 +2,13 @@
 name = "chubby_bunny_svg"
 version = "0.1.0"
 edition = "2021"
+description = "SVG parsing and constraint generation for chubby_bunny"
+license = "MIT"
+documentation = "https://docs.rs/chubby_bunny_svg"
+homepage = "http://weissenburger.info"
+repository = "https://github.com/Fluffy8unny/chubby_bunny"
+categories = ["wasm", "parser-implementations", "graphics"]
+keywords = ["svg", "parser", "physics", "constraints", "wasm"]
 
 [dependencies]
 chubby_bunny_core = { version = "0.1.0", path = "../chubby_bunny_core" }

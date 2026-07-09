@@ -2,6 +2,11 @@
 
 # Chubby Bunny
 
+[![chubby_bunny_core on crates.io](https://img.shields.io/crates/v/chubby_bunny_core.svg)](https://crates.io/crates/chubby_bunny_core)
+[![chubby_bunny_svg on crates.io](https://img.shields.io/crates/v/chubby_bunny_svg.svg)](https://crates.io/crates/chubby_bunny_svg)
+[![chubby_bunny_canvas_renderer on crates.io](https://img.shields.io/crates/v/chubby_bunny_canvas_renderer.svg)](https://crates.io/crates/chubby_bunny_canvas_renderer)
+[![chubby_bunny_bindgen on crates.io](https://img.shields.io/crates/v/chubby_bunny_bindgen.svg)](https://crates.io/crates/chubby_bunny_bindgen)
+
 Chubby Bunny is a Rust workspace for WebAssembly-compatible soft-body physics. It lets you design polygonal shapes in a vector editor like Inkscape, feed them through an SVG pipeline that automatically builds hierarchical bodies and constraints, and run the simulation interactively in a browser.
 
 
@@ -17,6 +22,7 @@ Chubby Bunny is a Rust workspace for WebAssembly-compatible soft-body physics. I
 - [SVG pipeline](#svg-pipeline)
 - [Examples](#examples)
 - [Workspace crates](#workspace-crates)
+- [Install from crates.io](#install-from-cratesio)
 - [Getting started](#getting-started)
 - [Project status](#project-status)
 
@@ -201,7 +207,33 @@ The repository includes several WASM examples under `examples/`.
 
 ---
 
+## Install from crates.io
+
+Yes, using Chubby Bunny from another project is easier now because the core crates are published and can be pulled directly from crates.io.
+
+Add the crates you need to your `Cargo.toml`:
+
+```toml
+[dependencies]
+chubby_bunny_core = "0.1.0"
+chubby_bunny_svg = "0.1.0"
+chubby_bunny_canvas_renderer = "0.1.0"
+# optional proc-macro helper
+chubby_bunny_bindgen = "0.1.0"
+```
+
+Published crates:
+
+- [chubby_bunny_core](https://crates.io/crates/chubby_bunny_core)
+- [chubby_bunny_svg](https://crates.io/crates/chubby_bunny_svg)
+- [chubby_bunny_canvas_renderer](https://crates.io/crates/chubby_bunny_canvas_renderer)
+- [chubby_bunny_bindgen](https://crates.io/crates/chubby_bunny_bindgen)
+
+---
+
 ## Getting started
+
+The steps below are for working in this repository and running the local WASM demos.
 
 ### Prerequisites
 

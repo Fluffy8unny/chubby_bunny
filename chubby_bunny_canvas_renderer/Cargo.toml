@@ -2,6 +2,13 @@
 name = "chubby_bunny_canvas_renderer"
 version = "0.1.0"
 edition = "2021"
+description = "Canvas renderer for chubby_bunny soft-body simulations"
+license = "MIT"
+documentation = "https://docs.rs/chubby_bunny_canvas_renderer"
+homepage = "http://weissenburger.info"
+repository = "https://github.com/Fluffy8unny/chubby_bunny"
+categories = ["wasm", "rendering", "graphics"]
+keywords = ["canvas", "renderer", "wasm", "physics", "web"]
 
 [dependencies]
 chubby_bunny_core = { version = "0.1.0", path = "../chubby_bunny_core" }
