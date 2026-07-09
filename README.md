@@ -2,10 +2,10 @@
 
 # Chubby Bunny
 
-[![chubby_bunny_core on crates.io](https://img.shields.io/crates/v/chubby_bunny_core.svg)](https://crates.io/crates/chubby_bunny_core)
-[![chubby_bunny_svg on crates.io](https://img.shields.io/crates/v/chubby_bunny_svg.svg)](https://crates.io/crates/chubby_bunny_svg)
-[![chubby_bunny_canvas_renderer on crates.io](https://img.shields.io/crates/v/chubby_bunny_canvas_renderer.svg)](https://crates.io/crates/chubby_bunny_canvas_renderer)
-[![chubby_bunny_bindgen on crates.io](https://img.shields.io/crates/v/chubby_bunny_bindgen.svg)](https://crates.io/crates/chubby_bunny_bindgen)
+[![chubby_bunny_core on crates.io](https://img.shields.io/crates/v/chubby_bunny_core.svg?label=chubby_bunny_core)](https://crates.io/crates/chubby_bunny_core)
+[![chubby_bunny_svg on crates.io](https://img.shields.io/crates/v/chubby_bunny_svg.svg?label=chubby_bunny_svg)](https://crates.io/crates/chubby_bunny_svg)
+[![chubby_bunny_canvas_renderer on crates.io](https://img.shields.io/crates/v/chubby_bunny_canvas_renderer.svg?label=chubby_bunny_canvas_renderer)](https://crates.io/crates/chubby_bunny_canvas_renderer)
+[![chubby_bunny_bindgen on crates.io](https://img.shields.io/crates/v/chubby_bunny_bindgen.svg?label=chubby_bunny_bindgen)](https://crates.io/crates/chubby_bunny_bindgen)
 
 Chubby Bunny is a Rust workspace for WebAssembly-compatible soft-body physics. It lets you design polygonal shapes in a vector editor like Inkscape, feed them through an SVG pipeline that automatically builds hierarchical bodies and constraints, and run the simulation interactively in a browser.
 
