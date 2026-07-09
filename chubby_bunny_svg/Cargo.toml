@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-chubby_bunny_core = { path = "../chubby_bunny_core" }
+chubby_bunny_core = { version = "0.1.0", path = "../chubby_bunny_core" }
 nalgebra = "0.35"
 serde = { version = "1", features = ["derive"] }
 quick-xml = { version = "0.40.1", features = ["serialize"] }
