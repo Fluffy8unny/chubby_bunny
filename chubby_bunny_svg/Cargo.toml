@@ -1,9 +1,10 @@
 [package]
 name = "chubby_bunny_svg"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
-description = "SVG parsing and constraint generation for chubby_bunny"
+description = "SVG parsing and constraint generation for chubby_bunny. This library is part of the Chubby Bunny project."
 license = "MIT"
+readme = "README.md"
 documentation = "https://docs.rs/chubby_bunny_svg"
 homepage = "http://weissenburger.info"
 repository = "https://github.com/Fluffy8unny/chubby_bunny"
@@ -11,7 +12,7 @@ categories = ["wasm", "parser-implementations", "graphics"]
 keywords = ["svg", "parser", "physics", "constraints", "wasm"]
 
 [dependencies]
-chubby_bunny_core = { version = "0.1.0", path = "../chubby_bunny_core" }
+chubby_bunny_core = { version = "0.1.1", path = "../chubby_bunny_core" }
 nalgebra = "0.35"
 serde = { version = "1", features = ["derive"] }
 quick-xml = { version = "0.40.1", features = ["serialize"] }
