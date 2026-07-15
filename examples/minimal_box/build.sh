@@ -35,7 +35,7 @@ fi
 rustup target add wasm32-unknown-unknown
 
 if [ "$ENABLE_PROFILING" -eq 1 ]; then
-  cargo build -p minimal_box --features profiling --target wasm32-unknown-unknown --release
+  cargo build -p minimal_box --features minimal_box/profiling --target wasm32-unknown-unknown --release
 else
   cargo build -p minimal_box --target wasm32-unknown-unknown --release
 fi

@@ -34,7 +34,7 @@ fi
 
 rustup target add wasm32-unknown-unknown
 if [ "$ENABLE_PROFILING" -eq 1 ]; then
-  cargo build -p chubby_bunny_playground --features profiling --target wasm32-unknown-unknown --release
+  cargo build -p chubby_bunny_playground --features chubby_bunny_playground/profiling --target wasm32-unknown-unknown --release
 else
   cargo build -p chubby_bunny_playground --target wasm32-unknown-unknown --release
 fi

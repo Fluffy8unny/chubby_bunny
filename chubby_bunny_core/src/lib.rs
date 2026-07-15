@@ -9,6 +9,8 @@ pub use body::{Body, BodyId, BoundingBox, Transformation};
 pub mod particle;
 pub use particle::Particle;
 
+pub mod profiling;
+
 pub mod force;
 pub use force::{constant_force, Force};
 
@@ -29,8 +31,7 @@ pub use constraint_common::SolverSettings;
 #[macro_export]
 macro_rules! profile_scope {
     ($name:expr) => {{
-        #[cfg(feature = "profiling")]
-        let _profile_guard = ::tracing::info_span!($name).entered();
+        let _profile_guard = $crate::profiling::ProfileGuard::new($name);
     }};
 }
 

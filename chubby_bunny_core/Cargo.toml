@@ -21,4 +21,4 @@ itertools = "0.15"
 serde = { version = "1", features = ["derive"] }
 dyn-clone = "1.0"
 serde-wasm-bindgen = { version = "0.6", optional = true }
-web-sys = { version = "0.3", optional = true, features = ["console"] }
+web-sys = { version = "0.3", optional = true, features = ["Window", "Performance"] }

@@ -289,7 +289,8 @@ const loop = (timestamp) => {
     nowMs,
     renderer.getCurrentDpr(),
   );
-
+const stats = playground.get_profiling_stats();
+console.log("profiling stats", stats);
   requestAnimationFrame(loop);
 };
 

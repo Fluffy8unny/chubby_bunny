@@ -33,6 +33,7 @@ pub fn chubby_bunny_bindgen(_attr: TokenStream, item: TokenStream) -> TokenStrea
                     game_impl: ::std::boxed::Box::new(<#game_impl_ty>::new()),
                     polygon_arrays: ::std::vec::Vec::new(),
                     user_input: ::chubby_bunny_canvas_renderer::input::InputState::new(),
+                    profiling_stats: ::std::option::Option::None,
                 })
             }
 
@@ -55,6 +56,12 @@ pub fn chubby_bunny_bindgen(_attr: TokenStream, item: TokenStream) -> TokenStrea
                 &self,
             ) -> Result<::wasm_bindgen::JsValue, ::wasm_bindgen::JsValue> {
                 self.0.get_polygon_arrays()
+            }
+
+            pub fn get_profiling_stats(
+                &self,
+            ) -> Result<::wasm_bindgen::JsValue, ::wasm_bindgen::JsValue> {
+                self.0.get_profiling_stats()
             }
 
             pub fn mouse_down(
