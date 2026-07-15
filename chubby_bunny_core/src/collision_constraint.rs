@@ -417,6 +417,8 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
         dt: T,
         solver_settings: &SolverSettings,
     ) {
+        crate::profile_scope!("CollisionConstraint::solve");
+
         let time_correction_factor = dt
             / T::from(solver_settings.reference_dt * solver_settings.constraint_iterations as f32);
         let (edges_a, edges_b) =

@@ -11,8 +11,13 @@ repository = "https://github.com/Fluffy8unny/chubby_bunny"
 categories = ["wasm", "science"]
 keywords = ["physics", "soft-body", "simulation", "wasm", "nalgebra"]
 
+[features]
+default = []
+profiling = ["dep:tracing"]
+
 [dependencies]
 nalgebra = "0.35"
 itertools = "0.15"
 serde = { version = "1", features = ["derive"] }
 dyn-clone = "1.0"
+tracing = { version = "0.1", optional = true }
