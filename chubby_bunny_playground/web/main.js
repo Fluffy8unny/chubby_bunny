@@ -26,6 +26,49 @@ const pointerGesture = {
   travelPx: 0,
 };
 let latestCompletedPointerGesture = null;
+let profilingLogFrameCounter = 0;
+
+const readMetric = (node, snakeCaseKey, camelCaseKey) => {
+  // Rust field names use underscores (e.g., total_time_us)
+  // Convert from microseconds to milliseconds
+  let value = node[snakeCaseKey] !== undefined ? node[snakeCaseKey] : node[camelCaseKey];
+  if (Number.isFinite(value)) {
+    return value / 1000.0;  // Convert microseconds to milliseconds
+  }
+  return NaN;
+};
+
+const readChildren = (node) => {
+  if (!node || !Array.isArray(node.children)) {
+    return [];
+  }
+  return node.children;
+};
+
+const formatMetric = (value) =>
+  Number.isFinite(value) ? `${value.toFixed(3)}ms` : "n/a";
+
+const dumpProfilingTree = (node, depth = 0) => {
+  if (!node || typeof node !== "object") {
+    return;
+  }
+
+  const indent = "  ".repeat(depth);
+  const totalMs = readMetric(node, "total_time_us", "totalTimeMs");
+  const avgMs = readMetric(node, "avg_time_us", "avgTimeMs");
+  const minMs = readMetric(node, "min_time_us", "minTimeMs");
+  const maxMs = readMetric(node, "max_time_us", "maxTimeMs");
+  const calls = Number(node.call_count ?? node.callCount ?? 0);
+  const label = String(node.name ?? "(unnamed)");
+
+  console.log(
+    `${indent}${label} | calls=${calls} total=${formatMetric(totalMs)} avg=${formatMetric(avgMs)} min=${formatMetric(minMs)} max=${formatMetric(maxMs)}`,
+  );
+
+  for (const child of readChildren(node)) {
+    dumpProfilingTree(child, depth + 1);
+  }
+};
 
 const beginPointerGesture = (x, y) => {
   pointerGesture.isActive = true;
@@ -289,8 +332,14 @@ const loop = (timestamp) => {
     nowMs,
     renderer.getCurrentDpr(),
   );
-const stats = playground.get_profiling_stats();
-console.log("profiling stats", stats);
+
+  profilingLogFrameCounter += 1;
+  if (profilingLogFrameCounter % 30 === 0) {
+    const stats = playground.get_profiling_stats();
+    console.log("profiling stats root keys", Object.keys(stats || {}));
+    dumpProfilingTree(stats);
+  }
+
   requestAnimationFrame(loop);
 };
 

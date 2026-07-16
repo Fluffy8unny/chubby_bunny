@@ -49,6 +49,7 @@ impl<T: FloatingPointNumber> DistanceConstraint<T> {
 
 impl<T: FloatingPointNumber> IntrinsicConstraint<T> for DistanceConstraint<T> {
     fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings) {
+        crate::profile_scope!("DistanceConstraint::solve");
         let alpha = constraint_alpha_with_reference_dt(self.stiffness, dt, solver_settings);
         if alpha <= T::zero() {
             return;
@@ -124,6 +125,7 @@ impl<T: FloatingPointNumber> AreaConstraint<T> {
 
 impl<T: FloatingPointNumber> IntrinsicConstraint<T> for AreaConstraint<T> {
     fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings) {
+        crate::profile_scope!("AreaConstraint::solve");
         if particles.len() < 3 {
             return;
         }
@@ -234,6 +236,7 @@ impl<T: FloatingPointNumber> BendingConstraint<T> {
 
 impl<T: FloatingPointNumber> IntrinsicConstraint<T> for BendingConstraint<T> {
     fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings) {
+        crate::profile_scope!("BendingConstraint::solve");
         let prev = particles[self.idx_prev].position;
         let center = particles[self.idx_center].position;
         let next = particles[self.idx_next].position;

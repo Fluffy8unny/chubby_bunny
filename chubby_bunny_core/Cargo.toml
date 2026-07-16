@@ -13,7 +13,7 @@ keywords = ["physics", "soft-body", "simulation", "wasm", "nalgebra"]
 
 [features]
 default = []
-profiling = ["dep:serde-wasm-bindgen", "dep:web-sys"]
+profiling = ["dep:serde-wasm-bindgen", "dep:web-sys", "dep:tracing", "dep:tracing-subscriber"]
 
 [dependencies]
 nalgebra = "0.35"
@@ -22,3 +22,5 @@ serde = { version = "1", features = ["derive"] }
 dyn-clone = "1.0"
 serde-wasm-bindgen = { version = "0.6", optional = true }
 web-sys = { version = "0.3", optional = true, features = ["Window", "Performance"] }
+tracing = { version = "0.1", optional = true }
+tracing-subscriber = { version = "0.3", optional = true, default-features = false, features = ["registry", "std"] }

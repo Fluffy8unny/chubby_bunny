@@ -60,6 +60,7 @@ impl<T: FloatingPointNumber> GlobalExtrinsicConstraint<T> for WallConstraint<T> 
         _dt: T,
         _solver_settings: &SolverSettings,
     ) {
+        crate::profile_scope!("WallConstraint::solve");
         for body in bodies.iter_mut() {
             let line_origin = parent_particles[self.parent_point_idx_origin].position;
             let line_end = parent_particles[self.parent_point_idx_end].position;
@@ -151,6 +152,7 @@ impl<T: FloatingPointNumber> LocalExtrinsicConstraint<T> for AttachmentConstrain
         dt: T,
         solver_settings: &SolverSettings,
     ) {
+        crate::profile_scope!("AttachmentConstraint::solve");
         for ((parent_idx, child_idx), target_distance) in self
             .point_idxs_parent
             .iter()

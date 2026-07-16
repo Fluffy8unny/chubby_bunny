@@ -42,4 +42,14 @@ fi
   --out-dir chubby_bunny_playground/pkg \
   --target web
 
-python3 -m http.server 8000
+python3 - << 'EOF'
+import http.server
+
+class COOPCOEPHandler(http.server.SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header("Cross-Origin-Opener-Policy", "same-origin")
+        self.send_header("Cross-Origin-Embedder-Policy", "credentialless")
+        super().end_headers()
+
+http.server.test(HandlerClass=COOPCOEPHandler, port=8000)
+EOF
