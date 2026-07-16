@@ -45,35 +45,102 @@ const readChildren = (node) => {
   return node.children;
 };
 
-const formatMetric = (value) =>
-  Number.isFinite(value) ? `${value.toFixed(3)}ms` : "n/a";
+const toRoundedOrNull = (value, digits = 3) =>
+  Number.isFinite(value) ? Number(value.toFixed(digits)) : null;
 
-const dumpProfilingTree = (node, depth = 0) => {
-  if (!node || typeof node !== "object") {
+const aggregateProfilingScopes = (root) => {
+  const totalsByLabel = new Map();
+
+  const visit = (node) => {
+    if (!node || typeof node !== "object") {
+      return;
+    }
+
+    const label = String(node.name ?? "(unnamed)");
+    const calls = Number(node.call_count ?? node.callCount ?? 0);
+    const totalMs = readMetric(node, "total_time_us", "totalTimeMs");
+    const minMs = readMetric(node, "min_time_us", "minTimeMs");
+    const maxMs = readMetric(node, "max_time_us", "maxTimeMs");
+
+    if (!totalsByLabel.has(label)) {
+      totalsByLabel.set(label, {
+        name: label,
+        callCount: 0,
+        totalMs: 0,
+        minMs: Number.POSITIVE_INFINITY,
+        maxMs: 0,
+      });
+    }
+
+    const entry = totalsByLabel.get(label);
+    entry.callCount += Number.isFinite(calls) ? calls : 0;
+    entry.totalMs += Number.isFinite(totalMs) ? totalMs : 0;
+    if (Number.isFinite(minMs)) {
+      entry.minMs = Math.min(entry.minMs, minMs);
+    }
+    if (Number.isFinite(maxMs)) {
+      entry.maxMs = Math.max(entry.maxMs, maxMs);
+    }
+
+    for (const child of readChildren(node)) {
+      visit(child);
+    }
+  };
+
+  visit(root);
+
+  return Array.from(totalsByLabel.values())
+    .map((entry) => ({
+      ...entry,
+      avgMs: entry.callCount > 0 ? entry.totalMs / entry.callCount : NaN,
+      minMs: Number.isFinite(entry.minMs) ? entry.minMs : NaN,
+    }))
+    .sort((a, b) => b.totalMs - a.totalMs);
+};
+
+const dumpAggregatedConstraintSummary = (root) => {
+  const frameTotalMs = readMetric(root, "total_time_us", "totalTimeMs");
+  const aggregated = aggregateProfilingScopes(root).filter(
+    (entry) => entry.name.endsWith("::solve"),
+  );
+
+  if (aggregated.length === 0) {
     return;
   }
 
-  const indent = "  ".repeat(depth);
-  const totalMs = readMetric(node, "total_time_us", "totalTimeMs");
-  const avgMs = readMetric(node, "avg_time_us", "avgTimeMs");
-  const minMs = readMetric(node, "min_time_us", "minTimeMs");
-  const maxMs = readMetric(node, "max_time_us", "maxTimeMs");
-  const calls = Number(node.call_count ?? node.callCount ?? 0);
-  const label = String(node.name ?? "(unnamed)");
-
-  console.log(
-    `${indent}${label} | calls=${calls} total=${formatMetric(totalMs)} avg=${formatMetric(avgMs)} min=${formatMetric(minMs)} max=${formatMetric(maxMs)}`,
+  console.log("aggregated constraint timings (frame-wide):");
+  console.table(
+    aggregated.map((entry) => {
+      const percentOfFrame = frameTotalMs > 0
+        ? (entry.totalMs / frameTotalMs) * 100
+        : NaN;
+      return {
+        constraint: entry.name,
+        calls: entry.callCount,
+        total_ms: toRoundedOrNull(entry.totalMs),
+        frame_pct: toRoundedOrNull(percentOfFrame, 1),
+        avg_ms: toRoundedOrNull(entry.avgMs),
+        min_ms: toRoundedOrNull(entry.minMs),
+        max_ms: toRoundedOrNull(entry.maxMs),
+      };
+    }),
   );
 
-  for (const child of readChildren(node)) {
-    dumpProfilingTree(child, depth + 1);
-  }
+
 };
 
 const beginPointerGesture = (x, y) => {
   pointerGesture.isActive = true;
   pointerGesture.lastX = x;
   pointerGesture.lastY = y;
+  pointerGesture.travelPx = 0;
+  latestCompletedPointerGesture = null;
+};
+
+const resetInteractionState = () => {
+  pendingInputEvents = [];
+  lastSelection = null;
+  pointerGesture.isActive = false;
   pointerGesture.travelPx = 0;
   latestCompletedPointerGesture = null;
 };
@@ -141,6 +208,12 @@ if (siteBannerClose) {
 }
 
 let lastSelection = null;
+const DESCRIPTION_ACTIONS = Object.freeze({
+  mail: () => window.location.assign("mailto:Andreas@Weissenburger.info"),
+  git: () => window.location.assign("https://github.com/Fluffy8unny"),
+  about: () => showBanner(),
+});
+
 const handleOutgoingEvent = (rawEvent) => {
   if (!rawEvent || typeof rawEvent !== "object") {
     return;
@@ -178,17 +251,10 @@ const handleOutgoingEvent = (rawEvent) => {
     );
 
     if (isClickWithinThreshold(clickMetrics, CLICK_GESTURE_THRESHOLD)) {
-      if (description === "mail") {
-        window.location.assign("mailto:Andreas@Weissenburger.info");
-      } else if (description === "git") {
-        window.location.assign("https://github.com/Fluffy8unny");
-      } else if (description === "about") {
-        showBanner();
-      }
+      DESCRIPTION_ACTIONS[description]?.();
     }
 
-    latestCompletedPointerGesture = null;
-    lastSelection = null;
+    resetInteractionState();
   }
 };
 
@@ -196,11 +262,7 @@ const resizeCanvas = () => {
   const { width, height } = renderer.resize();
 
   if (playground) {
-    pendingInputEvents = [];
-    lastSelection = null;
-    pointerGesture.isActive = false;
-    pointerGesture.travelPx = 0;
-    latestCompletedPointerGesture = null;
+    resetInteractionState();
     playground.reset(width, height);
     playground.last_timestamp = performance.now();
   }
@@ -224,13 +286,12 @@ const enqueueInputEvent = (kind, event) => {
     time_stamp: performance.now(),
   };
 
-  if (kind === "down") {
-    beginPointerGesture(nextEvent.x, nextEvent.y);
-  } else if (kind === "move") {
-    extendPointerGesture(nextEvent.x, nextEvent.y);
-  } else if (kind === "up") {
-    endPointerGesture(nextEvent.x, nextEvent.y, nextEvent.time_stamp);
-  }
+  const pointerGestureHandlers = {
+    down: () => beginPointerGesture(nextEvent.x, nextEvent.y),
+    move: () => extendPointerGesture(nextEvent.x, nextEvent.y),
+    up: () => endPointerGesture(nextEvent.x, nextEvent.y, nextEvent.time_stamp),
+  };
+  pointerGestureHandlers[kind]?.();
 
   if (kind === "move" && pendingInputEvents.length > 0) {
     const lastIdx = pendingInputEvents.length - 1;
@@ -270,20 +331,15 @@ window.addEventListener(
 );
 
 const flushInputEvents = () => {
+  const inputEventHandlers = {
+    move: (event) => playground.mouse_move(event.x, event.y, event.time_stamp),
+    down: (event) =>
+      playground.mouse_down(event.x, event.y, event.button, event.time_stamp),
+    up: (event) => playground.mouse_up(event.x, event.y, event.button, event.time_stamp),
+  };
+
   for (const event of pendingInputEvents) {
-    if (event.kind === "move") {
-      playground.mouse_move(event.x, event.y, event.time_stamp);
-      continue;
-    }
-
-    if (event.kind === "down") {
-      playground.mouse_down(event.x, event.y, event.button, event.time_stamp);
-      continue;
-    }
-
-    if (event.kind === "up") {
-      playground.mouse_up(event.x, event.y, event.button, event.time_stamp);
-    }
+    inputEventHandlers[event.kind]?.(event);
   }
 
   pendingInputEvents = [];
@@ -336,8 +392,7 @@ const loop = (timestamp) => {
   profilingLogFrameCounter += 1;
   if (profilingLogFrameCounter % 30 === 0) {
     const stats = playground.get_profiling_stats();
-    console.log("profiling stats root keys", Object.keys(stats || {}));
-    dumpProfilingTree(stats);
+    dumpAggregatedConstraintSummary(stats);
   }
 
   requestAnimationFrame(loop);
