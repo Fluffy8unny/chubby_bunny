@@ -30,9 +30,9 @@ pub use constraint_common::SolverSettings;
 /// This macro compiles to a no-op when `profiling` is disabled.
 #[macro_export]
 macro_rules! profile_scope {
-    ($name:expr) => {{
+    ($name:expr) => {
         let _profile_guard = $crate::profiling::ProfileGuard::new($name);
-    }};
+    };
 }
 
 pub trait FloatingPointNumber: nalgebra::RealField + Copy + From<f32> {}

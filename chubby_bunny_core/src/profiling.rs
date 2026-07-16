@@ -241,7 +241,7 @@ mod runtime {
 }
 
 #[cfg(feature = "profiling")]
-pub use runtime::ProfileGuard;
+pub use runtime::{begin_frame, end_frame, take_last_frame, ProfileGuard};
 
 #[cfg(not(feature = "profiling"))]
 pub struct ProfileGuard;
@@ -254,33 +254,13 @@ impl ProfileGuard {
     }
 }
 
-pub fn begin_frame(name: &str) {
-    #[cfg(feature = "profiling")]
-    {
-        runtime::begin_frame(name);
-    }
+#[cfg(not(feature = "profiling"))]
+pub fn begin_frame(_name: &str) {}
 
-    #[cfg(not(feature = "profiling"))]
-    {
-        let _ = name;
-    }
-}
+#[cfg(not(feature = "profiling"))]
+pub fn end_frame() {}
 
-pub fn end_frame() {
-    #[cfg(feature = "profiling")]
-    {
-        runtime::end_frame();
-    }
-}
-
+#[cfg(not(feature = "profiling"))]
 pub fn take_last_frame() -> Option<ProfileNode> {
-    #[cfg(feature = "profiling")]
-    {
-        return runtime::take_last_frame();
-    }
-
-    #[cfg(not(feature = "profiling"))]
-    {
-        None
-    }
+    None
 }
