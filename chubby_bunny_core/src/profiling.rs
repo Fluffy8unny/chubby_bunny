@@ -13,36 +13,15 @@ pub struct ProfileNode {
 mod runtime {
     use super::ProfileNode;
     use std::cell::RefCell;
-    use std::sync::Once;
-    use tracing::field::{Field, Visit};
-    use tracing::span::{Attributes, Id};
-    use tracing_subscriber::layer::{Context, Layer};
-    use tracing_subscriber::prelude::*;
-    use tracing_subscriber::registry::LookupSpan;
 
+    /// A scope that is currently open on the profiler stack.
+    /// `name` is always a string literal passed to `profile_scope!`, so no
+    /// allocation is needed while the scope is active.
     struct ActiveNode {
-        name: String,
+        name: &'static str,
         start_time_us: f64,
         children: Vec<ProfileNode>,
     }
-
-    #[derive(Default)]
-    struct SpanScopeNameVisitor {
-        scope_name: Option<String>,
-    }
-
-    impl Visit for SpanScopeNameVisitor {
-        fn record_str(&mut self, field: &Field, value: &str) {
-            if field.name() == "scope_name" {
-                self.scope_name = Some(value.to_string());
-            }
-        }
-
-        fn record_debug(&mut self, _field: &Field, _value: &dyn std::fmt::Debug) {}
-    }
-
-    #[derive(Clone)]
-    struct SpanScopeName(String);
 
     #[derive(Default)]
     struct ProfilerState {
@@ -56,88 +35,6 @@ mod runtime {
 
     thread_local! {
         static PROFILER_STATE: RefCell<ProfilerState> = RefCell::new(ProfilerState::default());
-    }
-
-    struct ProfilingLayer;
-
-    impl<S> Layer<S> for ProfilingLayer
-    where
-        S: tracing::Subscriber + for<'lookup> LookupSpan<'lookup>,
-    {
-        fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
-            let mut visitor = SpanScopeNameVisitor::default();
-            attrs.record(&mut visitor);
-            let Some(span) = ctx.span(id) else {
-                return;
-            };
-            let scope_name = visitor
-                .scope_name
-                .unwrap_or_else(|| span.metadata().name().to_string());
-            span.extensions_mut().insert(SpanScopeName(scope_name));
-        }
-
-        fn on_enter(&self, id: &Id, ctx: Context<'_, S>) {
-            let Some(span) = ctx.span(id) else {
-                return;
-            };
-
-            let scope_name = span
-                .extensions()
-                .get::<SpanScopeName>()
-                .map(|x| x.0.clone())
-                .unwrap_or_else(|| span.metadata().name().to_string());
-
-            PROFILER_STATE.with(|state| {
-                let mut state = state.borrow_mut();
-                if !state.frame_active {
-                    return;
-                }
-
-                state.stack.push(ActiveNode {
-                    name: scope_name,
-                    start_time_us: now_us(),
-                    children: Vec::new(),
-                });
-            });
-        }
-
-        fn on_exit(&self, _id: &Id, _ctx: Context<'_, S>) {
-            PROFILER_STATE.with(|state| {
-                let mut state = state.borrow_mut();
-                if !state.frame_active {
-                    return;
-                }
-
-                let Some(active_node) = state.stack.pop() else {
-                    return;
-                };
-
-                let elapsed_us = (now_us() - active_node.start_time_us).max(0.0);
-                let finished_node = ProfileNode {
-                    name: active_node.name,
-                    call_count: 1,
-                    total_time_us: elapsed_us,
-                    min_time_us: elapsed_us,
-                    max_time_us: elapsed_us,
-                    avg_time_us: elapsed_us,
-                    children: active_node.children,
-                };
-
-                if let Some(parent) = state.stack.last_mut() {
-                    merge_profile_node(&mut parent.children, finished_node);
-                } else {
-                    merge_profile_node(&mut state.root_children, finished_node);
-                }
-            });
-        }
-    }
-
-    fn ensure_subscriber_installed() {
-        static INSTALL: Once = Once::new();
-        INSTALL.call_once(|| {
-            let subscriber = tracing_subscriber::registry().with(ProfilingLayer);
-            let _ = tracing::subscriber::set_global_default(subscriber);
-        });
     }
 
     fn now_us() -> f64 {
@@ -157,19 +54,48 @@ mod runtime {
         }
     }
 
-    fn merge_profile_node(children: &mut Vec<ProfileNode>, mut node: ProfileNode) {
-        if let Some(existing) = children.iter_mut().find(|existing| existing.name == node.name) {
-            existing.call_count += node.call_count;
-            existing.total_time_us += node.total_time_us;
-            existing.min_time_us = existing.min_time_us.min(node.min_time_us);
-            existing.max_time_us = existing.max_time_us.max(node.max_time_us);
-            for child in node.children.drain(..) {
-                merge_profile_node(&mut existing.children, child);
-            }
+    /// Merges a finished scope into `children`, aggregating by name.
+    /// Only allocates a `String` the first time a given `name` is seen within
+    /// `children`; every subsequent call for the same name is allocation-free.
+    fn merge_active_node(
+        children: &mut Vec<ProfileNode>,
+        name: &'static str,
+        elapsed_us: f64,
+        sub_children: Vec<ProfileNode>,
+    ) {
+        if let Some(existing) = children.iter_mut().find(|existing| existing.name == name) {
+            existing.call_count += 1;
+            existing.total_time_us += elapsed_us;
+            existing.min_time_us = existing.min_time_us.min(elapsed_us);
+            existing.max_time_us = existing.max_time_us.max(elapsed_us);
+            merge_children(&mut existing.children, sub_children);
             return;
         }
 
-        children.push(node);
+        children.push(ProfileNode {
+            name: name.to_string(),
+            call_count: 1,
+            total_time_us: elapsed_us,
+            min_time_us: elapsed_us,
+            max_time_us: elapsed_us,
+            avg_time_us: elapsed_us,
+            children: sub_children,
+        });
+    }
+
+    /// Folds an already-built subtree (from a finished child scope) into `children`.
+    fn merge_children(children: &mut Vec<ProfileNode>, mut incoming: Vec<ProfileNode>) {
+        for node in incoming.drain(..) {
+            if let Some(existing) = children.iter_mut().find(|existing| existing.name == node.name) {
+                existing.call_count += node.call_count;
+                existing.total_time_us += node.total_time_us;
+                existing.min_time_us = existing.min_time_us.min(node.min_time_us);
+                existing.max_time_us = existing.max_time_us.max(node.max_time_us);
+                merge_children(&mut existing.children, node.children);
+            } else {
+                children.push(node);
+            }
+        }
     }
 
     fn finalize_averages(node: &mut ProfileNode) {
@@ -181,21 +107,54 @@ mod runtime {
         }
     }
 
+    /// RAII scope guard. Pushes onto the thread-local profiler stack on
+    /// creation and merges its accumulated timing into its parent on drop.
+    /// No heap allocation happens while the guard is alive.
     pub struct ProfileGuard {
-        _entered: tracing::span::EnteredSpan,
+        active: bool,
     }
 
     impl ProfileGuard {
-        pub fn new(name: &str) -> Self {
-            ensure_subscriber_installed();
-            Self {
-                _entered: tracing::info_span!("profile_scope", scope_name = name).entered(),
+        pub fn new(name: &'static str) -> Self {
+            let active = PROFILER_STATE.with(|state| {
+                let mut state = state.borrow_mut();
+                if !state.frame_active {
+                    return false;
+                }
+                state.stack.push(ActiveNode {
+                    name,
+                    start_time_us: now_us(),
+                    children: Vec::new(),
+                });
+                true
+            });
+            Self { active }
+        }
+    }
+
+    impl Drop for ProfileGuard {
+        fn drop(&mut self) {
+            if !self.active {
+                return;
             }
+
+            PROFILER_STATE.with(|state| {
+                let mut state = state.borrow_mut();
+                let Some(active_node) = state.stack.pop() else {
+                    return;
+                };
+
+                let elapsed_us = (now_us() - active_node.start_time_us).max(0.0);
+                let target = match state.stack.last_mut() {
+                    Some(parent) => &mut parent.children,
+                    None => &mut state.root_children,
+                };
+                merge_active_node(target, active_node.name, elapsed_us, active_node.children);
+            });
         }
     }
 
     pub fn begin_frame(name: &str) {
-        ensure_subscriber_installed();
         PROFILER_STATE.with(|state| {
             let mut state = state.borrow_mut();
             state.frame_active = true;
@@ -248,7 +207,7 @@ pub struct ProfileGuard;
 
 #[cfg(not(feature = "profiling"))]
 impl ProfileGuard {
-    pub fn new(name: &str) -> Self {
+    pub fn new(name: &'static str) -> Self {
         let _ = name;
         Self
     }
