@@ -1,4 +1,6 @@
-use crate::constraint_common::{constraint_alpha_with_reference_dt, distribute_based_on_mass};
+use crate::constraint_common::{
+    constraint_alpha_with_reference_dt, distribute_based_on_mass, inverse_mass,
+};
 use crate::{eps, FloatingPointNumber, Particle, SolverSettings, Transformation};
 use dyn_clone::DynClone;
 use nalgebra::Vector2;
@@ -39,11 +41,18 @@ pub struct DistanceConstraint<T> {
 impl<T: FloatingPointNumber> DistanceConstraint<T> {
     /// Builds a distance constraint from two particle indices and current positions.
     pub fn new(idx_left: usize, idx_right: usize, particles: &[Particle<T>], stiffness: T) -> Self {
-        assert_ne!(idx_left, idx_right, "DistanceConstraint requires two distinct particle indices");
+        assert_ne!(
+            idx_left, idx_right,
+            "DistanceConstraint requires two distinct particle indices"
+        );
 
         let target_distance = (particles[idx_right].position - particles[idx_left].position).norm();
-        let (weight_left, weight_right) =
-            distribute_based_on_mass(&particles[idx_left], &particles[idx_right], T::from(0.5_f32), T::from(0.5_f32));
+        let (weight_left, weight_right) = distribute_based_on_mass(
+            &particles[idx_left],
+            &particles[idx_right],
+            T::from(0.5_f32),
+            T::from(0.5_f32),
+        );
 
         Self {
             idx_left,
@@ -65,7 +74,7 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for DistanceConstraint<T> {
 
         let [left, right] = particles
             .get_disjoint_mut([self.idx_left, self.idx_right])
-            .unwrap();//we checked at construction time that the indices are distinct, so this unwrap is safe
+            .unwrap(); //we checked at construction time that the indices are distinct, so this unwrap is safe
 
         if left.pinned && right.pinned {
             return;
@@ -143,23 +152,24 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for AreaConstraint<T> {
         let n = particles.len();
         let half = T::from(0.5_f32);
         let mut grads = Vec::with_capacity(n);
-        let mut gradient_sum = T::zero();
+        let mut weighted_gradient_sum = T::zero();
 
         for i in 0..n {
             let prev = particles[(i + n - 1) % n].position;
             let next = particles[(i + 1) % n].position;
             let grad = Vector2::new((next.y - prev.y) * half, (prev.x - next.x) * half); //normal
-            gradient_sum += grad.norm_squared();
+            weighted_gradient_sum += inverse_mass(&particles[i]) * grad.norm_squared();
             grads.push(grad);
         }
 
-        if gradient_sum <= eps!(T, 12) {
+        if weighted_gradient_sum <= eps!(T, 12) {
             return;
         }
 
-        let lambda = -alpha * c / gradient_sum;
+        let lambda = -alpha * c / weighted_gradient_sum;
         for i in 0..n {
-            particles[i].apply_position_correction_to_particle(&(grads[i] * lambda));
+            let correction = grads[i] * (lambda * inverse_mass(&particles[i]));
+            particles[i].apply_position_correction_to_particle(&correction);
         }
     }
 
@@ -267,16 +277,23 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for BendingConstraint<T> {
         let grad_next = Vector2::new(-v_next.y, v_next.x) / next_len_sq;
         let grad_center = -(grad_prev + grad_next);
 
-        let denom =
-            grad_prev.norm_squared() + grad_center.norm_squared() + grad_next.norm_squared();
+        let inverse_mass_prev = inverse_mass(prev_particle);
+        let inverse_mass_center = inverse_mass(center_particle);
+        let inverse_mass_next = inverse_mass(next_particle);
+        let denom = inverse_mass_prev * grad_prev.norm_squared()
+            + inverse_mass_center * grad_center.norm_squared()
+            + inverse_mass_next * grad_next.norm_squared();
         if denom <= eps!(T, 12) {
             return;
         }
 
         let lambda = -c_scaled / denom;
 
-        prev_particle.apply_position_correction_to_particle(&(grad_prev * lambda));
-        center_particle.apply_position_correction_to_particle(&(grad_center * lambda));
-        next_particle.apply_position_correction_to_particle(&(grad_next * lambda));
+        prev_particle
+            .apply_position_correction_to_particle(&(grad_prev * (lambda * inverse_mass_prev)));
+        center_particle
+            .apply_position_correction_to_particle(&(grad_center * (lambda * inverse_mass_center)));
+        next_particle
+            .apply_position_correction_to_particle(&(grad_next * (lambda * inverse_mass_next)));
     }
 }

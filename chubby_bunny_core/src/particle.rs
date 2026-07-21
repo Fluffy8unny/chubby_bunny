@@ -31,6 +31,7 @@ where
         friction: T,
         pinned: bool,
     ) -> Self {
+        assert!(mass > T::zero(), "Particle mass must be strictly positive");
         Self {
             position,
             pre_integration_position: position,
