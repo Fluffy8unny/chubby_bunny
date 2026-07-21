@@ -11,8 +11,14 @@ repository = "https://github.com/Fluffy8unny/chubby_bunny"
 categories = ["wasm", "science"]
 keywords = ["physics", "soft-body", "simulation", "wasm", "nalgebra"]
 
+[features]
+default = []
+profiling = ["dep:serde-wasm-bindgen", "dep:web-sys"]
+
 [dependencies]
 nalgebra = "0.35"
 itertools = "0.15"
 serde = { version = "1", features = ["derive"] }
 dyn-clone = "1.0"
+serde-wasm-bindgen = { version = "0.6", optional = true }
+web-sys = { version = "0.3", optional = true, features = ["Window", "Performance"] }

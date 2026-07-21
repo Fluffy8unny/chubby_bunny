@@ -259,6 +259,8 @@ impl<T: FloatingPointNumber> Body<T> {
     }
 
     fn solve_constraints_recursivly(&mut self, dt: T, solver_settings: &SolverSettings) {
+        crate::profile_scope!("Body::solve_constraints_recursivly");
+
         // Solve constraints to maintain this body's internal structure.
         for constraint in &self.constraints {
             constraint.solve(&mut self.particles, dt, solver_settings);
@@ -308,6 +310,8 @@ impl<T: FloatingPointNumber> Body<T> {
     where
         F: Force<T>,
     {
+        crate::profile_scope!("Body::perform_step");
+
         //calculate how external forces would affect the body
         self.apply_forces_recursively(forces, dt);
 
