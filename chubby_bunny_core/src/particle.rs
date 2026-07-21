@@ -61,13 +61,14 @@ where
     /// Verlit integration update that should be called after all forces and constraints have been applied,
     /// to update the particle's velocity based on its movement during the integration step.
     ///
-    /// The solver runs on a fixed timestep, so `friction` is the fraction of velocity damped per substep.
+    /// `friction` is a per-second damping rate; scaling it by `dt` keeps the amount of damping
+    /// independent of the substep size.
     pub fn post_integration_update(&mut self, dt: T)
     where
         T: nalgebra::RealField + Copy + From<f32>,
     {
         if dt > T::zero() && !self.pinned {
-            let decay = T::one() - self.friction;
+            let decay = T::one() - self.friction * dt;
             self.velocity = (self.position - self.pre_integration_position) * decay / dt;
             self.pre_integration_position = self.position;
         }

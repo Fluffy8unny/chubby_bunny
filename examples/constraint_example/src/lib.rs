@@ -62,7 +62,7 @@ impl ConstraintsGame {
                 stiffness_shear: 0.0,
                 stiffness_area: 0.0,
                 stiffness_bending: 0.0,
-                friction: 0.002,
+                friction: 0.72,
             },
         );
 
@@ -75,7 +75,7 @@ impl ConstraintsGame {
                 stiffness_shear: 0.2,
                 stiffness_area: 0.0,
                 stiffness_bending: 0.0,
-                friction: 0.002,
+                friction: 0.72,
             },
         );
 
@@ -88,7 +88,7 @@ impl ConstraintsGame {
                 stiffness_shear: 0.0,
                 stiffness_area: 0.5,
                 stiffness_bending: 0.0,
-                friction: 0.002,
+                friction: 0.72,
             },
         );
 
@@ -101,7 +101,7 @@ impl ConstraintsGame {
                 stiffness_shear: 0.0,
                 stiffness_area: 0.0,
                 stiffness_bending: 0.3,
-                friction: 0.002,
+                friction: 0.72,
             },
         );
 
@@ -114,7 +114,7 @@ impl ConstraintsGame {
                 stiffness_shear: 0.5,
                 stiffness_area: 0.5,
                 stiffness_bending: 0.5,
-                friction: 0.002,
+                friction: 0.72,
             },
         );
 

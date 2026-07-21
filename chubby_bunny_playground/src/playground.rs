@@ -126,7 +126,7 @@ impl PlaygroundGame {
             scene_bodies.extend(svg_instance);
         }
 
-        let cloud_body_settings = BodySettings::from_values(1.0, 0.01, false);
+        let cloud_body_settings = BodySettings::from_values(1.0, 3.6, false);
         let cloud_constraint_settings =
             SVGConstraintSettings::from_values(0.8, 0.8, 0.25, 0.6, 0.5, 5, 8, 2.0, 3);
 
@@ -260,9 +260,9 @@ impl Game for PlaygroundGame {
         self.spawner.reset_runtime_state();
         self.spawner.update_settings(width, height);
 
-        let svg_body_settings = BodySettings::from_values(1.0, 0.02, false);
+        let svg_body_settings = BodySettings::from_values(1.0, 1.44, false);
         let svg_constraint_settings =
-            SVGConstraintSettings::from_values(0.1, 0.1, 0.1, 0.1, 0.2, 5, 8, 2.0, 3);
+            SVGConstraintSettings::from_values(0.05, 0.02, 0.015, 0.03, 0.1, 5, 8, 2.0, 3);
         let mut container_body = create_container(width, height, self.spawner.get_scale());
 
         container_body.children.extend(self.create_scene(
@@ -289,7 +289,7 @@ impl Game for PlaygroundGame {
 
         container_body.collision_constraint = Some(CollisionConstraint::new(0.99));
         self.bodies.push(container_body);
-        self.gravity = Vector2::new(0.0, height as f32 / 5.0);
+        self.gravity = Vector2::new(0.0, height as f32 / 2.0);
     }
 
     fn reset(&mut self, width: f32, height: f32) {

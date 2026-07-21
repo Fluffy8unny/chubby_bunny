@@ -54,7 +54,7 @@ impl MinimalGame {
             stiffness_shear: 0.0,
             stiffness_area: 0.0,
             stiffness_bending: 0.0,
-            friction: 0.002,
+            friction: 0.72,
         };
 
         let poly = create_polygon(center, width / 12.0, 12, &settings);

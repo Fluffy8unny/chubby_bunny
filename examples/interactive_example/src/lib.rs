@@ -61,7 +61,7 @@ impl InteractiveGame {
             stiffness_shear: 0.0,
             stiffness_area: 0.0,
             stiffness_bending: 0.0,
-            friction: 0.002,
+            friction: 0.72,
         };
 
         for i in (1..10).step_by(2) {
@@ -194,7 +194,8 @@ impl Game for InteractiveGame {
         let outgoing_events = self.handle_interaction(incoming_events, dt_ms);
         let dt = dt_ms / 1000.0;
         let constant_force = chubby_bunny_core::force::constant_force(Vector2::new(0.0, 250.0)); //px/s^2
-        self.stepper.advance(&mut self.bodies, &[constant_force], dt);
+        self.stepper
+            .advance(&mut self.bodies, &[constant_force], dt);
         outgoing_events
     }
 

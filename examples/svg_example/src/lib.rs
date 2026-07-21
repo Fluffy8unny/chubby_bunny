@@ -68,7 +68,7 @@ impl SVGGame {
                     stiffness: 1.0,
                 })));
         }
-        let svg_body_settings = BodySettings::from_values(1.0, 0.01, false);
+        let svg_body_settings = BodySettings::from_values(1.0, 3.6, false);
         let svg_constraint_settings =
             SVGConstraintSettings::from_values(0.5, 0.35, 0.3, 0.4, 0.5, 5, 8, 2.0, 3);
 
@@ -111,7 +111,8 @@ impl Game for SVGGame {
     fn update(&mut self, _incoming_events: VecDeque<Event>, dt_ms: f32) -> Vec<OutgoingEvent> {
         let dt = dt_ms / 1000.0;
         let constant_force = chubby_bunny_core::force::constant_force(Vector2::new(0.0, 250.0)); //px/s^2
-        self.stepper.advance(&mut self.bodies, &[constant_force], dt);
+        self.stepper
+            .advance(&mut self.bodies, &[constant_force], dt);
         Vec::new()
     }
 
