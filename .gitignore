@@ -2,3 +2,4 @@ target/
 pkg/
 chubby_bunny_playground/pkg/
 examples/*/pkg/
+Cargo.lock
