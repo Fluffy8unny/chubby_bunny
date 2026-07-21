@@ -1,38 +1,20 @@
 use crate::{FloatingPointNumber, Particle};
 use nalgebra::Vector2;
 
-/// Settings for the constraint solver:
-/// The reference time step, that basically says what time is expected
-/// The number of solver iterations to perform per frame. Higher values can improve stability but reduce performance.
-pub struct SolverSettings {
-    pub reference_dt: f32,
-    pub constraint_iterations: usize,
-}
-
-/// Calculates the alpha value for a constraint based on its stiffness, the time step, and the solver settings.
-/// This ensures that the constraint behaves consistently across varying frame times and solver iteration counts.
+/// Clamps a raw stiffness into the `[0, 1]` fraction of constraint error removed per substep.
 #[inline]
-pub fn constraint_alpha_with_reference_dt<T: FloatingPointNumber>(
-    stiffness: T,
-    dt: T,
-    settings: &SolverSettings,
-) -> T {
-    let alpha =
-        stiffness * dt / T::from(settings.reference_dt * (settings.constraint_iterations as f32));
-    alpha.clamp(T::zero(), T::one())
+pub fn limited_stiffness<T: FloatingPointNumber>(stiffness: T) -> T {
+    stiffness.clamp(T::zero(), T::one())
 }
 
 /// Calculates the correction vector needed to maintain a target distance between two particles.
 ///
 /// Used in all distance based constraints, such as `DistanceConstraint` and `AttachmentConstraint`.
-#[inline]
 pub fn get_distance_correction_vector<T: FloatingPointNumber>(
     particle_a: &Particle<T>,
     particle_b: &Particle<T>,
     stiffness: T,
     target_distance: T,
-    dt: T,
-    solver_settings: &SolverSettings,
 ) -> Vector2<T> {
     let line_between = particle_b.position - particle_a.position;
     let point_distance = line_between.norm();
@@ -40,9 +22,8 @@ pub fn get_distance_correction_vector<T: FloatingPointNumber>(
         return Vector2::zeros();
     }
     let move_direction = line_between / point_distance;
-    let alpha = constraint_alpha_with_reference_dt(stiffness, dt, solver_settings);
 
-    let correction_magnitude = alpha * (target_distance - point_distance) / T::from(2.0);
+    let correction_magnitude = stiffness * (target_distance - point_distance) / T::from(2.0);
     move_direction * correction_magnitude
 }
 

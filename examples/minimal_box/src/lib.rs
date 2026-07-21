@@ -3,7 +3,7 @@ use chubby_bunny_canvas_renderer::game_loop::{Game, GameLoop};
 use chubby_bunny_canvas_renderer::input::Event;
 use chubby_bunny_canvas_renderer::js_types::{default_meta, OutgoingEvent};
 use chubby_bunny_canvas_renderer::primitives::{create_polygon, SimpleBodySettings};
-use chubby_bunny_core::{Body, ExtrinsicConstraintType, Particle, SolverSettings, WallConstraint};
+use chubby_bunny_core::{Body, ExtrinsicConstraintType, FixedStepper, Particle, WallConstraint};
 use chubby_bunny_svg::MetaMap;
 use nalgebra::Vector2;
 use std::collections::VecDeque;
@@ -11,6 +11,7 @@ use std::collections::VecDeque;
 struct MinimalGame {
     bodies: Vec<Body>,
     meta_data: MetaMap,
+    stepper: FixedStepper,
 }
 
 impl MinimalGame {
@@ -18,6 +19,7 @@ impl MinimalGame {
         Self {
             bodies: Vec::new(),
             meta_data: MetaMap::new(),
+            stepper: FixedStepper::default(),
         }
     }
 
@@ -82,15 +84,10 @@ impl Game for MinimalGame {
     }
 
     fn update(&mut self, _incoming_events: VecDeque<Event>, dt_ms: f32) -> Vec<OutgoingEvent> {
-        let settings = SolverSettings {
-            reference_dt: 1.0 / 60.0,
-            constraint_iterations: 6,
-        };
         let dt = dt_ms / 1000.0;
-        for body in self.bodies.iter_mut() {
-            let constant_force = chubby_bunny_core::force::constant_force(Vector2::new(0.0, 250.0)); //px/s^2
-            body.perform_step(&[constant_force], dt, &settings);
-        }
+        let constant_force = chubby_bunny_core::force::constant_force(Vector2::new(0.0, 250.0)); //px/s^2
+        self.stepper
+            .advance(&mut self.bodies, &[constant_force], dt);
         Vec::new()
     }
 

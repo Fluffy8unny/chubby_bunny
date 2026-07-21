@@ -5,7 +5,7 @@ use chubby_bunny_canvas_renderer::game_loop::{Game, GameLoop};
 use chubby_bunny_canvas_renderer::input::{Event, MouseButton, MouseEventType};
 use chubby_bunny_canvas_renderer::js_types::{default_meta, EventType, OutgoingEvent};
 use chubby_bunny_core::{
-    eps, Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, Particle, SolverSettings,
+    eps, Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, FixedStepper, Particle,
     Transformation, WallConstraint,
 };
 use chubby_bunny_svg::{load_svg, BodyMeta, BodySettings, MetaMap, SVGConstraintSettings};
@@ -48,6 +48,7 @@ struct PlaygroundGame {
     spawner: BunnySpawner<f32>,
     interactive_bodies: HashMap<BodyId, String>,
     gravity: Vector2<f32>,
+    stepper: FixedStepper,
 }
 impl PlaygroundGame {
     pub fn new() -> PlaygroundGame {
@@ -58,6 +59,7 @@ impl PlaygroundGame {
             spawner: BunnySpawner::new(1000.0, 50, 1200.0, 150.0, 250.0),
             interactive_bodies: HashMap::new(),
             gravity: Vector2::new(0.0, 250.0),
+            stepper: FixedStepper::default(),
         }
     }
 
@@ -126,7 +128,7 @@ impl PlaygroundGame {
 
         let cloud_body_settings = BodySettings::from_values(1.0, 0.01, false);
         let cloud_constraint_settings =
-            SVGConstraintSettings::from_values(1.0, 1.0, 0.6, 0.8, 0.5, 5, 8, 2.0, 3);
+            SVGConstraintSettings::from_values(0.8, 0.8, 0.25, 0.6, 0.5, 5, 8, 2.0, 3);
 
         let mut cloud_bodies = self.load_svg_file(
             include_str!("../web/assets/clouds_foreground.svg"),
@@ -258,9 +260,9 @@ impl Game for PlaygroundGame {
         self.spawner.reset_runtime_state();
         self.spawner.update_settings(width, height);
 
-        let svg_body_settings = BodySettings::from_values(1.0, 0.01, false);
+        let svg_body_settings = BodySettings::from_values(1.0, 0.02, false);
         let svg_constraint_settings =
-            SVGConstraintSettings::from_values(0.5, 0.35, 0.3, 0.4, 0.5, 5, 8, 2.0, 3);
+            SVGConstraintSettings::from_values(0.1, 0.1, 0.1, 0.1, 0.2, 5, 8, 2.0, 3);
         let mut container_body = create_container(width, height, self.spawner.get_scale());
 
         container_body.children.extend(self.create_scene(
@@ -287,7 +289,7 @@ impl Game for PlaygroundGame {
 
         container_body.collision_constraint = Some(CollisionConstraint::new(0.99));
         self.bodies.push(container_body);
-        self.gravity = Vector2::new(0.0, height as f32 / 10.0);
+        self.gravity = Vector2::new(0.0, height as f32 / 5.0);
     }
 
     fn reset(&mut self, width: f32, height: f32) {
@@ -297,20 +299,14 @@ impl Game for PlaygroundGame {
     fn update(&mut self, incoming_events: VecDeque<Event>, dt_ms: f32) -> Vec<OutgoingEvent> {
         let outgoing_events = self.handle_interaction(incoming_events, dt_ms);
         let dt: f32 = dt_ms / 1000.0;
-        let settings = SolverSettings {
-            reference_dt: 1.0 / 60.0,
-            constraint_iterations: 6,
-        };
-        let capped_dt = dt.min(2.0 * settings.reference_dt);
-        if let Some((body, meta)) = self.spawner.update(capped_dt) {
+        if let Some((body, meta)) = self.spawner.update(dt) {
             self.meta_data.extend(meta);
             self.bodies[0].children.push(body);
         };
 
-        for body in self.bodies.iter_mut() {
-            let constant_force = chubby_bunny_core::force::constant_force(self.gravity);
-            body.perform_step(&[constant_force], capped_dt, &settings);
-        }
+        let constant_force = chubby_bunny_core::force::constant_force(self.gravity);
+        self.stepper
+            .advance(&mut self.bodies, &[constant_force], dt);
 
         outgoing_events
     }

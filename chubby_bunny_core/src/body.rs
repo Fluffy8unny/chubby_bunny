@@ -1,7 +1,6 @@
 use crate::collision_constraint::CollisionConstraint;
 use crate::{
     ExtrinsicConstraintType, FloatingPointNumber, Force, IntrinsicConstraint, Particle,
-    SolverSettings,
 };
 use itertools::Itertools;
 use nalgebra::Vector2;
@@ -231,13 +230,13 @@ impl<T: FloatingPointNumber> Body<T> {
             child.transform_constraints_recursive(transformation);
         }
     }
-    fn update_positions_recursively(&mut self, dt: T, solver_settings: &SolverSettings) {
+    fn update_positions_recursively(&mut self, dt: T) {
         for particle in self.particles.iter_mut() {
-            particle.post_integration_update(dt, solver_settings);
+            particle.post_integration_update(dt);
         }
 
         for child in self.children.iter_mut() {
-            child.update_positions_recursively(dt, solver_settings);
+            child.update_positions_recursively(dt);
         }
     }
 
@@ -258,24 +257,24 @@ impl<T: FloatingPointNumber> Body<T> {
         }
     }
 
-    fn solve_constraints_recursivly(&mut self, dt: T, solver_settings: &SolverSettings) {
+    fn solve_constraints_recursivly(&mut self) {
         crate::profile_scope!("Body::solve_constraints_recursivly");
 
         // Solve constraints to maintain this body's internal structure.
         for constraint in &self.constraints {
-            constraint.solve(&mut self.particles, dt, solver_settings);
+            constraint.solve(&mut self.particles);
         }
 
         // Solve constraints between this body and its direct children.
         for constraint in &self.children_constraints {
             match constraint {
                 ExtrinsicConstraintType::Global(c) => {
-                    c.solve(&mut self.children, &self.particles, dt, solver_settings)
+                    c.solve(&mut self.children, &self.particles)
                 }
                 ExtrinsicConstraintType::Local(c) => {
                     let id = c.get_id();
                     if let Some(child) = self.children.iter_mut().find(|child| child.id == id) {
-                        c.solve(child, &self.particles, dt, solver_settings);
+                        c.solve(child, &self.particles);
                     } else {
                         eprintln!(
                             "Child with id {} not found for local extrinsic constraint",
@@ -287,7 +286,7 @@ impl<T: FloatingPointNumber> Body<T> {
         }
 
         for child in self.children.iter_mut() {
-            child.solve_constraints_recursivly(dt, solver_settings);
+            child.solve_constraints_recursivly();
         }
 
         if let Some(collision_constraint) = &self.collision_constraint {
@@ -300,13 +299,14 @@ impl<T: FloatingPointNumber> Body<T> {
                 let (left, right) = self.children.split_at_mut(b_idx);
                 let child_a = &mut left[a_idx];
                 let child_b = &mut right[0];
-                collision_constraint.solve(child_a, child_b, dt, solver_settings);
+                collision_constraint.solve(child_a, child_b);
             }
         }
     }
 
-    /// Performs a simulation step for the body, applying forces, solving constraints, and updating particle positions.
-    pub fn perform_step<F>(&mut self, forces: &[F], dt: T, solver_settings: &SolverSettings)
+    /// Performs a single fixed-size simulation substep for the body, applying forces,
+    /// solving constraints once, and updating particle positions.
+    pub fn perform_step<F>(&mut self, forces: &[F], dt: T)
     where
         F: Force<T>,
     {
@@ -316,11 +316,10 @@ impl<T: FloatingPointNumber> Body<T> {
         self.apply_forces_recursively(forces, dt);
 
         //solve constraints of the body and between it and its chidlren
-        for _ in 0..solver_settings.constraint_iterations {
-            self.solve_constraints_recursivly(dt, solver_settings);
-        }
+        self.solve_constraints_recursivly();
+
         //update velocities after all forces and constraints are processed
-        self.update_positions_recursively(dt, solver_settings);
+        self.update_positions_recursively(dt);
     }
 }
 

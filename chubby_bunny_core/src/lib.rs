@@ -23,7 +23,9 @@ pub mod collision_constraint;
 pub use collision_constraint::CollisionConstraint;
 
 mod constraint_common;
-pub use constraint_common::SolverSettings;
+
+pub mod stepper;
+pub use stepper::FixedStepper;
 
 /// Opens a profiling scope when the `profiling` feature is enabled.
 ///

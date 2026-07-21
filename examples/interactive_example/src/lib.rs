@@ -4,7 +4,7 @@ use chubby_bunny_canvas_renderer::input::{Event, MouseButton, MouseEventType};
 use chubby_bunny_canvas_renderer::js_types::{default_meta, EventType, OutgoingEvent};
 use chubby_bunny_canvas_renderer::primitives::{create_polygon, SimpleBodySettings};
 use chubby_bunny_core::{
-    eps, Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, Particle, SolverSettings,
+    eps, Body, BodyId, CollisionConstraint, ExtrinsicConstraintType, FixedStepper, Particle,
     WallConstraint,
 };
 use chubby_bunny_svg::MetaMap;
@@ -15,6 +15,7 @@ struct InteractiveGame {
     bodies: Vec<Body>,
     meta_data: MetaMap,
     current_selection: Vec<BodyId>,
+    stepper: FixedStepper,
 }
 
 impl InteractiveGame {
@@ -23,6 +24,7 @@ impl InteractiveGame {
             bodies: Vec::new(),
             meta_data: MetaMap::new(),
             current_selection: Vec::new(),
+            stepper: FixedStepper::default(),
         }
     }
 
@@ -190,15 +192,9 @@ impl Game for InteractiveGame {
 
     fn update(&mut self, incoming_events: VecDeque<Event>, dt_ms: f32) -> Vec<OutgoingEvent> {
         let outgoing_events = self.handle_interaction(incoming_events, dt_ms);
-        let settings = SolverSettings {
-            reference_dt: 1.0 / 60.0,
-            constraint_iterations: 6,
-        };
         let dt = dt_ms / 1000.0;
-        for body in self.bodies.iter_mut() {
-            let constant_force = chubby_bunny_core::force::constant_force(Vector2::new(0.0, 250.0)); //px/s^2
-            body.perform_step(&[constant_force], dt, &settings);
-        }
+        let constant_force = chubby_bunny_core::force::constant_force(Vector2::new(0.0, 250.0)); //px/s^2
+        self.stepper.advance(&mut self.bodies, &[constant_force], dt);
         outgoing_events
     }
 

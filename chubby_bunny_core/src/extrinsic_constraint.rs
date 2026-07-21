@@ -1,5 +1,5 @@
-use crate::constraint_common::{get_distance_correction_vector, get_normal};
-use crate::{eps, Body, BodyId, FloatingPointNumber, Particle, SolverSettings, Transformation};
+use crate::constraint_common::{get_distance_correction_vector, get_normal, limited_stiffness};
+use crate::{eps, Body, BodyId, FloatingPointNumber, Particle, Transformation};
 use dyn_clone::DynClone;
 use std::collections::HashMap;
 
@@ -13,25 +13,13 @@ pub enum ExtrinsicConstraintType<T> {
 }
 /// Constraints that act on particles of multiple bodies, where the bodies influence each other.
 pub trait GlobalExtrinsicConstraint<T = f32>: DynClone {
-    fn solve(
-        &self,
-        bodies: &mut Vec<Body<T>>,
-        parent_particles: &[Particle<T>],
-        dt: T,
-        solver_settings: &SolverSettings,
-    );
+    fn solve(&self, bodies: &mut Vec<Body<T>>, parent_particles: &[Particle<T>]);
 }
 dyn_clone::clone_trait_object!(<T> GlobalExtrinsicConstraint<T>);
 
 /// Constraints that act on a single body, but depend on the state of other bodies.
 pub trait LocalExtrinsicConstraint<T = f32>: DynClone {
-    fn solve(
-        &self,
-        body: &mut Body<T>,
-        parent_particles: &[Particle<T>],
-        dt: T,
-        solver_settings: &SolverSettings,
-    );
+    fn solve(&self, body: &mut Body<T>, parent_particles: &[Particle<T>]);
     fn get_id(&self) -> BodyId;
     fn remap_body_ids(&mut self, _id_map: &HashMap<BodyId, BodyId>) {}
     fn transform_params(&mut self, _transformation: Transformation<T>) {}
@@ -53,13 +41,7 @@ pub struct WallConstraint<T> {
 }
 
 impl<T: FloatingPointNumber> GlobalExtrinsicConstraint<T> for WallConstraint<T> {
-    fn solve(
-        &self,
-        bodies: &mut Vec<Body<T>>,
-        parent_particles: &[Particle<T>],
-        _dt: T,
-        _solver_settings: &SolverSettings,
-    ) {
+    fn solve(&self, bodies: &mut Vec<Body<T>>, parent_particles: &[Particle<T>]) {
         crate::profile_scope!("WallConstraint::solve");
         for body in bodies.iter_mut() {
             let line_origin = parent_particles[self.parent_point_idx_origin].position;
@@ -124,7 +106,7 @@ impl<T: FloatingPointNumber> AttachmentConstraint<T> {
             point_idxs_parent,
             point_idxs_child,
             target_distances,
-            stiffness,
+            stiffness: limited_stiffness(stiffness),
         }
     }
 }
@@ -145,13 +127,7 @@ impl<T: FloatingPointNumber> LocalExtrinsicConstraint<T> for AttachmentConstrain
         }
     }
 
-    fn solve(
-        &self,
-        body: &mut Body<T>,
-        parent_particles: &[Particle<T>],
-        dt: T,
-        solver_settings: &SolverSettings,
-    ) {
+    fn solve(&self, body: &mut Body<T>, parent_particles: &[Particle<T>]) {
         crate::profile_scope!("AttachmentConstraint::solve");
         for ((parent_idx, child_idx), target_distance) in self
             .point_idxs_parent
@@ -166,8 +142,6 @@ impl<T: FloatingPointNumber> LocalExtrinsicConstraint<T> for AttachmentConstrain
                 child_particle,
                 self.stiffness,
                 *target_distance,
-                dt,
-                solver_settings,
             );
             body.particles[*child_idx].apply_position_correction_to_particle(&correction_vector);
         }

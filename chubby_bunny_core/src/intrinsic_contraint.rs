@@ -1,7 +1,5 @@
-use crate::constraint_common::{
-    constraint_alpha_with_reference_dt, distribute_based_on_mass, inverse_mass,
-};
-use crate::{eps, FloatingPointNumber, Particle, SolverSettings, Transformation};
+use crate::constraint_common::{distribute_based_on_mass, inverse_mass, limited_stiffness};
+use crate::{eps, FloatingPointNumber, Particle, Transformation};
 use dyn_clone::DynClone;
 use nalgebra::Vector2;
 
@@ -12,9 +10,9 @@ use nalgebra::Vector2;
 pub trait IntrinsicConstraint<T = f32>: DynClone {
     /// Applies one constraint projection step to the provided particle set.
     ///
-    /// `dt` (time delta between frames) and `solver_settings` are used to scale the internal parameters
-    /// consistently across varying frame times.
-    fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings);
+    /// The solver runs on a fixed timestep, so each call removes a `stiffness`-scaled
+    /// fraction of the constraint error and needs no time or iteration parameters.
+    fn solve(&self, particles: &mut Vec<Particle<T>>);
 
     /// Updates stored rest parameters after a geometric transformation.
     ///
@@ -58,17 +56,16 @@ impl<T: FloatingPointNumber> DistanceConstraint<T> {
             idx_left,
             idx_right,
             target_distance,
-            stiffness,
+            stiffness: limited_stiffness(stiffness),
             weight_factors: (weight_left, weight_right),
         }
     }
 }
 
 impl<T: FloatingPointNumber> IntrinsicConstraint<T> for DistanceConstraint<T> {
-    fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings) {
+    fn solve(&self, particles: &mut Vec<Particle<T>>) {
         crate::profile_scope!("DistanceConstraint::solve");
-        let alpha = constraint_alpha_with_reference_dt(self.stiffness, dt, solver_settings);
-        if alpha <= T::zero() {
+        if self.stiffness <= T::zero() {
             return;
         }
 
@@ -87,7 +84,7 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for DistanceConstraint<T> {
         }
 
         let distance_delta = self.target_distance - point_distance;
-        let correction = line_between * (alpha * distance_delta / point_distance);
+        let correction = line_between * (self.stiffness * distance_delta / point_distance);
 
         left.apply_position_correction_to_particle(&(-correction * self.weight_factors.0));
         right.apply_position_correction_to_particle(&(correction * self.weight_factors.1));
@@ -114,7 +111,7 @@ impl<T: FloatingPointNumber> AreaConstraint<T> {
         let rest_area = Self::calculate_signed_area(particles);
         Self {
             rest_area,
-            stiffness,
+            stiffness: limited_stiffness(stiffness),
         }
     }
 
@@ -132,7 +129,7 @@ impl<T: FloatingPointNumber> AreaConstraint<T> {
 }
 
 impl<T: FloatingPointNumber> IntrinsicConstraint<T> for AreaConstraint<T> {
-    fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings) {
+    fn solve(&self, particles: &mut Vec<Particle<T>>) {
         crate::profile_scope!("AreaConstraint::solve");
         if particles.len() < 3 {
             return;
@@ -144,8 +141,7 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for AreaConstraint<T> {
             return;
         }
 
-        let alpha = constraint_alpha_with_reference_dt(self.stiffness, dt, solver_settings);
-        if alpha <= T::zero() {
+        if self.stiffness <= T::zero() {
             return;
         }
 
@@ -166,7 +162,7 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for AreaConstraint<T> {
             return;
         }
 
-        let lambda = -alpha * c / weighted_gradient_sum;
+        let lambda = -self.stiffness * c / weighted_gradient_sum;
         for i in 0..n {
             let correction = grads[i] * (lambda * inverse_mass(&particles[i]));
             particles[i].apply_position_correction_to_particle(&correction);
@@ -212,7 +208,7 @@ impl<T: FloatingPointNumber> BendingConstraint<T> {
             idx_center,
             idx_next,
             rest_angle,
-            stiffness,
+            stiffness: limited_stiffness(stiffness),
         }
     }
 
@@ -246,7 +242,7 @@ impl<T: FloatingPointNumber> BendingConstraint<T> {
 }
 
 impl<T: FloatingPointNumber> IntrinsicConstraint<T> for BendingConstraint<T> {
-    fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings) {
+    fn solve(&self, particles: &mut Vec<Particle<T>>) {
         crate::profile_scope!("BendingConstraint::solve");
         let [prev_particle, center_particle, next_particle] = particles
             .get_disjoint_mut([self.idx_prev, self.idx_center, self.idx_next])
@@ -270,8 +266,7 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for BendingConstraint<T> {
             return;
         }
 
-        let alpha = constraint_alpha_with_reference_dt(self.stiffness, dt, solver_settings);
-        let c_scaled = c * alpha;
+        let c_scaled = c * self.stiffness;
 
         let grad_prev = Vector2::new(v_prev.y, -v_prev.x) / prev_len_sq;
         let grad_next = Vector2::new(-v_next.y, v_next.x) / next_len_sq;

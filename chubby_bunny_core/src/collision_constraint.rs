@@ -1,6 +1,6 @@
 use crate::{
     constraint_common::{distribute_based_on_mass, get_normal},
-    eps, Body, FloatingPointNumber, SolverSettings,
+    eps, Body, FloatingPointNumber,
 };
 use itertools::Itertools;
 use nalgebra::Vector2;
@@ -301,9 +301,8 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
         contained_body: &mut Body<T>,
         container_body: &mut Body<T>,
         contacts: &[ContainmentContact<T>],
-        time_correction_factor: T,
     ) {
-        let correction_scale = self.stiffness * time_correction_factor;
+        let correction_scale = self.stiffness;
         for contact in contacts {
             let correction_vector = contact.normal * correction_scale * contact.penetration_depth;
             contained_body.particles[contact.contained_point_idx]
@@ -331,7 +330,6 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
         body_b: &mut Body<T>,
         edges_a: &[Edge<T>],
         edges_b: &[Edge<T>],
-        time_correction_factor: T,
     ) {
         let mut sorted_edges_a: Vec<&Edge<T>> = edges_a.iter().collect();
         let mut sorted_edges_b: Vec<&Edge<T>> = edges_b.iter().collect();
@@ -374,10 +372,8 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
                 let Some(intersection) = segment_intersection(edge_a, edge_b) else {
                     continue;
                 };
-                let correction_vector = intersection.normal
-                    * self.stiffness
-                    * time_correction_factor
-                    * intersection.penetration_depth;
+                let correction_vector =
+                    intersection.normal * self.stiffness * intersection.penetration_depth;
                 self.apply_position_correction_to_edge(
                     body_a,
                     edge_a.idx_a,
@@ -400,34 +396,24 @@ impl<T: FloatingPointNumber> CollisionConstraint<T> {
         &self,
         body_a: &mut Body<T>,
         body_b: &mut Body<T>,
-        time_correction_factor: T,
     ) -> (Vec<Edge<T>>, Vec<Edge<T>>) {
         let edges_a = self.build_filtered_edges(body_a);
         let edges_b = self.build_filtered_edges(body_b);
 
-        self.resolve_sorted_edge_pairs(body_a, body_b, &edges_a, &edges_b, time_correction_factor);
+        self.resolve_sorted_edge_pairs(body_a, body_b, &edges_a, &edges_b);
 
         (edges_a, edges_b)
     }
 
-    pub fn solve(
-        &self,
-        body_a: &mut Body<T>,
-        body_b: &mut Body<T>,
-        dt: T,
-        solver_settings: &SolverSettings,
-    ) {
+    pub fn solve(&self, body_a: &mut Body<T>, body_b: &mut Body<T>) {
         crate::profile_scope!("CollisionConstraint::solve");
 
-        let time_correction_factor = dt
-            / T::from(solver_settings.reference_dt * solver_settings.constraint_iterations as f32);
-        let (edges_a, edges_b) =
-            self.handle_edge_intersections(body_a, body_b, time_correction_factor);
+        let (edges_a, edges_b) = self.handle_edge_intersections(body_a, body_b);
 
         let contacts_a_in_b = find_containment_contacts(body_a, body_b, &edges_b);
-        self.resolve_containment_contacts(body_a, body_b, &contacts_a_in_b, time_correction_factor);
+        self.resolve_containment_contacts(body_a, body_b, &contacts_a_in_b);
 
         let contacts_b_in_a = find_containment_contacts(body_b, body_a, &edges_a);
-        self.resolve_containment_contacts(body_b, body_a, &contacts_b_in_a, time_correction_factor);
+        self.resolve_containment_contacts(body_b, body_a, &contacts_b_in_a);
     }
 }
