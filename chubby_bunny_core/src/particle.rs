@@ -50,6 +50,7 @@ where
 
     /// Applies a position correction to the particle, typically used to resolve constraints.
     /// Pinned particles ignore position corrections to keep them fixed in place.
+    #[inline]
     pub fn apply_position_correction_to_particle(&mut self, position_correction: &Vector2<T>) {
         if self.pinned {
             return;

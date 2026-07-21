@@ -11,6 +11,7 @@ pub struct SolverSettings {
 
 /// Calculates the alpha value for a constraint based on its stiffness, the time step, and the solver settings.
 /// This ensures that the constraint behaves consistently across varying frame times and solver iteration counts.
+#[inline]
 pub fn constraint_alpha_with_reference_dt<T: FloatingPointNumber>(
     stiffness: T,
     dt: T,
@@ -24,6 +25,7 @@ pub fn constraint_alpha_with_reference_dt<T: FloatingPointNumber>(
 /// Calculates the correction vector needed to maintain a target distance between two particles.
 ///
 /// Used in all distance based constraints, such as `DistanceConstraint` and `AttachmentConstraint`.
+#[inline]
 pub fn get_distance_correction_vector<T: FloatingPointNumber>(
     particle_a: &Particle<T>,
     particle_b: &Particle<T>,
@@ -45,6 +47,7 @@ pub fn get_distance_correction_vector<T: FloatingPointNumber>(
 }
 
 /// Simple 2d normal, it's used all over the place
+#[inline]
 pub fn get_normal<T: FloatingPointNumber>(
     start: Vector2<T>,
     end: Vector2<T>,
@@ -57,6 +60,7 @@ pub fn get_normal<T: FloatingPointNumber>(
 }
 /// Distributes correction weights between two particles based on their masses,
 ///  so that heavier particles receive less correction and lighter particles receive more correction.
+#[inline]
 pub fn distribute_based_on_mass<T: FloatingPointNumber>(
     particle_a: &Particle<T>,
     particle_b: &Particle<T>,

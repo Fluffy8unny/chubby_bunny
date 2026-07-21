@@ -32,17 +32,25 @@ pub struct DistanceConstraint<T> {
     pub target_distance: T,
     /// Solver stiffness in `[0, 1]` where higher values enforce the target more strongly.
     pub stiffness: T,
+
+    pub weight_factors: (T, T),
 }
 
 impl<T: FloatingPointNumber> DistanceConstraint<T> {
     /// Builds a distance constraint from two particle indices and current positions.
     pub fn new(idx_left: usize, idx_right: usize, particles: &[Particle<T>], stiffness: T) -> Self {
+        assert_ne!(idx_left, idx_right, "DistanceConstraint requires two distinct particle indices");
+
         let target_distance = (particles[idx_right].position - particles[idx_left].position).norm();
+        let (weight_left, weight_right) =
+            distribute_based_on_mass(&particles[idx_left], &particles[idx_right], T::from(0.5_f32), T::from(0.5_f32));
+
         Self {
             idx_left,
             idx_right,
             target_distance,
             stiffness,
+            weight_factors: (weight_left, weight_right),
         }
     }
 }
@@ -55,15 +63,13 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for DistanceConstraint<T> {
             return;
         }
 
-        let left_idx = self.idx_left;
-        let right_idx = self.idx_right;
-        let (left, right) = if left_idx < right_idx {
-            let (a, b) = particles.split_at_mut(right_idx);
-            (&mut a[left_idx], &mut b[0])
-        } else {
-            let (a, b) = particles.split_at_mut(left_idx);
-            (&mut b[0], &mut a[right_idx])
-        };
+        let [left, right] = particles
+            .get_disjoint_mut([self.idx_left, self.idx_right])
+            .unwrap();//we checked at construction time that the indices are distinct, so this unwrap is safe
+
+        if left.pinned && right.pinned {
+            return;
+        }
 
         let line_between = right.position - left.position;
         let point_distance = line_between.norm();
@@ -74,15 +80,8 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for DistanceConstraint<T> {
         let distance_delta = self.target_distance - point_distance;
         let correction = line_between * (alpha * distance_delta / point_distance);
 
-        if left.pinned && right.pinned {
-            return;
-        }
-
-        let (weight_left, weight_right) =
-            distribute_based_on_mass(left, right, T::from(0.5_f32), T::from(0.5_f32));
-
-        left.apply_position_correction_to_particle(&(-correction * weight_left));
-        right.apply_position_correction_to_particle(&(correction * weight_right));
+        left.apply_position_correction_to_particle(&(-correction * self.weight_factors.0));
+        right.apply_position_correction_to_particle(&(correction * self.weight_factors.1));
     }
 
     fn transform_params(&mut self, transformation: Transformation<T>) {
@@ -189,6 +188,7 @@ impl<T: FloatingPointNumber> BendingConstraint<T> {
     /// Builds a bending constraint around `idx_center` and its ring neighbors.
     pub fn new(idx_center: usize, particles: &[Particle<T>], stiffness: T) -> Self {
         let n = particles.len();
+        assert!(n >= 3, "BendingConstraint requires at least 3 particles to have distinct prev/center/next neighbors");
         let idx_prev = (idx_center + n - 1) % n;
         let idx_next = (idx_center + 1) % n;
 
@@ -221,25 +221,30 @@ impl<T: FloatingPointNumber> BendingConstraint<T> {
     }
 
     /// Normalizes angle to `[-pi, pi]`.
-    fn wrap_angle_to_pi(mut angle: T) -> T {
+    fn wrap_angle_to_pi(angle: T) -> T {
         let pi = T::pi();
         let two_pi = pi * T::from(2.0);
-        while angle > pi {
-            angle -= two_pi;
+        // The angle can't be more than 2 pi away from the range, so we can just add/subtract 2 pi once to bring it into range.
+        if angle > pi {
+            angle - two_pi
+        } else if angle < -pi {
+            angle + two_pi
+        } else {
+            angle
         }
-        while angle < -pi {
-            angle += two_pi;
-        }
-        angle
     }
 }
 
 impl<T: FloatingPointNumber> IntrinsicConstraint<T> for BendingConstraint<T> {
     fn solve(&self, particles: &mut Vec<Particle<T>>, dt: T, solver_settings: &SolverSettings) {
         crate::profile_scope!("BendingConstraint::solve");
-        let prev = particles[self.idx_prev].position;
-        let center = particles[self.idx_center].position;
-        let next = particles[self.idx_next].position;
+        let [prev_particle, center_particle, next_particle] = particles
+            .get_disjoint_mut([self.idx_prev, self.idx_center, self.idx_next])
+            .unwrap(); //we checked at construction time that the indices are distinct, so this unwrap is safe
+
+        let prev = prev_particle.position;
+        let center = center_particle.position;
+        let next = next_particle.position;
 
         let (v_prev, v_next) = Self::get_edges(prev, center, next);
 
@@ -270,8 +275,8 @@ impl<T: FloatingPointNumber> IntrinsicConstraint<T> for BendingConstraint<T> {
 
         let lambda = -c_scaled / denom;
 
-        particles[self.idx_prev].apply_position_correction_to_particle(&(grad_prev * lambda));
-        particles[self.idx_center].apply_position_correction_to_particle(&(grad_center * lambda));
-        particles[self.idx_next].apply_position_correction_to_particle(&(grad_next * lambda));
+        prev_particle.apply_position_correction_to_particle(&(grad_prev * lambda));
+        center_particle.apply_position_correction_to_particle(&(grad_center * lambda));
+        next_particle.apply_position_correction_to_particle(&(grad_next * lambda));
     }
 }
