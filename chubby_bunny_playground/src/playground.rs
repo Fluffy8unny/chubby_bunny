@@ -26,8 +26,8 @@ fn create_container(width: usize, height: usize, max_scale: f32) -> Body {
     };
     create_particle_helper(0_f32, height as f32);
     create_particle_helper(width as f32, height as f32);
-    create_particle_helper(width as f32, -max_scale);
-    create_particle_helper(0_f32, -max_scale);
+    create_particle_helper(width as f32, -2.0 * max_scale);
+    create_particle_helper(0_f32, -2.0 * max_scale);
 
     for i in 0..4 {
         container_body
@@ -260,9 +260,9 @@ impl Game for PlaygroundGame {
         self.spawner.reset_runtime_state();
         self.spawner.update_settings(width, height);
 
-        let svg_body_settings = BodySettings::from_values(1.0, 1.44, false);
+        let svg_body_settings = BodySettings::from_values(1.0, 1.84, false);
         let svg_constraint_settings =
-            SVGConstraintSettings::from_values(0.05, 0.02, 0.015, 0.03, 0.1, 5, 8, 2.0, 3);
+            SVGConstraintSettings::from_values(0.03, 0.02, 0.015, 0.015, 0.125, 5, 8, 2.0, 3);
         let mut container_body = create_container(width, height, self.spawner.get_scale());
 
         container_body.children.extend(self.create_scene(

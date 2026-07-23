@@ -12,9 +12,6 @@ pub struct FixedStepper {
     fixed_dt: f32,
     /// Upper bound on substeps
     max_substeps: usize,
-    /// Number of XPBD solver passes run within each substep. More passes let corrections propagate
-    /// through coupled constraints, converging each body toward its compliant solution (stiffer feel).
-    iterations: usize,
     /// Unconsumed real time carried over between frames.
     accumulator: f32,
 }
@@ -28,7 +25,6 @@ impl FixedStepper {
         Self {
             fixed_dt,
             max_substeps,
-            iterations,
             accumulator: 0.0,
         }
     }
@@ -46,7 +42,7 @@ impl FixedStepper {
         let step_dt = T::from(self.fixed_dt);
         while self.accumulator >= self.fixed_dt {
             for body in bodies.iter_mut() {
-                body.perform_step(forces, step_dt, self.iterations);
+                body.perform_step(forces, step_dt);
             }
             self.accumulator -= self.fixed_dt;
         }
